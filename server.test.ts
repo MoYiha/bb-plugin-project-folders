@@ -187,7 +187,36 @@ describe("project folder boundaries", () => {
         folderId: f.id,
         request,
       });
+      await h.harness.behavior.callRpc("spawn", {
+        projectId: "p1",
+        folderId: f.id,
+        request: {
+          ...request,
+          environment: {
+            type: "provider",
+            environmentProviderId: "project-checkout",
+            machine: { type: "existing", hostId: "h1" },
+            inputs: { path: "/work/nested" },
+          },
+        },
+      });
+      await expect(
+        h.harness.behavior.callRpc("spawn", {
+          projectId: "p1",
+          folderId: f.id,
+          request: {
+            ...request,
+            environment: {
+              type: "provider",
+              environmentProviderId: "project-checkout",
+              machine: { type: "existing", hostId: "wrong-host" },
+              inputs: {},
+            },
+          },
+        }),
+      ).rejects.toThrow();
       const calls = h.harness.inspection.sdk.callsTo("threads.spawn");
+      expect(calls).toHaveLength(2);
       expect(JSON.stringify(calls)).toContain("/work/nested");
       expect(JSON.stringify(calls)).toContain("selected-model");
       expect(JSON.stringify(calls)).toContain("attachment.pdf");

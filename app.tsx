@@ -1147,6 +1147,7 @@ function ArchiveList() {
   );
 }
 function Panel({ subPath }: PluginNavPanelProps) {
+  const [submitError, setSubmitError] = useState("");
   useLanguage();
   const { rpc, data, error, refresh } = useTree();
   const [modal, setModal] = useState<Modal | null>(null);
@@ -1156,9 +1157,51 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [action, projectId, folderId] = (subPath || "")
     .replace(/^\//, "")
     .split("/");
-  const f = data.folders.find(
-    (f) => f.id === folderId && f.projectId === projectId,
+  const f =
+    data.folders.find((f) => f.id === folderId && f.projectId === projectId) ??
+    data.roots.find(
+      (r) => r.projectId === projectId && folderId === `root:${r.hostId}`,
+    );
+  const rootSelected = folderId?.startsWith("root:") ?? false;
+  const sectionMenu = (r: Folder, depth = 0): React.ReactNode => (
+    <div key={`${r.id}:${r.hostId}`}>
+      <DropdownMenuItem
+        onSelect={() => {
+          setSubmitError("");
+          nav.toPluginPanel("folders", {
+            subPath: `chat/${r.projectId}/${depth === 0 ? `root:${r.hostId}` : r.id}`,
+          });
+        }}
+        style={{ paddingInlineStart: 12 + depth * 18 }}
+      >
+        <Icon name="Folder" />
+        {r.name}
+        {f?.path === r.path && f?.hostId === r.hostId ? " ✓" : ""}
+      </DropdownMenuItem>
+      {data.folders
+        .filter(
+          (c) =>
+            c.projectId === r.projectId &&
+            c.hostId === r.hostId &&
+            c.parentId === (depth === 0 ? null : r.id),
+        )
+        .map((c) => sectionMenu(c, depth + 1))}
+    </div>
   );
+  const selectedNames: string[] = [];
+  let ancestor = f;
+  const visited = new Set<string>();
+  while (ancestor && !visited.has(ancestor.id)) {
+    visited.add(ancestor.id);
+    selectedNames.unshift(ancestor.name);
+    ancestor = ancestor.parentId
+      ? data.folders.find((x) => x.id === ancestor!.parentId)
+      : undefined;
+  }
+  const projectName = data.roots.find(
+    (r) => r.projectId === projectId && r.hostId === f?.hostId,
+  )?.name;
+  if (!rootSelected && projectName) selectedNames.unshift(projectName);
   const card = (r: Folder, root = false): React.ReactNode => (
     <div className={root ? "pf-card" : "border-l pl-4 mt-4"} key={r.id}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1244,24 +1287,52 @@ function Panel({ subPath }: PluginNavPanelProps) {
   if (action === "chat")
     return f ? (
       <div className="pf-native-compose">
+        <div className="pf-section-picker px-4 py-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" aria-label={t("Проекты и разделы")}>
+                <Icon name="Folder" />
+                {selectedNames.join(" / ")}
+                <Icon name="ChevronDown" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-80 overflow-auto min-w-64">
+              {data.roots.map((r) => sectionMenu(r))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <p className="pf-folder-path text-xs mt-1">{f.path}</p>
+        </div>
+        {submitError && (
+          <p role="alert" className="text-destructive p-4">
+            {submitError}
+          </p>
+        )}
         <NewThreadComposer
           key={f.id}
           defaultProjectId={projectId}
           defaultEnvironment={{
-            type: "host",
-            hostId: f.hostId,
-            workspace: { type: "unmanaged", path: f.path },
+            type: "provider",
+            environmentProviderId: "project-checkout",
+            machine: { type: "existing", hostId: f.hostId },
+            inputs: { path: f.path },
           }}
           draftKey={`project-folders:${f.id}`}
           layout="document"
           className="w-full"
           onSubmit={async (request) => {
-            const t = await rpc.call("spawn", {
-              projectId,
-              folderId,
-              request: request as unknown as ComposerRequest,
-            });
-            nav.toThread(t.id);
+            setSubmitError("");
+            try {
+              const t = await rpc.call("spawn", {
+                projectId,
+                folderId: rootSelected ? null : folderId,
+                hostId: f.hostId,
+                request: request as unknown as ComposerRequest,
+              });
+              nav.toThread(t.id);
+            } catch (e) {
+              setSubmitError(e instanceof Error ? e.message : String(e));
+              throw e;
+            }
           }}
         />
       </div>

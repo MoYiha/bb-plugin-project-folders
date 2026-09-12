@@ -688,7 +688,12 @@ export default async function plugin(bb: BbPluginApi) {
             "The selected environment does not match the section folder.",
           );
       }
-      if (req.environment.type === "provider")
+      if (
+        req.environment.type === "provider" &&
+        (req.environment.environmentProviderId !== "project-checkout" ||
+          req.environment.machine?.type !== "existing" ||
+          req.environment.machine.hostId !== f.hostId)
+      )
         throw new Error(
           "Select a working copy on the section’s device for this chat.",
         );
@@ -700,15 +705,28 @@ export default async function plugin(bb: BbPluginApi) {
       const t = await bb.sdk.threads.spawn({
         ...req,
         projectId: f.projectId,
-        environment: {
-          type: "host",
-          hostId: f.hostId,
-          workspace: {
-            type: "unmanaged",
-            path: f.path,
-            ...(branch ? { branch } : {}),
-          },
-        },
+        environment:
+          req.environment.type === "provider"
+            ? {
+                ...req.environment,
+                inputs: {
+                  ...(req.environment.inputs &&
+                  typeof req.environment.inputs === "object" &&
+                  !Array.isArray(req.environment.inputs)
+                    ? req.environment.inputs
+                    : {}),
+                  path: f.path,
+                },
+              }
+            : {
+                type: "host",
+                hostId: f.hostId,
+                workspace: {
+                  type: "unmanaged",
+                  path: f.path,
+                  ...(branch ? { branch } : {}),
+                },
+              },
       });
       sync(t.id).catch((e) => bb.log.warn(String(e)));
       changed();

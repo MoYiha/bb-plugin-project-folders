@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+Add a hierarchical project/section destination picker and show the selected working path above the native composer. Fix section chat creation with the native project-checkout environment provider. Preserve composer selections, enforce the section device and directory, and display submission errors without clearing the draft.
+
 ## 0.3.0
 
 Move an entire project directory on the same host and volume, including hidden files, rules, sections and archives. Keep existing chat paths working through a compatibility link. Journal interrupted moves for retry, update project/section/archive paths and block active-work relocation. Add translated move dialogs in all 11 languages.
