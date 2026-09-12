@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+Show the project and nested section hierarchy in the existing project label of created chats. Labels are scoped to each conversation and restored on unload.
+
 ## 0.3.2
 
 Integrate the destination tree into the existing project-control position beneath the composer, removing the extra selector and path block.

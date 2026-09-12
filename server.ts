@@ -39,6 +39,12 @@ const requestSchema = z.object({
 });
 export type ComposerRequest = z.input<typeof requestSchema>;
 export const rpcContract = defineRpcContract({
+  thread_section: {
+    input: z.object({ threadId: z.string() }),
+    output: z
+      .object({ label: z.string(), path: z.string(), projectName: z.string() })
+      .nullable(),
+  },
   project_move: {
     input: z.object({
       projectId: z.string(),
@@ -472,6 +478,30 @@ export default async function plugin(bb: BbPluginApi) {
       : { action: "proceed" };
   });
   bb.rpc.register(rpcContract, {
+    thread_section: async ({ threadId }) => {
+      const { f } = await locate(threadId);
+      const all = folders();
+      if (!all.some((x) => x.id === f.id)) return null;
+      const project = (await bb.sdk.projects.list()).find(
+        (p) => p.id === f.projectId,
+      );
+      if (!project) return null;
+      const names: string[] = [];
+      let current: Folder | undefined = f;
+      const visited = new Set<string>();
+      while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        names.unshift(current.name);
+        current = current.parentId
+          ? all.find((x) => x.id === current!.parentId)
+          : undefined;
+      }
+      return {
+        label: [project.name, ...names].join(" / "),
+        path: f.path,
+        projectName: project.name,
+      };
+    },
     project_move: (input) => moves.move(input),
     pending_moves: async () => moves.list().filter((m) => !m.complete),
     archive_list: async () => ({ archives: archives.list() }),

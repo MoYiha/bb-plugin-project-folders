@@ -1,3 +1,4 @@
+import { ThreadSectionLabel } from "./thread-section-label";
 import { MoveDialog, PendingMoves } from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import { sortChats } from "./chat-list";
@@ -1439,6 +1440,11 @@ function Panel({ subPath }: PluginNavPanelProps) {
   );
 }
 export default definePluginApp((app) => {
+  app.slots.experimental_threadHeaderAction({
+    id: "section-label",
+    title: "Section location",
+    component: ThreadSectionLabel,
+  });
   app.slots.experimental_threadList({
     id: "tree",
     title: t("Проекты и разделы"),
