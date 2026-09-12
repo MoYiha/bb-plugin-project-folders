@@ -76,5 +76,10 @@
   "Незавершённые переносы": "Movimentações pendentes",
   "Переместить в подраздел…": "Mover para uma seção…",
   "Выберите подраздел на том же устройстве. История чата сохранится.": "Escolha uma seção no mesmo dispositivo. O histórico do chat será preservado.",
-  "Перенос чата…": "Movendo chat…"
+  "Перенос чата…": "Movendo chat…",
+  "Новая папка": "Nova pasta",
+  "Название папки": "Nome da pasta",
+  "Удалить пустую папку": "Excluir pasta vazia",
+  "Папки с файлами не удаляются. Для разделов используйте архив.": "Pastas com arquivos não são excluídas. Para seções, use o arquivo.",
+  "Удалить": "Excluir"
 }

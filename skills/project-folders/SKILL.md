@@ -21,3 +21,5 @@ Use the project card or three-dot Move action to select a new path on the same h
 Development build: `thread_move` RPC accepts `{ threadId, projectId, folderId, hostId }`; `folderId: null` selects the project root. The UI exposes Move to section in the shared right-click/ellipsis menu and drag/drop. Requires the companion core native directory-update API. Only idle/error chats on the same project and machine can move. History stays in BB; dedicated `.bb/chats/<id>` storage moves, repository files do not. Retry the same destination after an interrupted move.
 
 CLI: `bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>`. A dash selects the project root.
+
+Folder picker: project and section creation dialogs can create child folders on the selected host. Deletion is confirmed and uses nonrecursive rmdir; nonempty, symlink, and registered project/section directories are rejected. Use archive/restore for sections with history.

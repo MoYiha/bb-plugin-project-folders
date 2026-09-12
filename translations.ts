@@ -89,4 +89,10 @@ export const english = {
   "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.":
     "Choose a new, nonexistent path on the same disk volume. Finish running chats first.",
   "Незавершённые переносы": "Unfinished moves",
+  "Новая папка": "New folder",
+  "Название папки": "Folder name",
+  "Удалить пустую папку": "Delete empty folder",
+  "Папки с файлами не удаляются. Для разделов используйте архив.":
+    "Folders containing files cannot be deleted. Use the archive for sections.",
+  Удалить: "Delete",
 } as const;

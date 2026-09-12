@@ -293,3 +293,82 @@
   height: 16px;
   flex-shrink: 0;
 }
+
+.pf-native-browser {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pf-browser-toolbar,
+.pf-browser-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pf-browser-toolbar {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border, #ddd);
+}
+.pf-browser-location {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.pf-native-browser button[data-slot="button"],
+.pf-browser-toolbar > button,
+.pf-browser-row > button {
+  flex-shrink: 0;
+}
+.pf-browser-toolbar > button,
+.pf-browser-row > button {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+.pf-native-browser svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.pf-browser-entries {
+  height: 224px;
+  overflow: auto;
+  padding: 4px 6px;
+}
+.pf-browser-entries p {
+  font-size: 12px;
+  padding: 6px;
+}
+.pf-browser-enter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  text-align: start;
+  border-radius: 4px;
+  font-size: 14px;
+}
+.pf-browser-enter:hover {
+  background: var(--muted, #eee);
+}
+.pf-browser-enter span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-browser-row input {
+  min-width: 0;
+  height: 28px;
+  font-size: 14px;
+}
+.pf-browser-confirm {
+  padding: 8px;
+}
+.pf-browser-confirm > button {
+  margin-inline-end: 8px;
+}

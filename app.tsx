@@ -1,3 +1,4 @@
+import { FolderBrowser } from "./folder-browser";
 import { ThreadSectionLabel } from "./thread-section-label";
 import { MoveDialog, PendingMoves } from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
@@ -300,47 +301,60 @@ function FolderDialog({
         )}
         {browse !== null ? (
           <>
-            <div className="pf-folder-path">
-              {folderPath}
-              {browse ? "/" + browse : ""}
-            </div>
-            <div className="pf-folder-picker">
-              {browse && (
-                <button
-                  onClick={() =>
-                    setBrowse(browse.split("/").slice(0, -1).join("/"))
-                  }
-                >
-                  <Icon name="ChevronLeft" />
-                  {t("На уровень выше")}
-                </button>
-              )}
-              {loading ? (
-                <p>{t("Загрузка…")}</p>
-              ) : (
-                dirs.map((d) => (
-                  <button
-                    key={d.relative}
-                    onClick={() => setBrowse(d.relative)}
-                  >
-                    <Icon name="Folder" />
-                    {d.name}
-                    <Icon name="ChevronRight" className="ml-auto" />
-                  </button>
-                ))
-              )}
-              {!loading && !dirs.length && (
-                <p className="text-muted-foreground p-3">
-                  {t("Нет вложенных папок")}
-                </p>
-              )}
-            </div>
+            <FolderBrowser
+              key={hostId + browse}
+              hostId={hostId}
+              path={
+                (folderPath ?? "").replace(/\/$/, "") +
+                (browse ? "/" + browse : "")
+              }
+              parent={
+                browse
+                  ? (folderPath ?? "").replace(/\/$/, "") +
+                    "/" +
+                    browse.split("/").slice(0, -1).join("/")
+                  : null
+              }
+              directories={dirs.map((d) => ({
+                name: d.name,
+                path: (folderPath ?? "").replace(/\/$/, "") + "/" + d.relative,
+              }))}
+              loading={loading || busy}
+              navigate={(p) =>
+                setBrowse(
+                  p
+                    .slice((folderPath ?? "").replace(/\/$/, "").length)
+                    .replace(/^\//, ""),
+                )
+              }
+              refresh={() => {
+                if (modal) {
+                  setLoading(true);
+                  void rpc
+                    .call("browse", {
+                      ...modal.target,
+                      hostId,
+                      relative: browse,
+                    })
+                    .then(
+                      (r) => setDirs(r.directories),
+                      (e) => setError(String(e)),
+                    )
+                    .finally(() => setLoading(false));
+                }
+              }}
+              onBusyChange={setBusy}
+            />
             <DialogFooter>
-              <Button variant="outline" onClick={() => setBrowse(null)}>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => setBrowse(null)}
+              >
                 {t("Назад")}
               </Button>
               <Button
-                disabled={!browse || loading}
+                disabled={busy || !browse || loading}
                 onClick={() => {
                   setRelative(browse);
                   setPicked(true);
@@ -655,34 +669,29 @@ function ProjectDialog({
         </label>
         {browse ? (
           <>
-            <p className="pf-folder-path">{listing?.path}</p>
-            <div className="pf-folder-picker">
-              {listing?.parent && (
-                <button
-                  disabled={loading}
-                  onClick={() => void enter(listing.parent!)}
-                >
-                  <Icon name="ChevronLeft" />
-                  {t("На уровень выше")}
-                </button>
-              )}
-              {listing?.directories.map((d) => (
-                <button
-                  disabled={loading}
-                  key={d.path}
-                  onClick={() => void enter(d.path)}
-                >
-                  <Icon name="Folder" />
-                  {d.name}
-                </button>
-              ))}
-            </div>
+            {listing && (
+              <FolderBrowser
+                key={hostId + listing.path}
+                hostId={hostId}
+                path={listing.path}
+                parent={listing.parent}
+                directories={listing.directories}
+                loading={loading || busy}
+                navigate={(p) => void enter(p)}
+                refresh={() => void enter(listing.path)}
+                onBusyChange={setBusy}
+              />
+            )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setBrowse(false)}>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => setBrowse(false)}
+              >
                 {t("Назад")}
               </Button>
               <Button
-                disabled={loading || !listing}
+                disabled={busy || loading || !listing}
                 onClick={() => {
                   setChosen(listing!.path);
                   if (!name) setName(listing!.path.split("/").at(-1) ?? "");

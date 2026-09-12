@@ -1,3 +1,4 @@
+import { moveHostContract } from "./move-contract";
 import { makeThreadMoves } from "./thread-move";
 import { makeProjectMoves } from "./project-move";
 import { randomUUID } from "node:crypto";
@@ -85,6 +86,15 @@ export const rpcContract = defineRpcContract({
         z.object({ id: z.string(), name: z.string(), connected: z.boolean() }),
       ),
     }),
+  },
+  folder_edit: {
+    input: z.object({
+      hostId: z.string().min(1),
+      parent: z.string().min(1),
+      name: z.string().min(1).max(255),
+      action: z.enum(["create", "delete"]),
+    }),
+    output: z.object({ path: z.string() }),
   },
   project_browse: {
     input: z.object({ hostId: z.string().min(1), path: z.string().optional() }),
@@ -590,6 +600,53 @@ export default async function plugin(bb: BbPluginApi) {
         connected: h.status === "connected",
       })),
     }),
+    folder_edit: async (input) => {
+      if (
+        !path.isAbsolute(input.parent) ||
+        input.name === "." ||
+        input.name === ".." ||
+        /[\\/\x00-\x1f]/.test(input.name)
+      )
+        throw new Error("Invalid folder name.");
+      const host = (await bb.sdk.hosts.list()).find(
+        (h) => h.id === input.hostId && h.status === "connected",
+      );
+      if (!host) throw new Error("The device is offline.");
+      let protectedPaths: string[] = [];
+      if (input.action === "delete") {
+        const target = path.resolve(input.parent, input.name);
+        const projects = await bb.sdk.projects.list();
+        protectedPaths = [
+          ...folders()
+            .filter((f) => f.hostId === host.id)
+            .map((f) => f.path),
+          ...projects.flatMap((p) =>
+            p.sources.flatMap((s) =>
+              s.type === "local_path" && s.hostId === host.id ? [s.path] : [],
+            ),
+          ),
+        ];
+        if (
+          folders().some(
+            (f) => f.hostId === host.id && path.resolve(f.path) === target,
+          ) ||
+          projects.some((p) =>
+            p.sources.some(
+              (s) =>
+                s.type === "local_path" &&
+                s.hostId === host.id &&
+                path.resolve(s.path) === target,
+            ),
+          )
+        )
+          throw new Error(
+            "This folder belongs to a project or section. Use its archive action.",
+          );
+      }
+      return bb.hosts
+        .experimental_client({ contract: moveHostContract })
+        .call("folder_edit", { ...input, protectedPaths }, { hostId: host.id });
+    },
     project_browse: async (input) => {
       const h = (await bb.sdk.hosts.list()).find(
         (h) => h.id === input.hostId && h.status === "connected",

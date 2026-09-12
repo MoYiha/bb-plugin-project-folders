@@ -76,5 +76,10 @@
   "Незавершённые переносы": "Unvollständige Verschiebungen",
   "Переместить в подраздел…": "In einen Bereich verschieben…",
   "Выберите подраздел на том же устройстве. История чата сохранится.": "Wähle einen Bereich auf demselben Gerät. Der Chatverlauf bleibt erhalten.",
-  "Перенос чата…": "Chat wird verschoben…"
+  "Перенос чата…": "Chat wird verschoben…",
+  "Новая папка": "Neuer Ordner",
+  "Название папки": "Ordnername",
+  "Удалить пустую папку": "Leeren Ordner löschen",
+  "Папки с файлами не удаляются. Для разделов используйте архив.": "Ordner mit Dateien werden nicht gelöscht. Verwenden Sie für Bereiche das Archiv.",
+  "Удалить": "Löschen"
 }

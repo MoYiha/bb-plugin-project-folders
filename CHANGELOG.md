@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4-rc.2 (local)
+
+- Share a compact BB-style folder browser between project and section dialogs, adapting BB RemotePathBrowser layout.
+- Create folders on the selected device without leaving the picker.
+- Confirm empty-folder deletion; preserve nonempty folders, symlinks, and registered project/section folders.
+- Translate new controls into all 11 supported languages.
+
+
 ## 0.3.4-rc.1
 
 - Share the chat action menu between right-click and the ellipsis button.
