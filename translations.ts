@@ -66,4 +66,14 @@ export const english = {
     "Sections are project folders. Chat history and supporting files are stored in the hidden folder",
   "каждого раздела.": "inside each section.",
   "Дерево папок и чатов": "Folder and chat tree",
+  "Сортировка чатов": "Chat sorting",
+  "По активности": "Recent activity",
+  "По алфавиту": "Alphabetical",
+  "Сначала новые": "Newest first",
+  "Чатов в каждом разделе": "Chats per section",
+  "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.":
+    "Pinned chats stay on top. Settings are saved in this browser.",
+  "Показать все": "Show all",
+  "Свернуть список": "Show fewer",
+  "Настройки списка": "List settings",
 } as const;

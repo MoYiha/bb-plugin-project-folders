@@ -68,6 +68,12 @@ Enable the Projects & Sections thread list in BB's sidebar customization if BB d
 - **Rename:** changes the displayed section name without moving its directory.
 - **Language:** English is the default for every new installation. Choose English, Russian, Spanish, French, German, Portuguese, Simplified Chinese, Japanese, Korean, Hindi or Arabic on the management page. The selection is saved in this browser. Arabic uses right-to-left layout. Unsupported language settings fall back to English. Backend diagnostics and generated documentation use English. Project names and file contents are never translated.
 
+## Sort and shorten chat lists
+
+Open **List settings** above the sidebar tree or on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
+
+Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are saved in the current browser and update open plugin views immediately.
+
 ## Files and chat history
 
 ```

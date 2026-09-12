@@ -1,3 +1,5 @@
+import { ChatSettings, useChatSettings } from "./chat-settings";
+import { sortChats } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -822,7 +824,9 @@ function ThreadRow({
   );
 }
 function Tree(props: PluginThreadListProps) {
-  useLanguage();
+  const language = useLanguage();
+  const [listSettings] = useChatSettings();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { data, error, refresh } = useTree();
   const { threads, projects, status } = experimental_useSidebarThreads();
   const environmentKey = threads.map((t) => t.environment?.id ?? "").join("|");
@@ -855,17 +859,38 @@ function Tree(props: PluginThreadListProps) {
     nav.toPluginPanel("folders", { subPath: `chat/${f.projectId}/${f.id}` });
     props.onNavigate();
   };
-  const rows = (ts: readonly PluginSidebarThread[]) =>
-    ts
-      .filter((t) => !t.isArchived)
-      .map((t) => (
-        <ThreadRow
-          key={t.id}
-          thread={t}
-          active={props.activeThreadId}
-          onNavigate={props.onNavigate}
-        />
-      ));
+  const rows = (ts: readonly PluginSidebarThread[], group: string) => {
+    const sorted = sortChats(ts, listSettings.sort, language);
+    const shown = expanded[group]
+      ? sorted
+      : sorted.slice(0, listSettings.limit);
+    return (
+      <>
+        {shown.map((thread) => (
+          <ThreadRow
+            key={thread.id}
+            thread={thread}
+            active={props.activeThreadId}
+            onNavigate={props.onNavigate}
+          />
+        ))}
+        {sorted.length > listSettings.limit && (
+          <button
+            className="pf-manage"
+            aria-expanded={!!expanded[group]}
+            onClick={() =>
+              setExpanded((old) => ({ ...old, [group]: !old[group] }))
+            }
+          >
+            <Icon name={expanded[group] ? "ChevronUp" : "ChevronDown"} />
+            {expanded[group]
+              ? t("Свернуть список")
+              : `${t("Показать все")} (${sorted.length})`}
+          </button>
+        )}
+      </>
+    );
+  };
   const node = (f: Folder, root = false): React.ReactNode => {
     const children = data.folders.filter(
       (c) => c.projectId === f.projectId && c.parentId === (root ? null : f.id),
@@ -963,7 +988,7 @@ function Tree(props: PluginThreadListProps) {
         {!closed[f.id] && (
           <div className="pf-children">
             {children.map((c) => node(c))}
-            {rows(ts)}
+            {rows(ts, f.id)}
           </div>
         )}
       </div>
@@ -971,6 +996,17 @@ function Tree(props: PluginThreadListProps) {
   };
   return (
     <div className="pf pf-tree" dir={direction()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="pf-manage">
+            <Icon name="Settings" />
+            {t("Настройки списка")}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <ChatSettings />
+        </DropdownMenuContent>
+      </DropdownMenu>
       <Button
         variant="ghost"
         className="mb-2 w-full justify-start"
@@ -1008,7 +1044,10 @@ function Tree(props: PluginThreadListProps) {
             </div>
             {!closed[p.id] && (
               <div className="pf-children">
-                {rows(threads.filter((t) => t.projectId === p.id))}
+                {rows(
+                  threads.filter((t) => t.projectId === p.id),
+                  p.id,
+                )}
               </div>
             )}
           </div>
@@ -1235,6 +1274,10 @@ function Panel({ subPath }: PluginNavPanelProps) {
         <code>.bb/chats/</code> {t("каждого раздела.")}
       </p>
       {data.roots.map((r) => card(r, true))}
+      <section className="pf-card">
+        <h2>{t("Настройки списка")}</h2>
+        <ChatSettings />
+      </section>
       <ArchiveList />
       {[error, ...data.errors].filter(Boolean).map((e, i) => (
         <p className="text-destructive" role="alert" key={i}>

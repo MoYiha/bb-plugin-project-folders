@@ -1,0 +1,76 @@
+import { useSyncExternalStore } from "react";
+import { t } from "./i18n";
+import { parseSettings, type ChatListSettings } from "./chat-list";
+const key = "project-folders:chat-list";
+function read() {
+  try {
+    return localStorage.getItem(key) || "";
+  } catch {
+    return "";
+  }
+}
+function subscribe(listener: () => void) {
+  window.addEventListener("storage", listener);
+  window.addEventListener(key, listener);
+  return () => {
+    window.removeEventListener("storage", listener);
+    window.removeEventListener(key, listener);
+  };
+}
+export function useChatSettings() {
+  const raw = useSyncExternalStore(subscribe, read, () => "");
+  return [
+    parseSettings(raw),
+    (patch: Partial<ChatListSettings>) => {
+      localStorage.setItem(
+        key,
+        JSON.stringify({ ...parseSettings(read()), ...patch }),
+      );
+      window.dispatchEvent(new Event(key));
+    },
+  ] as const;
+}
+export function ChatSettings() {
+  const [settings, update] = useChatSettings();
+  return (
+    <div className="space-y-3 p-3" style={{ minWidth: 220 }}>
+      <label className="block text-sm">
+        {t("Сортировка чатов")}
+        <select
+          className="block w-full border rounded-md bg-background p-2 mt-1"
+          value={settings.sort}
+          onChange={(e) =>
+            update({ sort: e.target.value as ChatListSettings["sort"] })
+          }
+        >
+          <option value="activity">{t("По активности")}</option>
+          <option value="title">{t("По алфавиту")}</option>
+          <option value="created">{t("Сначала новые")}</option>
+        </select>
+      </label>
+      <label className="block text-sm">
+        {t("Чатов в каждом разделе")}
+        <input
+          className="block w-full border rounded-md bg-background p-2 mt-1"
+          type="number"
+          min={1}
+          max={100}
+          defaultValue={settings.limit}
+          key={settings.limit}
+          onBlur={(e) => {
+            const limit = Number(e.target.value);
+            if (Number.isInteger(limit) && limit >= 1 && limit <= 100)
+              update({ limit });
+            else e.target.value = String(settings.limit);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+        />
+      </label>
+      <p className="text-xs text-muted-foreground">
+        {t("Закреплённые чаты сверху. Настройки сохраняются в этом браузере.")}
+      </p>
+    </div>
+  );
+}

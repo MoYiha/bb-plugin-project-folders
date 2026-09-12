@@ -58,5 +58,14 @@
   "Проекты и разделы": "Projetos e seções",
   "Разделы — папки проекта. Переписка и служебные материалы хранятся в скрытой папке": "As seções são pastas do projeto. O histórico das conversas e os arquivos de apoio ficam na pasta oculta",
   "каждого раздела.": "de cada seção.",
-  "Дерево папок и чатов": "Árvore de pastas e conversas"
+  "Дерево папок и чатов": "Árvore de pastas e conversas",
+  "Сортировка чатов": "Ordenação das conversas",
+  "По активности": "Atividade recente",
+  "По алфавиту": "Ordem alfabética",
+  "Сначала новые": "Mais recentes primeiro",
+  "Чатов в каждом разделе": "Conversas por seção",
+  "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Conversas fixadas ficam no topo. As configurações são salvas neste navegador.",
+  "Показать все": "Mostrar todas",
+  "Свернуть список": "Mostrar menos",
+  "Настройки списка": "Configurações da lista"
 }
