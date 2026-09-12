@@ -81,5 +81,6 @@
   "Название папки": "Ordnername",
   "Удалить пустую папку": "Leeren Ordner löschen",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Ordner mit Dateien werden nicht gelöscht. Verwenden Sie für Bereiche das Archiv.",
-  "Удалить": "Löschen"
+  "Удалить": "Löschen",
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Warten Sie, bis die Antwort und die Nachrichten in der Warteschlange abgeschlossen sind, und versuchen Sie es erneut."
 }

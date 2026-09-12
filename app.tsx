@@ -774,12 +774,52 @@ function ThreadRow({
 }) {
   const a = experimental_useSidebarThreadActions();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [renameError, setRenameError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const renamePending = useRef(false);
+  const cancelled = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const beginRename = () => {
+    cancelled.current = false;
+    setDraft(thread.title || thread.titleFallback || "");
+    setRenameError("");
+    setMenuOpen(false);
+    setEditing(true);
+  };
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+  const saveRename = async () => {
+    if (cancelled.current || renamePending.current) return;
+    const title = draft.trim();
+    if (!title || title === thread.title) {
+      setEditing(false);
+      return;
+    }
+    renamePending.current = true;
+    setSaving(true);
+    try {
+      await a.rename(thread.id, title);
+      setEditing(false);
+    } catch (error) {
+      setRenameError(String(error));
+      inputRef.current?.focus();
+    } finally {
+      renamePending.current = false;
+      setSaving(false);
+    }
+  };
   return (
     <div
       className={"pf-thread " + (active === thread.id ? "pf-active" : "")}
-      draggable
+      draggable={!editing}
       onDragStart={(event) => {
-        if (menuOpen) {
+        if (menuOpen || editing) {
           event.preventDefault();
           return;
         }
@@ -792,43 +832,92 @@ function ThreadRow({
       }}
       onDragEnd={() => onDrag(null)}
       onContextMenu={(event) => {
+        if (editing) return;
         event.preventDefault();
         setMenuOpen(true);
       }}
     >
-      <a
-        href={"#" + thread.id}
-        data-sidebar-thread-shortcut-target=""
-        data-sidebar-thread-id={thread.id}
-        onClick={(e) => {
-          e.preventDefault();
-          a.open(thread.id, { split: e.metaKey || e.ctrlKey });
-          onNavigate();
-        }}
-        title={thread.indicatorLabel ?? undefined}
-      >
-        <span
-          className="pf-status"
-          aria-label={thread.indicatorLabel ?? undefined}
+      {editing ? (
+        <Input
+          ref={inputRef}
+          className="pf-thread-rename"
+          aria-label={t("Переименовать")}
+          value={draft}
+          disabled={saving}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => void saveRename()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void saveRename();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              cancelled.current = true;
+              setEditing(false);
+            }
+          }}
+        />
+      ) : (
+        <a
+          href={"#" + thread.id}
+          data-sidebar-thread-shortcut-target=""
+          data-sidebar-thread-id={thread.id}
+          onClick={(e) => {
+            e.preventDefault();
+            a.open(thread.id, { split: e.metaKey || e.ctrlKey });
+            onNavigate();
+          }}
+          title={thread.indicatorLabel ?? undefined}
         >
-          {thread.hasPendingInteraction
-            ? "◉"
-            : thread.indicator === "runtime"
-              ? "●"
-              : "·"}
+          <span
+            className="pf-status"
+            aria-label={thread.indicatorLabel ?? undefined}
+          >
+            {thread.hasPendingInteraction
+              ? "◉"
+              : thread.indicator === "runtime"
+                ? "●"
+                : "·"}
+          </span>
+          {thread.isPinned && <Icon name="Pin" />}
+          <span
+            onDoubleClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              beginRename();
+            }}
+            className={thread.isUnread ? "pf-unread" : ""}
+          >
+            {thread.title || thread.titleFallback}
+          </span>
+        </a>
+      )}
+      {renameError && (
+        <span role="alert" className="text-destructive text-xs">
+          {renameError}
         </span>
-        {thread.isPinned && <Icon name="Pin" />}
-        <span className={thread.isUnread ? "pf-unread" : ""}>
-          {thread.title || thread.titleFallback}
-        </span>
-      </a>
+      )}
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button className="pf-icon" aria-label={t("Действия чата")}>
             <Icon name="MoreHorizontal" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => {
+            if (editing) {
+              event.preventDefault();
+              inputRef.current?.focus();
+            }
+          }}
+        >
+          <DropdownMenuItem onSelect={beginRename}>
+            <Icon name="Pencil" />
+            {t("Переименовать")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => void a.setPinned(thread.id, !thread.isPinned)}
           >
@@ -886,6 +975,17 @@ function Tree(props: PluginThreadListProps) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
+  const [selectedMove, setSelectedMove] = useState<{
+    folder: Folder;
+    root: boolean;
+  } | null>(null);
+  const [moveCollapsed, setMoveCollapsed] = useState<Record<string, boolean>>(
+    {},
+  );
+  useEffect(() => {
+    setSelectedMove(null);
+    setMoveCollapsed({});
+  }, [movingChat?.id]);
   const canMove = (chat: PluginSidebarThread | null, folder: Folder) =>
     !!chat &&
     chat.projectId === folder.projectId &&
@@ -894,6 +994,7 @@ function Tree(props: PluginThreadListProps) {
     chat: PluginSidebarThread,
     folder: Folder,
     root: boolean,
+    fromDrop = false,
   ) => {
     if (moveBusy || !canMove(chat, folder)) return;
     setMoveBusy(true);
@@ -911,8 +1012,15 @@ function Tree(props: PluginThreadListProps) {
       setClosed((old) => ({ ...old, [folder.id]: false }));
       refresh();
     } catch (error) {
-      setMoveError(String(error));
-      setMovingChat(chat);
+      const message = String(error);
+      setMoveError(
+        /queued messages|Finish.*chat|Wait for the chat/i.test(message)
+          ? t(
+              "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.",
+            )
+          : message,
+      );
+      if (!fromDrop) setMovingChat(chat);
     } finally {
       setMoveBusy(false);
     }
@@ -1023,7 +1131,7 @@ function Tree(props: PluginThreadListProps) {
                 "application/x-bb-project-folders-thread",
               ) === draggedChat.id
             )
-              void moveChat(draggedChat, f, root);
+              void moveChat(draggedChat, f, root, true);
           }}
         >
           <button
@@ -1175,6 +1283,14 @@ function Tree(props: PluginThreadListProps) {
       >
         {t("Управление разделами")}
       </button>
+      {moveError && !movingChat && (
+        <div role="alert" className="pf-error pf-move-notice">
+          {moveError}
+          <button aria-label={t("Отмена")} onClick={() => setMoveError("")}>
+            <Icon name="X" />
+          </button>
+        </div>
+      )}
       <Dialog
         open={!!movingChat}
         onOpenChange={(open) => {
@@ -1206,26 +1322,59 @@ function Tree(props: PluginThreadListProps) {
                 depth: number,
               ): React.ReactNode => (
                 <div key={folder.id}>
-                  <button
-                    className="pf-move-target"
-                    style={{ paddingInlineStart: 12 + depth * 18 }}
-                    disabled={moveBusy || !canMove(movingChat, folder)}
-                    onClick={() => {
-                      if (movingChat) void moveChat(movingChat, folder, root);
-                    }}
-                    title={folder.path}
+                  <div
+                    className="pf-move-tree-row"
+                    style={{ paddingInlineStart: depth * 18 }}
                   >
-                    <Icon name="Folder" />
-                    <span>{folder.name}</span>
-                  </button>
-                  {data.folders
-                    .filter(
-                      (child) =>
-                        child.projectId === folder.projectId &&
-                        child.hostId === folder.hostId &&
-                        child.parentId === (root ? null : folder.id),
-                    )
-                    .map((child) => render(child, false, depth + 1))}
+                    <button
+                      className="pf-icon"
+                      aria-label={folder.name}
+                      aria-expanded={!moveCollapsed[folder.id]}
+                      onClick={() =>
+                        setMoveCollapsed((old) => ({
+                          ...old,
+                          [folder.id]: !old[folder.id],
+                        }))
+                      }
+                    >
+                      <Icon
+                        name={
+                          moveCollapsed[folder.id]
+                            ? "ChevronRight"
+                            : "ChevronDown"
+                        }
+                      />
+                    </button>
+                    <button
+                      className={
+                        "pf-move-target" +
+                        (selectedMove?.folder.id === folder.id
+                          ? " pf-selected"
+                          : "")
+                      }
+
+                      disabled={moveBusy || !canMove(movingChat, folder)}
+                      onClick={() => {
+                        setSelectedMove({ folder, root });
+                      }}
+                      title={folder.path}
+                    >
+                      <Icon name="Folder" />
+                      <span>{folder.name}</span>
+                      {selectedMove?.folder.id === folder.id && (
+                        <Icon name="Check" />
+                      )}
+                    </button>
+                  </div>
+                  {!moveCollapsed[folder.id] &&
+                    data.folders
+                      .filter(
+                        (child) =>
+                          child.projectId === folder.projectId &&
+                          child.hostId === folder.hostId &&
+                          child.parentId === (root ? null : folder.id),
+                      )
+                      .map((child) => render(child, false, depth + 1))}
                 </div>
               );
               return data.roots
@@ -1233,7 +1382,31 @@ function Tree(props: PluginThreadListProps) {
                 .map((root) => render(root, true, 0));
             })()}
           </div>
-          {moveBusy && <p role="status">{t("Перенос чата…")}</p>}
+          {selectedMove && (
+            <p className="pf-folder-path">{selectedMove.folder.path}</p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={moveBusy}
+              onClick={() => setMovingChat(null)}
+            >
+              {t("Отмена")}
+            </Button>
+            <Button
+              disabled={moveBusy || !selectedMove}
+              onClick={() => {
+                if (movingChat && selectedMove)
+                  void moveChat(
+                    movingChat,
+                    selectedMove.folder,
+                    selectedMove.root,
+                  );
+              }}
+            >
+              {moveBusy ? t("Перенос чата…") : t("Перенести")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <MoveDialog
@@ -1394,7 +1567,6 @@ function Panel({ subPath }: PluginNavPanelProps) {
             subPath: `chat/${r.projectId}/${depth === 0 ? `root:${r.hostId}` : r.id}`,
           });
         }}
-        style={{ paddingInlineStart: 12 + depth * 18 }}
       >
         <Icon name="Folder" />
         {r.name}

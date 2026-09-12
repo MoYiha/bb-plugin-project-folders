@@ -81,5 +81,6 @@
   "Название папки": "Nome da pasta",
   "Удалить пустую папку": "Excluir pasta vazia",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Pastas com arquivos não são excluídas. Para seções, use o arquivo.",
-  "Удалить": "Excluir"
+  "Удалить": "Excluir",
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Aguarde a conclusão da resposta e das mensagens pendentes e tente mover novamente."
 }

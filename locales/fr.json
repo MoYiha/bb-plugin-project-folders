@@ -81,5 +81,6 @@
   "Название папки": "Nom du dossier",
   "Удалить пустую папку": "Supprimer le dossier vide",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Les dossiers contenant des fichiers ne sont pas supprimés. Pour les sections, utilisez les archives.",
-  "Удалить": "Supprimer"
+  "Удалить": "Supprimer",
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Attendez la fin de la réponse et des messages en attente, puis réessayez."
 }

@@ -81,5 +81,6 @@
   "Название папки": "Nombre de la carpeta",
   "Удалить пустую папку": "Eliminar carpeta vacía",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Las carpetas con archivos no se eliminan. Para las secciones, usa el archivo.",
-  "Удалить": "Eliminar"
+  "Удалить": "Eliminar",
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Espera a que terminen la respuesta y los mensajes pendientes y vuelve a intentarlo."
 }

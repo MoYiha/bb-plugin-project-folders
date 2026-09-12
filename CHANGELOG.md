@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.4-rc.3 (local)
+
+- Rename chats inline from the context/ellipsis menu or by double-clicking the title. Enter or blur saves through the native BB rename action; Escape cancels.
+- Failed drag/drop reports a short notice without reopening the destination picker.
+- Explicit Move action opens a collapsible folder tree with destination selection and Move/Cancel buttons.
+
+
 ## 0.3.4-rc.2 (local)
 
 - Share a compact BB-style folder browser between project and section dialogs, adapting BB RemotePathBrowser layout.

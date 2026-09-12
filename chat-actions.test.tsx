@@ -59,7 +59,7 @@ const root = {
   name: "Project",
 };
 const folder = { ...root, id: "f1", path: "/work/Section", name: "Section" };
-function mount() {
+function mount(failMove = false) {
   return renderSlot(
     app.threadLists[0]!,
     { activeThreadId: null, onNavigate() {} },
@@ -72,7 +72,13 @@ function mount() {
           bindings: {},
           errors: [],
         }),
-        thread_move: () => ({ path: folder.path }),
+        thread_move: () => {
+          if (failMove)
+            throw new Error(
+              "Wait for the chat and its queued messages to finish before moving it.",
+            );
+          return { path: folder.path };
+        },
       },
     },
   );
@@ -101,6 +107,78 @@ it("drops a chat onto a section through the same relocation RPC", async () => {
   await waitFor(() =>
     expect(
       view.inspection.rpcCalls.some((call) => call.method === "thread_move"),
+    ).toBe(true),
+  );
+  view.lifecycle.unmount();
+});
+it("offers inline rename from the context menu and supports Escape", async () => {
+  const view = mount();
+  fireEvent.contextMenu(await view.findByText("Example chat"));
+  fireEvent.click(await view.findByText("Rename"));
+  const input = await view.findByRole("textbox", { name: "Rename" });
+  expect((input as HTMLInputElement).value).toBe("Example chat");
+  fireEvent.change(input, { target: { value: "Changed" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  expect(await view.findByText("Example chat")).toBeTruthy();
+  view.lifecycle.unmount();
+});
+it("starts inline rename on double-click", async () => {
+  const view = mount();
+  fireEvent.doubleClick(await view.findByText("Example chat"));
+  expect(await view.findByRole("textbox", { name: "Rename" })).toBeTruthy();
+  view.lifecycle.unmount();
+});
+it("saves a renamed title through the native BB action", async () => {
+  const view = mount();
+  fireEvent.doubleClick(await view.findByText("Example chat"));
+  const input = await view.findByRole("textbox", { name: "Rename" });
+  fireEvent.change(input, { target: { value: "Updated title" } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  await waitFor(() =>
+    expect(JSON.stringify(view.inspection.sidebarActionCalls)).toContain(
+      "Updated title",
+    ),
+  );
+  expect(JSON.stringify(view.inspection.sidebarActionCalls)).toContain(
+    "rename",
+  );
+  view.lifecycle.unmount();
+});
+it("reports a rejected drop without opening the destination dialog", async () => {
+  const view = mount(true);
+  const chat = (await view.findByText("Example chat")).closest(".pf-thread")!;
+  const target = (await view.findByText("Section")).closest(".pf-heading")!;
+  const values = new Map<string, string>();
+  const dataTransfer = {
+    effectAllowed: "",
+    dropEffect: "",
+    setData: (k: string, v: string) => values.set(k, v),
+    getData: (k: string) => values.get(k) || "",
+  };
+  fireEvent.dragStart(chat, { dataTransfer });
+  fireEvent.drop(target, { dataTransfer });
+  expect(await view.findByRole("alert")).toBeTruthy();
+  expect(view.queryByRole("dialog")).toBeNull();
+  view.lifecycle.unmount();
+});
+it("selects a destination before explicitly moving from the menu", async () => {
+  const view = mount();
+  fireEvent.contextMenu(await view.findByText("Example chat"));
+  fireEvent.click(await view.findByText("Move to section…"));
+  const dialog = await view.findByRole("dialog");
+  const section = Array.from(dialog.querySelectorAll("button")).find(
+    (b) => b.textContent === "Section",
+  )!;
+  fireEvent.click(section);
+  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
+    false,
+  );
+  fireEvent.click(
+    await view.findByRole("button", { name: "Move", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      view.inspection.rpcCalls.some((c) => c.method === "thread_move"),
     ).toBe(true),
   );
   view.lifecycle.unmount();

@@ -95,4 +95,6 @@ export const english = {
   "Папки с файлами не удаляются. Для разделов используйте архив.":
     "Folders containing files cannot be deleted. Use the archive for sections.",
   Удалить: "Delete",
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.":
+    "Wait for the reply and queued messages to finish, then try moving again.",
 } as const;
