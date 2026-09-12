@@ -1,6 +1,7 @@
 # Third-party notices
 
 Vendored UI components, hooks and utilities derive from BB shared-ui and the BB plugin scaffold.
+The companion patch in docs/bb-native-thread-relocation.patch modifies BB core sources under the same MIT license.
 
 MIT License
 

@@ -138,10 +138,10 @@ Tests cover path boundaries, multiple devices, composer forwarding, rule conflic
 
 MIT. Vendored BB UI source retains its attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-### Moving existing chats (development build)
+### Moving existing chats (preview release)
 
 Right-click a chat or use its `…` menu and choose **Move to section…**. You can also drag a chat onto a section or the project root. The destination must belong to the same project and device. Chat identity and history stay intact; only the chat's `.bb/chats/<id>` directory moves. Repository files and other project files do not move.
 
-This feature requires BB's experimental directory-update API (`threads.update.experimental_directory`), supplied by the companion `feat/native-thread-relocation` core change. Stock BB 0.43 does not have it: an unsupported server reports an error without moving files. Do not publish this development build as a generally supported marketplace release until the core API ships.
+This feature requires BB's experimental directory-update API (`threads.update.experimental_directory`), supplied by the [companion BB core patch](docs/bb-native-thread-relocation.patch), based on BB 0.43.1. Stock BB 0.43.0 and 0.43.1 do not have it: an unsupported server reports an error without moving files. This prerelease is not selected by the stable marketplace version range. General release remains pending the core API. The patch also hides native browser panes while plugin dialogs are open; it must be applied to the BB UI used by the desktop client.
 
 Active chats and queued messages prevent relocation. If storage relocation fails after the environment switches, a durable journal blocks new messages and exports. Repeat the same move to finish it. Existing destination folders are never merged or overwritten.

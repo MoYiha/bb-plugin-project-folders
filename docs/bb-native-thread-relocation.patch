@@ -1,0 +1,516 @@
+diff --git a/apps/app/src/components/ui/dialog.browser-dimming.test.tsx b/apps/app/src/components/ui/dialog.browser-dimming.test.tsx
+index 7082d2b..77882b8 100644
+--- a/apps/app/src/components/ui/dialog.browser-dimming.test.tsx
++++ b/apps/app/src/components/ui/dialog.browser-dimming.test.tsx
+@@ -46,3 +46,43 @@ it("an app Dialog dims the browser through the shared-ui env seam", async () =>
+     expect(screen.getByTestId("dim").textContent).toBe("clear"),
+   );
+ });
++
++it("hides native browser views for vendored plugin dialogs and restores them after closing", async () => {
++  const { rerender } = render(
++    <>
++      <div role="dialog" data-state="open">
++        Plugin rules
++      </div>
++      <DimProbe />
++    </>,
++  );
++  await waitFor(() =>
++    expect(screen.getByTestId("dim").textContent).toBe("dimmed"),
++  );
++  rerender(
++    <>
++      <div role="dialog" data-state="closed">
++        Plugin rules
++      </div>
++      <DimProbe />
++    </>,
++  );
++  await waitFor(() =>
++    expect(screen.getByTestId("dim").textContent).toBe("clear"),
++  );
++  rerender(
++    <>
++      <div role="alertdialog" data-state="open">
++        Confirm
++      </div>
++      <DimProbe />
++    </>,
++  );
++  await waitFor(() =>
++    expect(screen.getByTestId("dim").textContent).toBe("dimmed"),
++  );
++  rerender(<DimProbe />);
++  await waitFor(() =>
++    expect(screen.getByTestId("dim").textContent).toBe("clear"),
++  );
++});
+diff --git a/apps/app/src/hooks/useBrowserDimmingModal.ts b/apps/app/src/hooks/useBrowserDimmingModal.ts
+index b5004c1..757bc57 100644
+--- a/apps/app/src/hooks/useBrowserDimmingModal.ts
++++ b/apps/app/src/hooks/useBrowserDimmingModal.ts
+@@ -1,4 +1,4 @@
+-import { useEffect } from "react";
++import { useEffect, useSyncExternalStore } from "react";
+ import { atom, useAtomValue, useSetAtom } from "jotai";
+ 
+ const browserDimmingModalCountAtom = atom(0);
+@@ -18,6 +18,30 @@ export function useBrowserDimmingModal(active: boolean): void {
+   useBrowserDimmingOverlay(active);
+ }
+ 
++const dialogSelector =
++  '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
++function externalDialogOpen(): boolean {
++  return (
++    typeof document !== "undefined" &&
++    document.querySelector(dialogSelector) !== null
++  );
++}
++function subscribeDialogs(notify: () => void): () => void {
++  const observer = new MutationObserver(notify);
++  observer.observe(document.body, {
++    childList: true,
++    subtree: true,
++    attributes: true,
++    attributeFilter: ["role", "data-state"],
++  });
++  return () => observer.disconnect();
++}
+ export function useIsBrowserDimmingModalOpen(): boolean {
+-  return useAtomValue(browserDimmingModalCountAtom) > 0;
++  const count = useAtomValue(browserDimmingModalCountAtom);
++  const external = useSyncExternalStore(
++    subscribeDialogs,
++    externalDialogOpen,
++    () => false,
++  );
++  return count > 0 || external;
+ }
+diff --git a/apps/cli/src/__tests__/command-output/thread-update.test.ts b/apps/cli/src/__tests__/command-output/thread-update.test.ts
+index 3bd29a7..bf43a7a 100644
+--- a/apps/cli/src/__tests__/command-output/thread-update.test.ts
++++ b/apps/cli/src/__tests__/command-output/thread-update.test.ts
+@@ -16,6 +16,34 @@ describe("bb thread update command output", () => {
+   const register: CommandRegistrar = (program) =>
+     registerThreadCommands(program, () => "http://server");
+ 
++  it("moves a chat with an expected environment and preserves its id", async () => {
++    const thread = fixtures.makeThread({
++      id: "thread-move",
++      providerId: "codex",
++      projectId: "p1",
++      environmentId: "e1",
++      status: "idle",
++    });
++    const patch = vi.fn(async () => ({ ...thread, environmentId: "e2" }));
++    stubServerApi({
++      "v1.threads.:id.$get": vi.fn(async () => thread),
++      "v1.threads.:id.$patch": patch,
++    });
++    await runCommand(
++      ["thread", "update", "thread-move", "--directory", "/work/section"],
++      register,
++    );
++    expect(patch).toHaveBeenCalledWith({
++      param: { id: "thread-move" },
++      json: {
++        experimental_directory: {
++          path: "/work/section",
++          expectedEnvironmentId: "e1",
++        },
++      },
++    });
++  });
++
+   it("bb thread update sets the parent thread id", async () => {
+     const thread: domain.Thread = fixtures.makeThread({
+       id: "thread-update-1",
+diff --git a/apps/cli/src/commands/thread/actions.ts b/apps/cli/src/commands/thread/actions.ts
+index 55ea87b..3495a4a 100644
+--- a/apps/cli/src/commands/thread/actions.ts
++++ b/apps/cli/src/commands/thread/actions.ts
+@@ -33,6 +33,7 @@ import {
+ import { SEND_AT_HELP, parseSendAt } from "./send-time.js";
+ 
+ interface ThreadUpdateCommandOptions {
++  directory?: string;
+   self?: boolean;
+   json?: boolean;
+   title?: string;
+@@ -126,6 +127,7 @@ type PostThreadMessageResult = ThreadSendResult & {
+ };
+ 
+ interface ThreadUpdateBody {
++  experimental_directory?: { path: string; expectedEnvironmentId: string };
+   title?: string;
+   sectionId?: string | null;
+   parentThreadId?: string | null;
+@@ -144,6 +146,10 @@ export function registerActionsCommands(
+     .option("--self", "Target the current thread (from BB_THREAD_ID)")
+     .option("--json", "Print machine-readable JSON output")
+     .option("--title <title>", "Set the thread title")
++    .option(
++      "--directory <path>",
++      "Move an idle chat to an existing folder on the same machine",
++    )
+     .option("--parent-thread <id>", "Set the parent thread id")
+     .option("--clear-parent-thread", "Clear the parent thread id")
+     .option("--section <id>", "Move the thread into a section")
+@@ -174,6 +180,7 @@ export function registerActionsCommands(
+               ? undefined
+               : threadVisibilitySchema.parse(opts.visibility);
+           if (
++            !opts.directory &&
+             !opts.parentThread &&
+             !opts.clearParentThread &&
+             !opts.section &&
+@@ -184,7 +191,7 @@ export function registerActionsCommands(
+             !visibility
+           ) {
+             throw new Error(
+-              "No changes requested. Provide --title, --parent-thread, --clear-parent-thread, --section, --clear-section, --model, --reasoning-level, or --visibility.",
++              "No changes requested. Provide --directory, --title, --parent-thread, --clear-parent-thread, --section, --clear-section, --model, --reasoning-level, or --visibility.",
+             );
+           }
+ 
+@@ -221,6 +228,17 @@ export function registerActionsCommands(
+           }
+ 
+           const sdk = createCliBbSdk(getUrl());
++          if (opts.directory) {
++            if (Object.keys(body).length)
++              throw new Error("Use --directory separately from other updates.");
++            const current = await sdk.threads.get({ threadId });
++            if (!current.environmentId)
++              throw new Error("The chat has no working environment yet.");
++            body.experimental_directory = {
++              path: opts.directory,
++              expectedEnvironmentId: current.environmentId,
++            };
++          }
+           const thread = await sdk.threads.update({ threadId, ...body });
+           if (outputJson(opts, thread)) return;
+           console.log(`Thread ${thread.id} updated`);
+diff --git a/apps/server/src/routes/threads/base.ts b/apps/server/src/routes/threads/base.ts
+index 633e75c..197db9a 100644
+--- a/apps/server/src/routes/threads/base.ts
++++ b/apps/server/src/routes/threads/base.ts
+@@ -1,3 +1,7 @@
++import {
++  handleUpdateEnvironmentDirectoryToolCall,
++  idleDirectoryChangeFailure,
++} from "../../services/threads/thread-environment-directory.js";
+ import { cancelAbandonedProviderCreations } from "../../services/threads/thread-environment-providers.js";
+ import {
+   THREAD_SEARCH_LIMIT_PER_GROUP_DEFAULT,
+@@ -381,6 +385,43 @@ export function registerThreadBaseRoutes(app: Hono, deps: AppDeps): void {
+ 
+   patch(routes.update, async (context, payload) => {
+     const thread = requirePublicThread(deps.db, context.req.param("id"));
++    if (payload.experimental_directory) {
++      const failure = idleDirectoryChangeFailure(deps.db, thread);
++      if (failure) throw new ApiError(409, "thread_busy", failure);
++      if (
++        thread.environmentId !==
++        payload.experimental_directory.expectedEnvironmentId
++      )
++        throw new ApiError(
++          409,
++          "environment_changed",
++          "The chat environment changed. Refresh and try again.",
++        );
++      const environment = requireEnvironment(
++        deps.db,
++        payload.experimental_directory.expectedEnvironmentId,
++      );
++      const result = await handleUpdateEnvironmentDirectoryToolCall(deps, {
++        currentEnvironment: environment,
++        input: { path: payload.experimental_directory.path },
++        thread,
++        turnId: null,
++      });
++      if (!result.success)
++        throw new ApiError(
++          409,
++          "directory_change_failed",
++          result.contentItems
++            .filter((item) => item.type === "inputText")
++            .map((item) => item.text)
++            .join("\n"),
++        );
++      return context.json(
++        toThreadResponseFromThread(deps, {
++          thread: requirePublicThread(deps.db, thread.id),
++        }),
++      );
++    }
+     if (payload.parentThreadId) {
+       assertValidParentThread(deps, {
+         childThreadId: thread.id,
+diff --git a/apps/server/src/services/threads/thread-environment-directory.ts b/apps/server/src/services/threads/thread-environment-directory.ts
+index 18cbc3f..d9f2f1d 100644
+--- a/apps/server/src/services/threads/thread-environment-directory.ts
++++ b/apps/server/src/services/threads/thread-environment-directory.ts
+@@ -7,9 +7,10 @@ import {
+   findProjectEnvironmentByHostPath,
+   getEnvironment,
+   getThread,
++  listQueuedThreadMessages,
+   updateThread,
+ } from "@bb/db";
+-import { turnScope } from "@bb/domain";
++import { threadScope, turnScope } from "@bb/domain";
+ import type { DynamicTool, Thread, ToolCallResponse } from "@bb/domain";
+ import type { AppDeps } from "../../types.js";
+ import { runLiveHostCommand } from "../hosts/live-command.js";
+@@ -58,7 +59,7 @@ interface HandleUpdateEnvironmentDirectoryToolCallArgs {
+   currentEnvironment: EnvironmentRow;
+   input: unknown;
+   thread: Thread;
+-  turnId: string;
++  turnId: string | null;
+ }
+ 
+ type ReadyEnvironment = EnvironmentRow & { path: string; status: "ready" };
+@@ -117,6 +118,17 @@ function threadWritableFailure(thread: Thread): string | null {
+   return null;
+ }
+ 
++export function idleDirectoryChangeFailure(
++  db: AppDeps["db"],
++  thread: Thread,
++): string | null {
++  if (thread.status !== "idle" && thread.status !== "error")
++    return "Wait until the chat is idle before moving it.";
++  if (listQueuedThreadMessages(db, thread.id).length > 0)
++    return "Remove or send queued messages before moving the chat.";
++  return null;
++}
++
+ function resolveReadyEnvironment(
+   environment: EnvironmentRow,
+ ): ReadyEnvironment | { failure: string } {
+@@ -148,7 +160,7 @@ function attachReadyEnvironment(
+     createdEnvironment: boolean;
+     targetEnvironment: ReadyEnvironment;
+     thread: Thread;
+-    turnId: string;
++    turnId: string | null;
+   },
+ ): AttachEnvironmentResult {
+   const result = deps.db.transaction(
+@@ -161,7 +173,11 @@ function attachReadyEnvironment(
+         };
+       }
+ 
+-      const writableFailure = threadWritableFailure(latestThread);
++      const writableFailure =
++        threadWritableFailure(latestThread) ??
++        (args.turnId === null
++          ? idleDirectoryChangeFailure(deps.db, latestThread)
++          : null);
+       if (writableFailure) {
+         return { kind: "thread_unavailable", message: writableFailure };
+       }
+@@ -181,7 +197,7 @@ function attachReadyEnvironment(
+         threadId: latestThread.id,
+         environmentId: args.targetEnvironment.id,
+         type: "system/operation",
+-        scope: turnScope(args.turnId),
++        scope: args.turnId === null ? threadScope() : turnScope(args.turnId),
+         data: {
+           operation: "environment_directory_update",
+           operationId: createEventId(),
+diff --git a/apps/server/test/threads/thread-send-dispatch.test.ts b/apps/server/test/threads/thread-send-dispatch.test.ts
+index 7ac498c..75e9357 100644
+--- a/apps/server/test/threads/thread-send-dispatch.test.ts
++++ b/apps/server/test/threads/thread-send-dispatch.test.ts
+@@ -1168,6 +1168,63 @@ describe("idle cold-start activation", () => {
+     });
+   });
+ 
++  it("moves an idle chat through the public update API and rejects stale or busy changes", async () => {
++    await withTestHarness(async (harness) => {
++      const { environment, thread } = seedProviderThreadFixture({
++        harness,
++        value: 940,
++      });
++      const target = seedEnvironment(harness.deps, {
++        hostId: environment.hostId,
++        projectId: environment.projectId,
++        path: "/tmp/directory-api-target",
++        status: "ready",
++      });
++      const patch = (expectedEnvironmentId: string) =>
++        harness.app.request(`/api/v1/threads/${thread.id}`, {
++          method: "PATCH",
++          headers: { "content-type": "application/json" },
++          body: JSON.stringify({
++            experimental_directory: {
++              path: target.path,
++              expectedEnvironmentId,
++            },
++          }),
++        });
++      const response = await patch(environment.id);
++      expect(response.status).toBe(200);
++      expect(getThread(harness.db, thread.id)?.environmentId).toBe(target.id);
++      expect((await patch(environment.id)).status).toBe(409);
++      seedQueuedMessage(harness.deps, {
++        threadId: thread.id,
++        content: textInput("queued"),
++      });
++      expect((await patch(target.id)).status).toBe(409);
++      const busy = seedProviderThreadFixture({
++        harness,
++        value: 941,
++        status: "active",
++      });
++      const denied = await harness.app.request(
++        `/api/v1/threads/${busy.thread.id}`,
++        {
++          method: "PATCH",
++          headers: { "content-type": "application/json" },
++          body: JSON.stringify({
++            experimental_directory: {
++              path: target.path,
++              expectedEnvironmentId: busy.environment.id,
++            },
++          }),
++        },
++      );
++      expect(denied.status).toBe(409);
++      expect(getThread(harness.db, busy.thread.id)?.environmentId).toBe(
++        busy.environment.id,
++      );
++    });
++  });
++
+   it("resumes provider continuity after an environment directory update", async () => {
+     await withTestHarness(async (harness) => {
+       const { environment, thread } = seedProviderThreadFixture({
+diff --git a/docs/api_to_audit.md b/docs/api_to_audit.md
+index 5373d6b..6e70c91 100644
+--- a/docs/api_to_audit.md
++++ b/docs/api_to_audit.md
+@@ -2901,7 +2901,6 @@ returns a credential only while that host is creating.
+ Before stabilizing, verify creation cancellation through host removal,
+ same-host restoration, serialized removal, plugin callers and UI/CLI parity.
+ 
+-
+ ## `app.experimental_icons.register` and `experimental_Icon`
+ 
+ Plugins register inline React artwork during app setup with `{ name, component }`.
+@@ -2938,7 +2937,6 @@ plugin app icons use this registration API. The manifest API is unchanged,
+ and individual plugins can still declare their own branding SVG assets using
+ the existing manifest fields.
+ 
+-
+ ## `experimental_ProviderIcon`
+ 
+ Shared frontend renderer for agent, machine, and environment provider artwork,
+@@ -2966,3 +2964,7 @@ same-id isolation and legacy override fallback,
+ asset-vs-glyph precedence, cross-plugin overrides, reload/error/recursion behavior,
+ accessibility and theme rendering on desktop and mobile. Keep metadata fetching
+ and plugin branding separate from provider artwork resolution.
++
++## Thread working directory updates
++
++`threads.update({ threadId, experimental_directory: { path, expectedEnvironmentId } })` changes only an idle/error, unarchived chat's working environment on the same host and within the same BB project. No files are moved. Queued messages and concurrent environment changes reject the request. The existing native directory-switch validation and provider continuity apply. Stabilization requires API/CLI tests covering concurrent dispatch, stale environment IDs, path ownership and provider resumption.
+diff --git a/packages/plugin-api-map/src/surfaces.ts b/packages/plugin-api-map/src/surfaces.ts
+index cc5c20d..ab926ac 100644
+--- a/packages/plugin-api-map/src/surfaces.ts
++++ b/packages/plugin-api-map/src/surfaces.ts
+@@ -948,6 +948,7 @@ export const SURFACE_GROUPS: SurfaceGroup[] = [
+           "Calls bb's own API from the plugin's server code. With this, a plugin can:",
+         bullets: [
+           "Create threads, send messages to them, and manage projects",
++          "Change an idle chat working folder with sdk.threads.update({ threadId, experimental_directory: { path, expectedEnvironmentId } }); preserves history, same host/project, no file relocation",
+           "List machines and suspend, resume, or remove provider-managed machines",
+           "Read recorded context usage with sdk.threads.context({ threadId }); usage is null when unavailable, and its snapshot is present only when the latest measurement includes a breakdown",
+           "Reach the same operations the [bb CLI](cli) and the bb UI use",
+diff --git a/packages/sdk/src/areas/threads.ts b/packages/sdk/src/areas/threads.ts
+index 732b81c..37e5df3 100644
+--- a/packages/sdk/src/areas/threads.ts
++++ b/packages/sdk/src/areas/threads.ts
+@@ -655,6 +655,7 @@ function countQuery(args: ThreadCountArgs | undefined): ThreadCountQuery {
+ 
+ function updateJson(args: ThreadUpdateArgs): UpdateThreadRequest {
+   return {
++    experimental_directory: args.experimental_directory,
+     title: args.title,
+     sectionId: args.sectionId,
+     parentThreadId: args.parentThreadId,
+diff --git a/packages/server-contract/src/api/threads.ts b/packages/server-contract/src/api/threads.ts
+index fb9b310..d944c69 100644
+--- a/packages/server-contract/src/api/threads.ts
++++ b/packages/server-contract/src/api/threads.ts
+@@ -614,6 +614,12 @@ export type DeleteThreadRequest = z.infer<typeof deleteThreadRequestSchema>;
+ 
+ export const updateThreadRequestSchema = z
+   .object({
++    experimental_directory: z
++      .object({
++        path: z.string().trim().min(1),
++        expectedEnvironmentId: z.string().min(1),
++      })
++      .strict(),
+     title: z.string().min(1).nullable(),
+     sectionId: z.string().min(1).nullable(),
+     parentThreadId: z.string().min(1).nullable(),
+@@ -624,6 +630,7 @@ export const updateThreadRequestSchema = z
+   .partial()
+   .refine(
+     (value) =>
++      value.experimental_directory !== undefined ||
+       value.title !== undefined ||
+       value.sectionId !== undefined ||
+       value.parentThreadId !== undefined ||
+@@ -631,6 +638,13 @@ export const updateThreadRequestSchema = z
+       value.reasoningLevel !== undefined ||
+       value.visibility !== undefined,
+     "At least one field must be provided",
++  )
++  .refine(
++    (value) =>
++      value.experimental_directory === undefined ||
++      Object.keys(value).filter((key) => key !== "experimental_directory")
++        .length === 0,
++    "Directory changes must be submitted separately",
+   );
+ export type UpdateThreadRequest = z.infer<typeof updateThreadRequestSchema>;
+ 
+diff --git a/packages/server-contract/test/contract.test.ts b/packages/server-contract/test/contract.test.ts
+index 68b61ca..c51843b 100644
+--- a/packages/server-contract/test/contract.test.ts
++++ b/packages/server-contract/test/contract.test.ts
+@@ -207,6 +207,7 @@ const OPTIONAL_SERVER_FIELD_GROUPS: readonly OptionalServerFieldGroup[] = [
+     reason:
+       "Thread PATCH requests omit fields that should be left unchanged; null explicitly clears nullable values.",
+     fields: [
++      "updateThreadRequestSchema.experimental_directory",
+       "updateThreadRequestSchema.model",
+       "updateThreadRequestSchema.sectionId",
+       "updateThreadRequestSchema.parentThreadId",
+diff --git a/packages/templates/src/templates/bb-guide-threads.md b/packages/templates/src/templates/bb-guide-threads.md
+index a407141..dee4114 100644
+--- a/packages/templates/src/templates/bb-guide-threads.md
++++ b/packages/templates/src/templates/bb-guide-threads.md
+@@ -405,3 +405,5 @@ starting a provider request. Use `--self` for the current thread and `--json` fo
+ breakdown after turns and compaction when its SDK supports context inspection.
+ A later aggregate-only measurement replaces any older breakdown. Other providers
+ continue to expose their available totals.
++
++Move an idle chat’s working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.
+diff --git a/plugins/bb-guide/skills/bb-cli/SKILL.md b/plugins/bb-guide/skills/bb-cli/SKILL.md
+index 4c89bc1..bcf4d88 100644
+--- a/plugins/bb-guide/skills/bb-cli/SKILL.md
++++ b/plugins/bb-guide/skills/bb-cli/SKILL.md
+@@ -141,3 +141,5 @@ reported; this is not billing/invoice data. Suspension requires idle live thread
+ and no open terminals; empty machines can use an opted-in provider idle policy.
+ 
+ `bb thread context` reads recorded context usage without sending a model request. A breakdown is optional; absent usage is returned as `null`.
++
++Move an idle chat’s working directory with `bb thread update ID --directory /absolute/existing/path`. This preserves history within the same project and machine; it does not move files. Send or remove queued messages first. Use this flag separately from other updates.
