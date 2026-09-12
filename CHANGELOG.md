@@ -1,3 +1,9 @@
+## 0.3.4-dev.1
+
+- Share the chat action menu between right-click and the ellipsis button.
+- Move existing chats through a section picker or drag and drop, with durable storage-move recovery.
+- Requires the companion BB native directory-update API; unsupported servers leave chats and files unchanged.
+
 # Changelog
 
 ## 0.3.3

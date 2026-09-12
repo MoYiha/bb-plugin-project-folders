@@ -216,8 +216,20 @@
 }
 
 /* Preserve file path readability in every interface language. */
-.pf-folder-path, .pf-path-control input { direction: ltr; text-align: left; unicode-bidi: isolate; }
-.pf[dir="rtl"] .pf-children { border-left: 0; border-right: 1px solid var(--border); margin-left: 0; margin-right: 14px; padding-left: 0; padding-right: 8px; }
+.pf-folder-path,
+.pf-path-control input {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+.pf[dir="rtl"] .pf-children {
+  border-left: 0;
+  border-right: 1px solid var(--border);
+  margin-left: 0;
+  margin-right: 14px;
+  padding-left: 0;
+  padding-right: 8px;
+}
 
 .pf-show-more {
   display: flex;
@@ -235,7 +247,49 @@
   line-height: 18px;
   cursor: pointer;
 }
-.pf-show-more:hover { background: var(--accent); color: var(--foreground); }
-.pf-show-more svg { width: 14px; height: 14px; flex: 0 0 14px; }
+.pf-show-more:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.pf-show-more svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
 
-.pf-native-project-slot button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.pf-native-project-slot button svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.pf-drop-target {
+  background: var(--state-hover);
+  outline: 1px solid var(--ink);
+  border-radius: 6px;
+}
+.pf-move-targets {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.pf-move-target {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: start;
+  border-radius: 6px;
+}
+.pf-move-target:hover {
+  background: var(--state-hover);
+}
+.pf-move-target:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.pf-move-target svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}

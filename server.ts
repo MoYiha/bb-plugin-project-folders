@@ -1,3 +1,4 @@
+import { makeThreadMoves } from "./thread-move";
 import { makeProjectMoves } from "./project-move";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -39,6 +40,10 @@ const requestSchema = z.object({
 });
 export type ComposerRequest = z.input<typeof requestSchema>;
 export const rpcContract = defineRpcContract({
+  thread_move: {
+    input: targetSchema.extend({ threadId: z.string().min(1) }),
+    output: z.object({ path: z.string() }),
+  },
   thread_section: {
     input: z.object({ threadId: z.string() }),
     output: z
@@ -186,6 +191,7 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE exports (threadId TEXT PRIMARY KEY, path TEXT, error TEXT, updatedAt INTEGER)`,
     `CREATE TABLE folder_archives (id TEXT PRIMARY KEY, createdAt INTEGER NOT NULL, data TEXT NOT NULL)`,
     `CREATE TABLE project_moves (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    `CREATE TABLE thread_moves (threadId TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY name").all() as Folder[];
@@ -424,7 +430,8 @@ export default async function plugin(bb: BbPluginApi) {
     return { path: dir };
   }
   function sync(threadId: string) {
-    if (archives.blocked(threadId)) return Promise.resolve({ path: "" });
+    if (threadMoves.blocked(threadId) || archives.blocked(threadId))
+      return Promise.resolve({ path: "" });
     const active = syncing.get(threadId);
     if (active) return active;
     const task = bb.sdk.threads
@@ -456,7 +463,27 @@ export default async function plugin(bb: BbPluginApi) {
     pending: () => Promise.allSettled([...syncing.values()]),
     changed,
   });
+  const threadMoves = makeThreadMoves(bb, {
+    target,
+    canonical: moves.canonical,
+    allowed: (threadId, folder) => {
+      if (
+        moves.busy(folder.projectId) ||
+        archives.blocked(threadId) ||
+        archives.moving(folder.hostId, folder.path)
+      )
+        throw new Error("The project or section is archived or moving.");
+    },
+    pendingExports: () => Promise.allSettled([...syncing.values()]),
+    changed,
+  });
   bb.experimental_hooks.on("message.dispatch", (ctx) => {
+    if (threadMoves.blocked(ctx.thread.id))
+      return {
+        action: "reject",
+        message:
+          "Chat relocation is unfinished. Repeat Move to section in Projects & Sections to finish moving its files.",
+      };
     const intent = ctx.environmentIntent;
     const inputs = intent?.kind === "provider" ? intent.inputs : null;
     const requestedPath =
@@ -467,7 +494,8 @@ export default async function plugin(bb: BbPluginApi) {
       typeof inputs.path === "string"
         ? inputs.path
         : null);
-    return moves.busy(ctx.project.id) ||
+    return threadMoves.blocked(ctx.thread.id) ||
+      moves.busy(ctx.project.id) ||
       archives.blocked(ctx.thread.id) ||
       (requestedPath && ctx.host && archives.moving(ctx.host.id, requestedPath))
       ? {
@@ -478,6 +506,11 @@ export default async function plugin(bb: BbPluginApi) {
       : { action: "proceed" };
   });
   bb.rpc.register(rpcContract, {
+    thread_move: async (input) => {
+      const result = await threadMoves.move(input);
+      await sync(input.threadId);
+      return result;
+    },
     thread_section: async ({ threadId }) => {
       const { f } = await locate(threadId);
       const all = folders();
@@ -502,14 +535,22 @@ export default async function plugin(bb: BbPluginApi) {
         projectName: project.name,
       };
     },
-    project_move: (input) => moves.move(input),
+    project_move: (input) => {
+      if (threadMoves.any())
+        throw new Error("Finish pending chat moves first.");
+      return moves.move(input);
+    },
     pending_moves: async () => moves.list().filter((m) => !m.complete),
     archive_list: async () => ({ archives: archives.list() }),
     archive_matches: async (input) => {
       const f = await target(input);
       return { archives: archives.matches(f.projectId, f.hostId, input.name) };
     },
-    archive: ({ folderId }) => archives.archive(folderId),
+    archive: ({ folderId }) => {
+      if (threadMoves.any())
+        throw new Error("Finish pending chat moves first.");
+      return archives.archive(folderId);
+    },
     restore: ({ id }) => {
       const a = archives.list().find((a) => a.id === id);
       if (a && moves.busy(a.folder.projectId))
@@ -791,6 +832,12 @@ export default async function plugin(bb: BbPluginApi) {
     summary: "Project sections and chat history",
     commands: [
       {
+        name: "move-chat",
+        summary: "Move an idle chat and its dedicated storage",
+        usage:
+          "bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>",
+      },
+      {
         name: "archives",
         summary: "List section archives",
         usage: "bb project-folders archives",
@@ -831,7 +878,18 @@ export default async function plugin(bb: BbPluginApi) {
       try {
         const args = argv.filter((a) => a !== "--json");
         let value: unknown;
-        if (args[0] === "list")
+        if (args[0] === "move-chat") {
+          const input = targetSchema
+            .extend({ threadId: z.string().min(1) })
+            .parse({
+              threadId: args[1],
+              projectId: args[2],
+              folderId: args[3] === "-" ? null : args[3],
+              hostId: args[4],
+            });
+          value = await threadMoves.move(input);
+          await sync(input.threadId);
+        } else if (args[0] === "list")
           value = { folders: folders(), roots: await roots() };
         else if (args[0] === "create")
           value = await create(
@@ -844,6 +902,8 @@ export default async function plugin(bb: BbPluginApi) {
             }),
           );
         else if (args[0] === "forget" || args[0] === "archive") {
+          if (threadMoves.any())
+            throw new Error("Finish pending chat moves first.");
           value = await archives.archive(z.string().min(1).parse(args[1]));
         } else if (args[0] === "restore") {
           value = await archives.restore(z.string().min(1).parse(args[1]));

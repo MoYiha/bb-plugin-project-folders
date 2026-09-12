@@ -73,5 +73,8 @@
   "Новый путь проекта": "Nueva ruta del proyecto",
   "Вся папка переедет вместе со скрытыми файлами и архивом. Старый путь останется ссылкой для существующих чатов. История в базе BB остаётся в BB.": "Se moverá toda la carpeta, incluidos los archivos ocultos y los archivos de secciones. La ruta anterior quedará como enlace para los chats existentes. El historial de la base de datos de BB permanece en BB.",
   "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.": "Elige una ruta nueva que no exista en el mismo volumen. Finaliza primero los chats en ejecución.",
-  "Незавершённые переносы": "Traslados pendientes"
+  "Незавершённые переносы": "Traslados pendientes",
+  "Переместить в подраздел…": "Mover a una sección…",
+  "Выберите подраздел на том же устройстве. История чата сохранится.": "Elige una sección en el mismo dispositivo. Se conservará el historial del chat.",
+  "Перенос чата…": "Moviendo chat…"
 }

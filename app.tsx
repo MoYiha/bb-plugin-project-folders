@@ -754,14 +754,39 @@ function ThreadRow({
   thread,
   active,
   onNavigate,
+  onMove,
+  onDrag,
 }: {
+  onMove: (thread: PluginSidebarThread) => void;
+  onDrag: (thread: PluginSidebarThread | null) => void;
   thread: PluginSidebarThread;
   active: string | null;
   onNavigate: () => void;
 }) {
   const a = experimental_useSidebarThreadActions();
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <div className={"pf-thread " + (active === thread.id ? "pf-active" : "")}>
+    <div
+      className={"pf-thread " + (active === thread.id ? "pf-active" : "")}
+      draggable
+      onDragStart={(event) => {
+        if (menuOpen) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.setData(
+          "application/x-bb-project-folders-thread",
+          thread.id,
+        );
+        event.dataTransfer.effectAllowed = "move";
+        onDrag(thread);
+      }}
+      onDragEnd={() => onDrag(null)}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setMenuOpen(true);
+      }}
+    >
       <a
         href={"#" + thread.id}
         data-sidebar-thread-shortcut-target=""
@@ -788,7 +813,7 @@ function ThreadRow({
           {thread.title || thread.titleFallback}
         </span>
       </a>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button className="pf-icon" aria-label={t("Действия чата")}>
             <Icon name="MoreHorizontal" />
@@ -808,6 +833,10 @@ function ThreadRow({
             {thread.isUnread
               ? t("Отметить прочитанным")
               : t("Отметить непрочитанным")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onMove(thread)}>
+            <Icon name="Folder" />
+            {t("Переместить в подраздел…")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => a.archive(thread.id)}>
@@ -830,7 +859,7 @@ function Tree(props: PluginThreadListProps) {
   const language = useLanguage();
   const [listSettings] = useChatSettings();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const { data, error, refresh } = useTree();
+  const { rpc, data, error, refresh } = useTree();
   const { threads, projects, status } = experimental_useSidebarThreads();
   const environmentKey = threads.map((t) => t.environment?.id ?? "").join("|");
   useEffect(refresh, [environmentKey, refresh]);
@@ -839,6 +868,47 @@ function Tree(props: PluginThreadListProps) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
+  const [movingChat, setMovingChat] = useState<PluginSidebarThread | null>(
+    null,
+  );
+  const [draggedChat, setDraggedChat] = useState<PluginSidebarThread | null>(
+    null,
+  );
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState("");
+  const canMove = (chat: PluginSidebarThread | null, folder: Folder) =>
+    !!chat &&
+    chat.projectId === folder.projectId &&
+    chat.host?.id === folder.hostId;
+  const moveChat = async (
+    chat: PluginSidebarThread,
+    folder: Folder,
+    root: boolean,
+  ) => {
+    if (moveBusy || !canMove(chat, folder)) return;
+    setMoveBusy(true);
+    setMoveError("");
+    setDraggedChat(null);
+    setDropTarget(null);
+    try {
+      await rpc.call("thread_move", {
+        threadId: chat.id,
+        projectId: folder.projectId,
+        folderId: root ? null : folder.id,
+        hostId: folder.hostId,
+      });
+      setMovingChat(null);
+      setClosed((old) => ({ ...old, [folder.id]: false }));
+      refresh();
+    } catch (error) {
+      setMoveError(String(error));
+      setMovingChat(chat);
+    } finally {
+      setMoveBusy(false);
+    }
+  };
+
   const [closed, setClosed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(
@@ -876,6 +946,14 @@ function Tree(props: PluginThreadListProps) {
             thread={thread}
             active={props.activeThreadId}
             onNavigate={props.onNavigate}
+            onMove={(chat) => {
+              setMoveError("");
+              setMovingChat(chat);
+            }}
+            onDrag={(chat) => {
+              setDraggedChat(chat);
+              if (!chat) setDropTarget(null);
+            }}
           />
         ))}
         {sorted.length > listSettings.limit && (
@@ -909,7 +987,36 @@ function Tree(props: PluginThreadListProps) {
     );
     return (
       <div key={f.id} className={root ? "pf-project" : "pf-folder"}>
-        <div className="pf-heading">
+        <div
+          className={
+            "pf-heading" + (dropTarget === f.id ? " pf-drop-target" : "")
+          }
+          onDragOver={(event) => {
+            if (!moveBusy && canMove(draggedChat, f)) {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setDropTarget(f.id);
+            }
+          }}
+          onDragLeave={(event) => {
+            if (
+              !(event.relatedTarget instanceof Node) ||
+              !event.currentTarget.contains(event.relatedTarget)
+            )
+              setDropTarget(null);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (
+              draggedChat &&
+              event.dataTransfer.getData(
+                "application/x-bb-project-folders-thread",
+              ) === draggedChat.id
+            )
+              void moveChat(draggedChat, f, root);
+          }}
+        >
           <button
             className="pf-label"
             onClick={() => toggle(f.id)}
@@ -1059,6 +1166,67 @@ function Tree(props: PluginThreadListProps) {
       >
         {t("Управление разделами")}
       </button>
+      <Dialog
+        open={!!movingChat}
+        onOpenChange={(open) => {
+          if (!open && !moveBusy) setMovingChat(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("Переместить в подраздел…")}</DialogTitle>
+            <DialogDescription>
+              {movingChat?.title || movingChat?.titleFallback}
+            </DialogDescription>
+          </DialogHeader>
+          <p>
+            {t(
+              "Выберите подраздел на том же устройстве. История чата сохранится.",
+            )}
+          </p>
+          {moveError && (
+            <p role="alert" className="pf-error">
+              {moveError}
+            </p>
+          )}
+          <div className="pf-move-targets" aria-busy={moveBusy}>
+            {(() => {
+              const render = (
+                folder: Folder,
+                root: boolean,
+                depth: number,
+              ): React.ReactNode => (
+                <div key={folder.id}>
+                  <button
+                    className="pf-move-target"
+                    style={{ paddingInlineStart: 12 + depth * 18 }}
+                    disabled={moveBusy || !canMove(movingChat, folder)}
+                    onClick={() => {
+                      if (movingChat) void moveChat(movingChat, folder, root);
+                    }}
+                    title={folder.path}
+                  >
+                    <Icon name="Folder" />
+                    <span>{folder.name}</span>
+                  </button>
+                  {data.folders
+                    .filter(
+                      (child) =>
+                        child.projectId === folder.projectId &&
+                        child.hostId === folder.hostId &&
+                        child.parentId === (root ? null : folder.id),
+                    )
+                    .map((child) => render(child, false, depth + 1))}
+                </div>
+              );
+              return data.roots
+                .filter((root) => root.projectId === movingChat?.projectId)
+                .map((root) => render(root, true, 0));
+            })()}
+          </div>
+          {moveBusy && <p role="status">{t("Перенос чата…")}</p>}
+        </DialogContent>
+      </Dialog>
       <MoveDialog
         folder={movingProject}
         onClose={() => setMovingProject(null)}

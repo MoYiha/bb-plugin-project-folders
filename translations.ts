@@ -1,5 +1,10 @@
 // English fallback and Russian translation catalog. User content is never translated.
 export const english = {
+  "Переместить в подраздел…": "Move to section…",
+  "Выберите подраздел на том же устройстве. История чата сохранится.":
+    "Choose a section on the same device. Chat history will be preserved.",
+  "Перенос чата…": "Moving chat…",
+
   "Выбор папки": "Choose folder",
   "Новый раздел": "New section",
   "Правила работы": "Working rules",

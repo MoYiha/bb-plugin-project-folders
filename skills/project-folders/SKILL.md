@@ -17,3 +17,7 @@ Creating a section with an archived name in the same project/device requires a r
 
 ## Move a project
 Use the project card or three-dot Move action to select a new path on the same host and disk volume. This moves the complete source directory, including dotfiles, exports and archives, and updates project and plugin metadata. BB's central database and attachments remain in BB; outside files and other-device sources are unchanged. The original path becomes a compatibility symlink for existing BB environments: do not remove it while those chats rely on it. Finish running chats and queued work first. Home/runtime directories and linked Git worktrees are rejected. Pending moves block messages and can be retried from the management page. Never substitute a source-path update alone for a physical project move.
+
+Development build: `thread_move` RPC accepts `{ threadId, projectId, folderId, hostId }`; `folderId: null` selects the project root. The UI exposes Move to section in the shared right-click/ellipsis menu and drag/drop. Requires the companion core native directory-update API. Only idle/error chats on the same project and machine can move. History stays in BB; dedicated `.bb/chats/<id>` storage moves, repository files do not. Retry the same destination after an interrupted move.
+
+CLI: `bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>`. A dash selects the project root.
