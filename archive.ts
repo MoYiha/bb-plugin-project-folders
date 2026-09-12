@@ -1,0 +1,368 @@
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import type { Folder } from "./server";
+const savedFolder = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  hostId: z.string(),
+  parentId: z.string().nullable(),
+  name: z.string(),
+  path: z.string(),
+});
+export const archiveSchema = z.object({
+  id: z.string(),
+  folder: savedFolder,
+  members: z.array(savedFolder),
+  rootPath: z.string(),
+  archivePath: z.string(),
+  createdAt: z.number(),
+  state: z.enum(["archiving", "archived", "restoring"]),
+  threadIds: z.array(z.string()),
+  restoreThreadIds: z.array(z.string()),
+  error: z.string().nullable(),
+});
+export type Archive = z.infer<typeof archiveSchema>;
+export function makeArchives(
+  bb: BbPluginApi,
+  options: {
+    folders: () => Folder[];
+    root: (projectId: string, hostId: string) => Promise<Folder>;
+    sync: (id: string) => Promise<unknown>;
+    pending: () => Promise<unknown>;
+    changed: () => void;
+  },
+) {
+  const db = bb.storage.database();
+  const list = () =>
+    (
+      db
+        .prepare("SELECT data FROM folder_archives ORDER BY createdAt DESC")
+        .all() as { data: string }[]
+    ).map((r) => archiveSchema.parse(JSON.parse(r.data)));
+  const put = (a: Archive) =>
+    db
+      .prepare("INSERT OR REPLACE INTO folder_archives VALUES (?,?,?)")
+      .run(a.id, a.createdAt, JSON.stringify(a));
+  const inside = (p: string, root: string) =>
+    p === root || p.startsWith(root + path.sep);
+  const matches = (projectId: string, hostId: string, name: string) =>
+    list().filter(
+      (a) =>
+        a.state === "archived" &&
+        a.folder.projectId === projectId &&
+        a.folder.hostId === hostId &&
+        [a.folder.name, path.basename(a.folder.path)].some(
+          (n) =>
+            n.normalize("NFC").toLocaleLowerCase() ===
+            name.trim().normalize("NFC").toLocaleLowerCase(),
+        ),
+    );
+  const blocked = (threadId: string) =>
+    list().some((a) => a.threadIds.includes(threadId));
+  const moving = (hostId: string, p: string) =>
+    list().some(
+      (a) =>
+        a.state !== "archived" &&
+        a.folder.hostId === hostId &&
+        inside(p, a.folder.path),
+    );
+  let queue: Promise<unknown> = Promise.resolve();
+  function serial<T>(run: () => Promise<T>): Promise<T> {
+    const next = queue.then(run, run);
+    queue = next.catch(() => {});
+    return next;
+  }
+  async function threadInventory(projectId: string) {
+    const result: Awaited<ReturnType<typeof bb.sdk.threads.list>> = [];
+    for (const archived of [false, true]) {
+      for (let offset = 0; ; offset += 200) {
+        const page = await bb.sdk.threads.list({
+          projectId,
+          includeHidden: true,
+          archived,
+          limit: 200,
+          offset,
+        });
+        result.push(...page);
+        if (page.length < 200) break;
+      }
+    }
+    return result;
+  }
+  async function archive(folderId: string): Promise<Archive> {
+    return serial(async () => {
+      let a = list().find(
+        (a) => a.folder.id === folderId && a.state === "archiving",
+      );
+      if (!a) {
+        const f = options.folders().find((f) => f.id === folderId);
+        if (!f) throw new Error("Section not found.");
+        const root = await options.root(f.projectId, f.hostId);
+        const otherProjects = await bb.sdk.projects.list();
+        if (
+          otherProjects.some(
+            (p) =>
+              p.id !== f.projectId &&
+              p.sources.some(
+                (source) =>
+                  source.type === "local_path" &&
+                  source.hostId === f.hostId &&
+                  inside(source.path, f.path),
+              ),
+          )
+        )
+          throw new Error(
+            "This folder contains another BB project. Move it separately before archiving the section.",
+          );
+        const envs = await bb.sdk.environments.list();
+        if (
+          envs.some(
+            (e) =>
+              e.projectId !== f.projectId &&
+              e.hostId === f.hostId &&
+              e.path &&
+              inside(e.path, f.path) &&
+              e.status === "ready",
+          )
+        )
+          throw new Error(
+            "An environment from another BB project uses this folder.",
+          );
+        const envIds = new Set(
+          envs
+            .filter(
+              (e) => e.hostId === f.hostId && e.path && inside(e.path, f.path),
+            )
+            .map((e) => e.id),
+        );
+        const all = await threadInventory(f.projectId);
+        const selected = all.filter(
+          (t) => t.environmentId && envIds.has(t.environmentId),
+        );
+        const ids = new Set(selected.map((t) => t.id));
+        if (
+          all.some(
+            (t) =>
+              t.parentThreadId && ids.has(t.parentThreadId) && !ids.has(t.id),
+          )
+        )
+          throw new Error(
+            "Section chats have child chats outside this folder. Finish or move them first.",
+          );
+        if (
+          selected.some(
+            (t) =>
+              ["active", "starting", "stopping", "pending"].includes(
+                t.status,
+              ) ||
+              t.queuedWork !== "none" ||
+              Object.values(t.activity).some((n) => n > 0),
+          )
+        )
+          throw new Error(
+            "The section has running chats or queued messages. Finish them before archiving.",
+          );
+        // Save history before admitting the move; after journaling, event exports are suppressed.
+        for (const t of selected) await options.sync(t.id);
+        const id = randomUUID();
+        a = {
+          id,
+          folder: f,
+          members: options
+            .folders()
+            .filter(
+              (c) =>
+                c.projectId === f.projectId &&
+                c.hostId === f.hostId &&
+                inside(c.path, f.path),
+            ),
+          rootPath: root.path,
+          archivePath: path.join(
+            root.path,
+            ".bb/archive/sections",
+            id,
+            "folder",
+          ),
+          createdAt: Date.now(),
+          state: "archiving",
+          threadIds: [...ids],
+          restoreThreadIds: selected
+            .filter((t) => t.archivedAt === null)
+            .map((t) => t.id),
+          error: null,
+        };
+        put(a);
+      }
+      try {
+        await options.pending();
+        const currentEnvs = await bb.sdk.environments.list();
+        const currentEnvIds = new Set(
+          currentEnvs
+            .filter(
+              (e) =>
+                e.hostId === a!.folder.hostId &&
+                e.path &&
+                inside(e.path, a!.folder.path),
+            )
+            .map((e) => e.id),
+        );
+        const late = (await threadInventory(a.folder.projectId)).filter(
+          (t) =>
+            t.environmentId &&
+            currentEnvIds.has(t.environmentId) &&
+            !a!.threadIds.includes(t.id),
+        );
+        if (
+          late.some(
+            (t) =>
+              ["active", "starting", "stopping", "pending"].includes(
+                t.status,
+              ) ||
+              t.queuedWork !== "none" ||
+              Object.values(t.activity).some((n) => n > 0),
+          )
+        )
+          throw new Error(
+            "A new chat started in the section. Wait for it to finish and retry archiving.",
+          );
+        if (late.length) {
+          a.threadIds.push(...late.map((t) => t.id));
+          a.restoreThreadIds.push(
+            ...late.filter((t) => t.archivedAt === null).map((t) => t.id),
+          );
+          put(a);
+        }
+
+        for (const id of a.restoreThreadIds) {
+          const t = await bb.sdk.threads.get({ threadId: id });
+          if (["active", "starting", "pending", "stopping"].includes(t.status))
+            throw new Error(
+              "The chat started running. Wait for it to finish and retry archiving.",
+            );
+          await bb.sdk.threads.stop({ threadId: id });
+          await bb.sdk.threads.archive({ threadId: id });
+        }
+        const exists = await bb.sdk.hosts.pathsExist({
+          hostId: a.folder.hostId,
+          paths: [a.folder.path, a.archivePath],
+        });
+        if (exists.existence[a.folder.path] && exists.existence[a.archivePath])
+          throw new Error(
+            "Both paths exist; the move stopped without overwriting files.",
+          );
+        if (exists.existence[a.folder.path]) {
+          await bb.sdk.files.mkdir({
+            hostId: a.folder.hostId,
+            rootPath: a.rootPath,
+            path: path.dirname(a.archivePath),
+            recursive: true,
+          });
+          await bb.sdk.files.write({
+            hostId: a.folder.hostId,
+            rootPath: a.rootPath,
+            path: path.join(path.dirname(a.archivePath), "manifest.json"),
+            content: JSON.stringify(a, null, 2),
+          });
+          await bb.sdk.files.move({
+            hostId: a.folder.hostId,
+            rootPath: a.rootPath,
+            sourcePath: a.folder.path,
+            destinationPath: a.archivePath,
+          });
+        } else if (!exists.existence[a.archivePath])
+          throw new Error(
+            "Neither the original folder nor the archive was found.",
+          );
+        db.transaction(() => {
+          for (const f of a!.members)
+            db.prepare("DELETE FROM folders WHERE id=?").run(f.id);
+          a!.state = "archived";
+          a!.error = null;
+          put(a!);
+        })();
+        options.changed();
+        return a;
+      } catch (e) {
+        a.error = String(e);
+        put(a);
+        options.changed();
+        throw e;
+      }
+    });
+  }
+  async function restore(id: string): Promise<Folder> {
+    return serial(async () => {
+      const a = list().find((a) => a.id === id);
+      if (!a) throw new Error("Archive not found.");
+      if (a.state === "archiving")
+        throw new Error("Finish archiving first using Retry.");
+      if (
+        a.folder.parentId &&
+        !options.folders().some((f) => f.id === a.folder.parentId)
+      )
+        throw new Error("Restore the parent section first.");
+      try {
+        const exists = await bb.sdk.hosts.pathsExist({
+          hostId: a.folder.hostId,
+          paths: [a.folder.path, a.archivePath],
+        });
+        if (
+          exists.existence[a.folder.path] &&
+          (a.state !== "restoring" || exists.existence[a.archivePath])
+        )
+          throw new Error(
+            "The original path is occupied. Move the current folder or use a different name for the new section.",
+          );
+        for (const f of a.members) {
+          const active = options
+            .folders()
+            .find(
+              (x) =>
+                x.projectId === f.projectId &&
+                x.hostId === f.hostId &&
+                x.path === f.path,
+            );
+          if (active && active.id !== f.id)
+            throw new Error("The section path is already used in the tree.");
+        }
+        a.state = "restoring";
+        a.error = null;
+        put(a);
+        if (exists.existence[a.archivePath]) {
+          await bb.sdk.files.mkdir({
+            hostId: a.folder.hostId,
+            rootPath: a.rootPath,
+            path: path.dirname(a.folder.path),
+            recursive: true,
+          });
+          await bb.sdk.files.move({
+            hostId: a.folder.hostId,
+            rootPath: a.rootPath,
+            sourcePath: a.archivePath,
+            destinationPath: a.folder.path,
+          });
+        } else if (!exists.existence[a.folder.path])
+          throw new Error("Archive folder not found.");
+        db.transaction(() => {
+          for (const f of a.members)
+            db.prepare(
+              "INSERT OR IGNORE INTO folders VALUES (@id,@projectId,@hostId,@parentId,@name,@path)",
+            ).run(f);
+        })();
+        for (const threadId of a.restoreThreadIds)
+          await bb.sdk.threads.unarchive({ threadId });
+        db.prepare("DELETE FROM folder_archives WHERE id=?").run(id);
+        options.changed();
+        return a.folder;
+      } catch (e) {
+        a.error = String(e);
+        put(a);
+        options.changed();
+        throw e;
+      }
+    });
+  }
+  return { list, matches, blocked, moving, archive, restore };
+}

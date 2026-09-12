@@ -1,0 +1,220 @@
+.pf {
+  color: var(--foreground);
+  font-size: 13px;
+}
+.pf-tree {
+  padding: 8px 12px 16px;
+}
+.pf-tree button {
+  cursor: pointer;
+}
+.pf-tree button:hover {
+  background: var(--accent);
+}
+.pf-tree button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.pf-heading,
+.pf-thread {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.pf-heading {
+  min-height: 36px;
+}
+.pf-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+.pf-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.pf-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 2px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.pf-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-label svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.pf-label .pf-chevron {
+  width: 12px;
+  height: 12px;
+}
+.pf-project {
+  margin: 0 0 20px;
+}
+.pf-children {
+  margin-left: 8px;
+  padding-left: 10px;
+}
+.pf-folder > .pf-children {
+  border-left: 1px solid var(--border);
+}
+.pf-thread {
+  border-radius: 6px;
+  min-height: 32px;
+}
+.pf-thread a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 5px 2px;
+  text-decoration: none;
+  color: inherit;
+}
+.pf-thread a span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-thread a svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.pf-status {
+  font-size: 10px;
+  flex: none;
+  width: 8px;
+}
+.pf-unread {
+  font-weight: 650;
+}
+.pf-active {
+  background: var(--accent);
+}
+.pf-manage {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  padding: 8px;
+  border-radius: 6px;
+}
+.pf-panel {
+  max-width: 900px;
+  width: 100%;
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+}
+.pf-panel h1 {
+  font-size: 24px;
+  font-weight: 650;
+  margin: 18px 0;
+}
+.pf-panel h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.pf-panel p {
+  margin: 12px 0;
+  line-height: 1.6;
+}
+.pf-card {
+  border: 1px solid var(--border);
+  padding: 18px;
+  border-radius: 12px;
+  margin-top: 16px;
+}
+.pf-dialog {
+  max-width: 520px;
+}
+.pf-field {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 18px;
+}
+.pf-field input {
+  margin-top: 7px;
+}
+.pf-path-control {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+.pf-path-control input {
+  flex: 1;
+  min-width: 0;
+}
+.pf-path-control button {
+  flex: none;
+}
+.pf-folder-path {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  margin-bottom: 12px;
+}
+.pf-folder-picker {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 320px;
+  overflow: auto;
+  margin-bottom: 16px;
+  min-height: 120px;
+}
+.pf-folder-picker button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+}
+.pf-folder-picker button:hover {
+  background: var(--accent);
+}
+.pf-folder-picker svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.pf-rules {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--background);
+  font-size: 13px;
+  margin: 8px 0 16px;
+}
+.pf-native-compose {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 24px;
+}
+
+/* Preserve file path readability in every interface language. */
+.pf-folder-path, .pf-path-control input { direction: ltr; text-align: left; unicode-bidi: isolate; }
+.pf[dir="rtl"] .pf-children { border-left: 0; border-right: 1px solid var(--border); margin-left: 0; margin-right: 14px; padding-left: 0; padding-right: 8px; }
