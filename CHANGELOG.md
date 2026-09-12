@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+Integrate the destination tree into the existing project-control position beneath the composer, removing the extra selector and path block.
+
 ## 0.3.1
 
 Add a hierarchical project/section destination picker and show the selected working path above the native composer. Fix section chat creation with the native project-checkout environment provider. Preserve composer selections, enforce the section device and directory, and display submission errors without clearing the draft.

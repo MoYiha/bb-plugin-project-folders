@@ -2,7 +2,7 @@ import { MoveDialog, PendingMoves } from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import { sortChats } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   definePluginApp,
   useRpc,
@@ -15,6 +15,7 @@ import {
   type PluginNavPanelProps,
   type PluginSidebarThread,
 } from "@get-bb/plugin-sdk/app";
+import { createPortal } from "react-dom";
 import type { Folder, ComposerRequest, rpcContract } from "./server";
 import type { Archive } from "./archive";
 import {
@@ -1147,9 +1148,52 @@ function ArchiveList() {
   );
 }
 function Panel({ subPath }: PluginNavPanelProps) {
-  const [submitError, setSubmitError] = useState("");
-  useLanguage();
   const { rpc, data, error, refresh } = useTree();
+  const [submitError, setSubmitError] = useState("");
+  const composeRef = useRef<HTMLDivElement>(null);
+  const [projectSlot, setProjectSlot] = useState<{
+    node: HTMLElement;
+    className: string;
+  } | null>(null);
+  useEffect(() => {
+    const owner = composeRef.current;
+    if (!owner) return;
+    let original: HTMLElement | null = null;
+    let slot: HTMLElement | null = null;
+    let previousDisplay = "";
+    const restore = () => {
+      if (original) original.style.display = previousDisplay;
+      slot?.remove();
+      original = null;
+      slot = null;
+    };
+    const attach = () => {
+      const button = owner.querySelector<HTMLElement>(
+        "[data-promptbox-project-control]",
+      );
+      if (button === original) return;
+      restore();
+      if (!button) {
+        setProjectSlot(null);
+        return;
+      }
+      original = button;
+      previousDisplay = button.style.display;
+      slot = document.createElement("span");
+      slot.className = "pf-native-project-slot inline-flex shrink-0";
+      button.before(slot);
+      button.style.display = "none";
+      setProjectSlot({ node: slot, className: button.className });
+    };
+    attach();
+    const observer = new MutationObserver(attach);
+    observer.observe(owner, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      restore();
+    };
+  }, [subPath, data.folders.length, data.roots.length]);
+  useLanguage();
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
@@ -1286,29 +1330,37 @@ function Panel({ subPath }: PluginNavPanelProps) {
   );
   if (action === "chat")
     return f ? (
-      <div className="pf-native-compose">
-        <div className="pf-section-picker px-4 py-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" aria-label={t("Проекты и разделы")}>
-                <Icon name="Folder" />
-                {selectedNames.join(" / ")}
-                <Icon name="ChevronDown" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="max-h-80 overflow-auto min-w-64">
-              {data.roots.map((r) => sectionMenu(r))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <p className="pf-folder-path text-xs mt-1">{f.path}</p>
-        </div>
+      <div className="pf-native-compose" ref={composeRef}>
+        {projectSlot &&
+          createPortal(
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className={projectSlot.className}
+                  aria-label={t("Проекты и разделы")}
+                  title={f.path}
+                >
+                  <Icon name="Folder" />
+                  <span className="min-w-0 truncate">
+                    {selectedNames.join(" / ")}
+                  </span>
+                  <Icon name="ChevronDown" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="max-h-80 overflow-auto min-w-64">
+                {data.roots.map((r) => sectionMenu(r))}
+              </DropdownMenuContent>
+            </DropdownMenu>,
+            projectSlot.node,
+          )}
         {submitError && (
           <p role="alert" className="text-destructive p-4">
             {submitError}
           </p>
         )}
         <NewThreadComposer
-          key={f.id}
+          key={`${f.id}:${f.hostId}`}
           defaultProjectId={projectId}
           defaultEnvironment={{
             type: "provider",

@@ -238,4 +238,4 @@
 .pf-show-more:hover { background: var(--accent); color: var(--foreground); }
 .pf-show-more svg { width: 14px; height: 14px; flex: 0 0 14px; }
 
-.pf-section-picker button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.pf-native-project-slot button svg { width: 16px; height: 16px; flex-shrink: 0; }
