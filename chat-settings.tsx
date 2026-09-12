@@ -1,3 +1,11 @@
+import {
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "./components/ui/dropdown-menu";
+import { Icon } from "./components/ui/icon";
 import { useSyncExternalStore } from "react";
 import { t } from "./i18n";
 import { parseSettings, type ChatListSettings } from "./chat-list";
@@ -72,5 +80,35 @@ export function ChatSettings() {
         {t("Закреплённые чаты сверху. Настройки сохраняются в этом браузере.")}
       </p>
     </div>
+  );
+}
+
+export function ChatSortMenu() {
+  const [settings, update] = useChatSettings();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Icon name="Settings" />
+        {t("Сортировка чатов")}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={settings.sort}
+          onValueChange={(sort) =>
+            update({ sort: sort as ChatListSettings["sort"] })
+          }
+        >
+          <DropdownMenuRadioItem value="activity">
+            {t("По активности")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="title">
+            {t("По алфавиту")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="created">
+            {t("Сначала новые")}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

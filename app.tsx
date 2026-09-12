@@ -1,4 +1,5 @@
-import { ChatSettings, useChatSettings } from "./chat-settings";
+import { MoveDialog, PendingMoves } from "./move-dialog";
+import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import { sortChats } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import { useCallback, useEffect, useState } from "react";
@@ -835,6 +836,7 @@ function Tree(props: PluginThreadListProps) {
   const nav = useBbNavigate();
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
+  const [movingProject, setMovingProject] = useState<Folder | null>(null);
   const [closed, setClosed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(
@@ -876,7 +878,7 @@ function Tree(props: PluginThreadListProps) {
         ))}
         {sorted.length > listSettings.limit && (
           <button
-            className="pf-manage"
+            className="pf-show-more"
             aria-expanded={!!expanded[group]}
             onClick={() =>
               setExpanded((old) => ({ ...old, [group]: !old[group] }))
@@ -952,6 +954,14 @@ function Tree(props: PluginThreadListProps) {
                 {t("Новый раздел")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <ChatSortMenu />
+              {root && (
+                <DropdownMenuItem onSelect={() => setMovingProject(f)}>
+                  <Icon name="Folder" />
+                  {t("Перенести")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() =>
                   setModal({ action: "rules", target, folder: f })
@@ -996,17 +1006,6 @@ function Tree(props: PluginThreadListProps) {
   };
   return (
     <div className="pf pf-tree" dir={direction()}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="pf-manage">
-            <Icon name="Settings" />
-            {t("Настройки списка")}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <ChatSettings />
-        </DropdownMenuContent>
-      </DropdownMenu>
       <Button
         variant="ghost"
         className="mb-2 w-full justify-start"
@@ -1058,6 +1057,11 @@ function Tree(props: PluginThreadListProps) {
       >
         {t("Управление разделами")}
       </button>
+      <MoveDialog
+        folder={movingProject}
+        onClose={() => setMovingProject(null)}
+        onMoved={refresh}
+      />
       <ProjectDialog
         defaultHostId={data.roots[0]?.hostId}
         open={newProject}
@@ -1147,6 +1151,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const { rpc, data, error, refresh } = useTree();
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
+  const [movingProject, setMovingProject] = useState<Folder | null>(null);
   const nav = useBbNavigate();
   const [action, projectId, folderId] = (subPath || "")
     .replace(/^\//, "")
@@ -1191,6 +1196,12 @@ function Panel({ subPath }: PluginNavPanelProps) {
             <Icon name="Edit" />
             {t("Переименовать")}
           </Button>
+          {root && (
+            <Button variant="ghost" onClick={() => setMovingProject(r)}>
+              <Icon name="Folder" />
+              {t("Перенести")}
+            </Button>
+          )}
           {!root && (
             <Button
               variant="ghost"
@@ -1278,12 +1289,18 @@ function Panel({ subPath }: PluginNavPanelProps) {
         <h2>{t("Настройки списка")}</h2>
         <ChatSettings />
       </section>
+      <PendingMoves />
       <ArchiveList />
       {[error, ...data.errors].filter(Boolean).map((e, i) => (
         <p className="text-destructive" role="alert" key={i}>
           {e}
         </p>
       ))}
+      <MoveDialog
+        folder={movingProject}
+        onClose={() => setMovingProject(null)}
+        onMoved={refresh}
+      />
       <ProjectDialog
         defaultHostId={data.roots[0]?.hostId}
         open={newProject}

@@ -70,7 +70,7 @@ Enable the Projects & Sections thread list in BB's sidebar customization if BB d
 
 ## Sort and shorten chat lists
 
-Open **List settings** above the sidebar tree or on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
+Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **List settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
 
 Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are saved in the current browser and update open plugin views immediately.
 
@@ -99,6 +99,14 @@ Agent instructions direct supporting documents to `artifacts/`, notes to `notes/
 Running chats, queued work and another project's sources or environments inside the folder prevent the move. **Restore** returns files to the original path and restores previously active chats. It refuses to overwrite an occupied path. Creating a section with a matching archived name on the same project and device offers restoration or explicit creation of a new section.
 
 Interrupted operations remain visible with **Retry**. Permanent archive deletion is not provided. Keep the plugin's database and BB chat storage in your normal backups; the archive folder alone does not recreate BB's database. Disabling or uninstalling the plugin does not move archived folders back; restore sections first if you want to keep using those chat environments without the plugin.
+
+## Move a project
+
+Choose **Move** on the project card or in its **⋯** menu. Browse for a destination parent folder, then confirm the new project path. The entire project directory moves together: files, dotfiles, working rules, nested sections, chat exports and section archives. Project sources and the plugin's section/archive paths are updated.
+
+Existing BB environments keep their stored working paths, so the old directory is replaced by a symbolic link to the new location. Keep that link while existing chats use it. BB's central database, attachment storage and files outside the project directory are not relocated. A project source on another device is unchanged.
+
+Relocation currently works on the **same device and disk volume**, to a path that does not exist. Finish running chats and queued work first. Home folders, BB runtime directories, linked Git worktrees and projects with environments outside their source folder cannot be moved this way. Interrupted moves appear on the management page with **Retry**; new messages are blocked until the move is completed.
 
 ## Commands
 

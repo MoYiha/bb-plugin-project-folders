@@ -67,5 +67,11 @@
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Conversas fixadas ficam no topo. As configurações são salvas neste navegador.",
   "Показать все": "Mostrar todas",
   "Свернуть список": "Mostrar menos",
-  "Настройки списка": "Configurações da lista"
+  "Настройки списка": "Configurações da lista",
+  "Перенести": "Mover",
+  "Перенести проект": "Mover projeto",
+  "Новый путь проекта": "Novo caminho do projeto",
+  "Вся папка переедет вместе со скрытыми файлами и архивом. Старый путь останется ссылкой для существующих чатов. История в базе BB остаётся в BB.": "A pasta inteira será movida, incluindo arquivos ocultos e arquivos de seções. O caminho antigo permanecerá como link para as conversas existentes. O histórico no banco de dados do BB permanece no BB.",
+  "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.": "Escolha um caminho inexistente no mesmo volume. Finalize as conversas em execução primeiro.",
+  "Незавершённые переносы": "Movimentações pendentes"
 }

@@ -28,6 +28,8 @@ export function makeArchives(
   bb: BbPluginApi,
   options: {
     folders: () => Folder[];
+    canonical?: (hostId: string, path: string) => string;
+    projectMoving?: (projectId: string) => boolean;
     root: (projectId: string, hostId: string) => Promise<Folder>;
     sync: (id: string) => Promise<unknown>;
     pending: () => Promise<unknown>;
@@ -66,7 +68,7 @@ export function makeArchives(
       (a) =>
         a.state !== "archived" &&
         a.folder.hostId === hostId &&
-        inside(p, a.folder.path),
+        inside(options.canonical?.(hostId, p) ?? p, a.folder.path),
     );
   let queue: Promise<unknown> = Promise.resolve();
   function serial<T>(run: () => Promise<T>): Promise<T> {
@@ -123,7 +125,7 @@ export function makeArchives(
               e.projectId !== f.projectId &&
               e.hostId === f.hostId &&
               e.path &&
-              inside(e.path, f.path) &&
+              inside(options.canonical?.(e.hostId, e.path) ?? e.path, f.path) &&
               e.status === "ready",
           )
         )
@@ -133,7 +135,10 @@ export function makeArchives(
         const envIds = new Set(
           envs
             .filter(
-              (e) => e.hostId === f.hostId && e.path && inside(e.path, f.path),
+              (e) =>
+                e.hostId === f.hostId &&
+                e.path &&
+                inside(options.canonical?.(e.hostId, e.path) ?? e.path, f.path),
             )
             .map((e) => e.id),
         );
@@ -204,7 +209,10 @@ export function makeArchives(
               (e) =>
                 e.hostId === a!.folder.hostId &&
                 e.path &&
-                inside(e.path, a!.folder.path),
+                inside(
+                  options.canonical?.(e.hostId, e.path) ?? e.path,
+                  a!.folder.path,
+                ),
             )
             .map((e) => e.id),
         );
@@ -296,6 +304,8 @@ export function makeArchives(
     return serial(async () => {
       const a = list().find((a) => a.id === id);
       if (!a) throw new Error("Archive not found.");
+      if (options.projectMoving?.(a.folder.projectId))
+        throw new Error("Finish the project move before restoring sections.");
       if (a.state === "archiving")
         throw new Error("Finish archiving first using Retry.");
       if (

@@ -1,3 +1,4 @@
+import { makeProjectMoves } from "./project-move";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
@@ -38,6 +39,25 @@ const requestSchema = z.object({
 });
 export type ComposerRequest = z.input<typeof requestSchema>;
 export const rpcContract = defineRpcContract({
+  project_move: {
+    input: z.object({
+      projectId: z.string(),
+      hostId: z.string(),
+      destination: z.string().min(1),
+    }),
+    output: z.object({ destination: z.string(), complete: z.boolean() }),
+  },
+  pending_moves: {
+    input: z.null(),
+    output: z.array(
+      z.object({
+        projectId: z.string(),
+        hostId: z.string(),
+        destination: z.string(),
+        error: z.string().nullable(),
+      }),
+    ),
+  },
   list: {
     input: z.null(),
     output: z.object({
@@ -159,6 +179,7 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE folders (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, hostId TEXT NOT NULL, parentId TEXT, name TEXT NOT NULL, path TEXT NOT NULL, UNIQUE(projectId,hostId,path))`,
     `CREATE TABLE exports (threadId TEXT PRIMARY KEY, path TEXT, error TEXT, updatedAt INTEGER)`,
     `CREATE TABLE folder_archives (id TEXT PRIMARY KEY, createdAt INTEGER NOT NULL, data TEXT NOT NULL)`,
+    `CREATE TABLE project_moves (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY name").all() as Folder[];
@@ -181,6 +202,10 @@ export default async function plugin(bb: BbPluginApi) {
     });
   }
   async function target(input: z.infer<typeof targetSchema>): Promise<Folder> {
+    if (moves.busy(input.projectId))
+      throw new Error(
+        "Project relocation is pending. Finish or retry it before changing the project.",
+      );
     if (!input.folderId && input.hostId) {
       const project = (await bb.sdk.projects.list()).find(
         (p) => p.id === input.projectId,
@@ -276,8 +301,11 @@ export default async function plugin(bb: BbPluginApi) {
         (f) =>
           f.projectId === t.projectId &&
           f.hostId === env.hostId &&
-          f.path === env.path,
-      ) ?? (root?.path === env.path ? root : null);
+          f.path === moves.canonical(env.hostId, env.path ?? ""),
+      ) ??
+      (root?.path === moves.canonical(env.hostId, env.path ?? "")
+        ? root
+        : null);
     if (!f)
       throw new Error("The chat working folder is not registered in the tree.");
     return { t, f };
@@ -393,7 +421,11 @@ export default async function plugin(bb: BbPluginApi) {
     if (archives.blocked(threadId)) return Promise.resolve({ path: "" });
     const active = syncing.get(threadId);
     if (active) return active;
-    const task = exportChat(threadId)
+    const task = bb.sdk.threads
+      .get({ threadId })
+      .then((t) =>
+        moves.busy(t.projectId) ? { path: "" } : exportChat(threadId),
+      )
       .catch((e) => {
         db.prepare("INSERT OR REPLACE INTO exports VALUES (?,NULL,?,?)").run(
           threadId,
@@ -406,7 +438,12 @@ export default async function plugin(bb: BbPluginApi) {
     syncing.set(threadId, task);
     return task;
   }
+  const moves = makeProjectMoves(bb, changed, () =>
+    Promise.allSettled([...syncing.values()]),
+  );
   const archives = makeArchives(bb, {
+    canonical: moves.canonical,
+    projectMoving: moves.busy,
     folders,
     root: (projectId, hostId) => target({ projectId, hostId, folderId: null }),
     sync,
@@ -424,7 +461,8 @@ export default async function plugin(bb: BbPluginApi) {
       typeof inputs.path === "string"
         ? inputs.path
         : null);
-    return archives.blocked(ctx.thread.id) ||
+    return moves.busy(ctx.project.id) ||
+      archives.blocked(ctx.thread.id) ||
       (requestedPath && ctx.host && archives.moving(ctx.host.id, requestedPath))
       ? {
           action: "reject",
@@ -434,13 +472,20 @@ export default async function plugin(bb: BbPluginApi) {
       : { action: "proceed" };
   });
   bb.rpc.register(rpcContract, {
+    project_move: (input) => moves.move(input),
+    pending_moves: async () => moves.list().filter((m) => !m.complete),
     archive_list: async () => ({ archives: archives.list() }),
     archive_matches: async (input) => {
       const f = await target(input);
       return { archives: archives.matches(f.projectId, f.hostId, input.name) };
     },
     archive: ({ folderId }) => archives.archive(folderId),
-    restore: ({ id }) => archives.restore(id),
+    restore: ({ id }) => {
+      const a = archives.list().find((a) => a.id === id);
+      if (a && moves.busy(a.folder.projectId))
+        throw new Error("Finish the project relocation first.");
+      return archives.restore(id);
+    },
     list: async () => {
       const all = await bb.sdk.environments.list();
       const fs = folders();
@@ -450,7 +495,7 @@ export default async function plugin(bb: BbPluginApi) {
           (f) =>
             f.hostId === e.hostId &&
             f.projectId === e.projectId &&
-            f.path === e.path,
+            f.path === moves.canonical(e.hostId, e.path ?? ""),
         );
         if (f) bindings[e.id] = f.id;
       }
@@ -635,7 +680,10 @@ export default async function plugin(bb: BbPluginApi) {
         const e = await bb.sdk.environments.get({
           environmentId: req.environment.environmentId,
         });
-        if (e.hostId !== f.hostId || e.path !== f.path)
+        if (
+          e.hostId !== f.hostId ||
+          moves.canonical(e.hostId, e.path ?? "") !== f.path
+        )
           throw new Error(
             "The selected environment does not match the section folder.",
           );

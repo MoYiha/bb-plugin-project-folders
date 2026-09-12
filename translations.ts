@@ -76,4 +76,12 @@ export const english = {
   "Показать все": "Show all",
   "Свернуть список": "Show fewer",
   "Настройки списка": "List settings",
+  Перенести: "Move",
+  "Перенести проект": "Move project",
+  "Новый путь проекта": "New project path",
+  "Вся папка переедет вместе со скрытыми файлами и архивом. Старый путь останется ссылкой для существующих чатов. История в базе BB остаётся в BB.":
+    "The entire folder moves, including hidden files and archives. The old path remains a link for existing chats. History in the BB database stays in BB.",
+  "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.":
+    "Choose a new, nonexistent path on the same disk volume. Finish running chats first.",
+  "Незавершённые переносы": "Unfinished moves",
 } as const;
