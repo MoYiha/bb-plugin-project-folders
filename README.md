@@ -1,6 +1,11 @@
-# Projects & Sections for BB
+# Projects & Sections for BB — Real Folders, Section Chats & Restorable Archives
 
-Organize BB projects into real folders, nested sections and chats that start in the right working directory. Archive a section with its files and restore it later with its original chats and rules.
+[![BB Compatibility](https://img.shields.io/badge/BB-%3E%3D0.43-blue.svg)](https://getbb.app)
+[![Plugin SDK](https://img.shields.io/badge/Plugin%20SDK-%3E%3D0.4.84-green.svg)](https://getbb.app)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/VKirill/bb-plugin-project-folders?include_prereleases&color=orange)](https://github.com/VKirill/bb-plugin-project-folders/releases)
+
+> Organize BB projects into real folders, nested sections, and chats that start in the right working directory. Archive a section with its files and restore it later with its original chats and rules. Interface available in 11 languages.
 
 [Русский](README.ru.md) · [Report an issue](https://github.com/VKirill/bb-plugin-project-folders/issues)
 
@@ -149,3 +154,7 @@ Active chats and queued messages prevent relocation. If storage relocation fails
 ### Folder picker
 
 The project and section dialogs share a compact picker adapted from BB’s RemotePathBrowser. Use the folder-plus button to create a child folder on the selected device. The trash button asks for confirmation and removes only an empty, unregistered folder. Files and section history are never recursively deleted by this action; archive registered sections instead.
+
+## Tags & Ecosystem
+`bb`, `bb-plugin`, `project-folders`, `sections`, `workspace-organization`, `file-manager`, `developer-tools`, `i18n`
+

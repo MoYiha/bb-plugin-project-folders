@@ -56,7 +56,17 @@
     "vaul": "^1.1.2",
     "vitest": "^5.0.0"
   },
-  "description": "Project folders, nested sections and restorable chat archives for BB.",
+  "description": "Real project sections, per-folder chats and restorable archives for BB. Multi-language workspace organization with 11 locales.",
+  "keywords": [
+    "bb",
+    "bb-plugin",
+    "project-folders",
+    "sections",
+    "workspace-organization",
+    "file-manager",
+    "developer-tools",
+    "i18n"
+  ],
   "license": "MIT",
   "author": "Kirill Vechkasov",
   "repository": {
