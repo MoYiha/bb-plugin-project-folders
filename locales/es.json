@@ -82,5 +82,11 @@
   "Удалить пустую папку": "Eliminar carpeta vacía",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Las carpetas con archivos no se eliminan. Para las secciones, usa el archivo.",
   "Удалить": "Eliminar",
-  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Espera a que terminen la respuesta y los mensajes pendientes y vuelve a intentarlo."
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Espera a que terminen la respuesta y los mensajes pendientes y vuelve a intentarlo.",
+  "Удалить проект": "Eliminar proyecto",
+  "Проект пропадёт из дерева BB. Его чаты будут удалены из BB. Это нельзя отменить из плагина.": "El proyecto desaparecerá del árbol de BB. Sus chats se eliminarán de BB. El complemento no puede deshacerlo.",
+  "Не трогать файлы": "No tocar los archivos",
+  "Папка на диске останется на месте.": "La carpeta en el disco permanecerá en su sitio.",
+  "Перенести файлы в архив": "Mover los archivos al archivo",
+  "Папка переедет в скрытый архив рядом с проектом, в .bb/archive/projects/.": "La carpeta se moverá a un archivo oculto junto al proyecto, en .bb/archive/projects/."
 }

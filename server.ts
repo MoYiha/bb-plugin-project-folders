@@ -7,6 +7,7 @@ import { defineRpcContract, type BbPluginApi } from "@get-bb/plugin-sdk";
 import type { NewThreadRequest } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { makeArchives, archiveSchema } from "./archive";
+import { deleteProject } from "./project-delete";
 
 const folderSchema = z.object({
   id: z.string(),
@@ -111,6 +112,17 @@ export const rpcContract = defineRpcContract({
       path: z.string().trim().min(1),
     }),
     output: z.object({ id: z.string() }),
+  },
+  project_delete: {
+    input: z.object({
+      projectId: z.string().min(1),
+      files: z.enum(["keep", "archive"]),
+    }),
+    output: z.object({
+      ok: z.literal(true),
+      files: z.enum(["keep", "archive"]),
+      archivePath: z.string().nullable(),
+    }),
   },
   archive_list: {
     input: z.null(),
@@ -473,6 +485,30 @@ export default async function plugin(bb: BbPluginApi) {
     pending: () => Promise.allSettled([...syncing.values()]),
     changed,
   });
+  const dropProjectRows = (projectId: string) => {
+    db.prepare("DELETE FROM folders WHERE projectId=?").run(projectId);
+    for (const a of archives.list()) {
+      if (a.folder.projectId === projectId)
+        db.prepare("DELETE FROM folder_archives WHERE id=?").run(a.id);
+    }
+    for (const row of db
+      .prepare("SELECT id,data FROM project_moves")
+      .all() as { id: string; data: string }[]) {
+      const data = JSON.parse(row.data) as { projectId?: string };
+      if (data.projectId === projectId)
+        db.prepare("DELETE FROM project_moves WHERE id=?").run(row.id);
+    }
+  };
+  const projectDeleteDeps = {
+    folders,
+    busy: moves.busy,
+    pendingArchives: (projectId: string) =>
+      archives
+        .list()
+        .some((a) => a.folder.projectId === projectId && a.state !== "archived"),
+    dropProjectRows,
+    changed,
+  };
   const threadMoves = makeThreadMoves(bb, {
     target,
     canonical: moves.canonical,
@@ -686,6 +722,7 @@ export default async function plugin(bb: BbPluginApi) {
       changed();
       return { id: project.id };
     },
+    project_delete: (input) => deleteProject(bb, projectDeleteDeps, input),
     create,
     locations: async (input) => {
       const hosts = await bb.sdk.hosts.list();
@@ -926,6 +963,12 @@ export default async function plugin(bb: BbPluginApi) {
         usage: "bb project-folders forget <folder-id>",
       },
       {
+        name: "delete-project",
+        summary: "Remove a project from BB; keep files or move them to archive",
+        usage:
+          "bb project-folders delete-project <project-id> keep|archive",
+      },
+      {
         name: "sync",
         usage: "bb project-folders sync <thread-id>",
         summary: "Export chat history: sync <thread-id>",
@@ -964,15 +1007,20 @@ export default async function plugin(bb: BbPluginApi) {
           value = await archives.archive(z.string().min(1).parse(args[1]));
         } else if (args[0] === "restore") {
           value = await archives.restore(z.string().min(1).parse(args[1]));
-        } else if (args[0] === "archives") {
+        }         else if (args[0] === "archives") {
           value = archives.list();
+        } else if (args[0] === "delete-project") {
+          value = await deleteProject(bb, projectDeleteDeps, {
+            projectId: z.string().min(1).parse(args[1]),
+            files: z.enum(["keep", "archive"]).parse(args[2]),
+          });
         } else if (args[0] === "sync")
           value = await sync(z.string().min(1).parse(args[1]));
         else
           return {
             exitCode: 0,
             stdout:
-              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id>",
+              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | delete-project <project-id> keep|archive",
           };
         return { exitCode: 0, stdout: JSON.stringify(value, null, 2) };
       } catch (e) {

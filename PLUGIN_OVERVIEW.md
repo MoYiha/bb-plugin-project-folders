@@ -12,7 +12,7 @@ Move a section, its nested folders and chats into a hidden archive inside the pr
 
 ## Sort chats and move projects
 
-Sort chats from the project or section three-dot menu by activity, name or creation time. Choose how many chats each list shows, and expand a list when needed. Move a complete project folder to a new location on the same device and disk volume, including hidden files, rules and archives. A compatibility link preserves existing chat paths; BB's central history stays in BB.
+Sort chats from the project or section three-dot menu by activity, name or creation time. Choose how many chats each list shows, and expand a list when needed. Move a complete project folder to a new location on the same device and disk volume, including hidden files, rules and archives. A compatibility link preserves existing chat paths; BB's central history stays in BB. Delete a project from the tree: leave the folder on disk or move it to `.bb/archive/projects/`.
 
 ## Requirements
 

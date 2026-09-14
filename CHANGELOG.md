@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4
+
+Stable release of the 0.3.4 preview series: it contains everything from 0.3.4-rc.1 through 0.3.4-rc.4 listed below.
+
+- Tighten sidebar spacing: projects sit on a compact list instead of a 20px gap, and an expanded project keeps a smaller separation from the next one.
+- Right-click a project or section heading to open the same menu as the ellipsis button.
+- Delete a project from the tree menu or the management page.
+- Choose **Leave files in place** (default) or **Move files to the archive** next to the project folder.
+- BB chats of that project are removed; Git remotes and other machines are not deleted. Archiving files is refused when the folder is also another project's section.
+
+
 ## 0.3.4-rc.3
 
 - Rename chats inline from the context/ellipsis menu or by double-clicking the title. Enter or blur saves through the native BB rename action; Escape cancels.

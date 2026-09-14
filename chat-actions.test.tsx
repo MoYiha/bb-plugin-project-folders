@@ -83,6 +83,28 @@ function mount(failMove = false) {
     },
   );
 }
+it("opens the project menu on right-click with the same actions as the ellipsis", async () => {
+  const view = mount();
+  fireEvent.contextMenu(await view.findByText("Project"));
+  expect(
+    await view.findByRole("menuitem", { name: /New section/ }),
+  ).toBeTruthy();
+  expect(view.getByRole("menuitem", { name: /New project/ })).toBeTruthy();
+  expect(view.getByRole("menuitem", { name: /^Delete$/ })).toBeTruthy();
+  expect(view.queryByRole("menuitem", { name: /^Archive$/ })).toBeNull();
+  view.lifecycle.unmount();
+});
+it("opens the section menu on right-click with archive instead of delete", async () => {
+  const view = mount();
+  fireEvent.contextMenu(await view.findByText("Section"));
+  expect(
+    await view.findByRole("menuitem", { name: /New section/ }),
+  ).toBeTruthy();
+  expect(view.getByRole("menuitem", { name: /^Archive$/ })).toBeTruthy();
+  expect(view.queryByRole("menuitem", { name: /New project/ })).toBeNull();
+  expect(view.queryByRole("menuitem", { name: /^Delete$/ })).toBeNull();
+  view.lifecycle.unmount();
+});
 it("opens the chat action menu on right-click and offers native actions plus move", async () => {
   const view = mount();
   fireEvent.contextMenu(await view.findByText("Example chat"));
