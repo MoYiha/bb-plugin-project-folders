@@ -15,10 +15,13 @@ Active work and queued messages must finish before a move. A section containing 
 `bb project-folders restore <archive-id>` restores the original path and previously unarchived chats; it never overwrites an occupied original path. Restore the parent first when necessary.
 Creating a section with an archived name in the same project/device requires a restore-or-create-new choice in the UI. Do not silently create a fresh directory instead of offering restoration. Permanently deleting archives is not implemented.
 
+## Delete a project
+`bb project-folders delete-project <project-id> keep|archive` removes the BB project from the tree. `keep` leaves the folder on disk. `archive` moves the single local source to `<parent>/.bb/archive/projects/<id>/folder`. BB chats of that project are deleted. Refuse `archive` when the folder is another project's section or contains another project source. Do not delete a project on the user's behalf when they only asked for the menu; they use the **Delete** action themselves.
+
 ## Move a project
 Use the project card or three-dot Move action to select a new path on the same host and disk volume. This moves the complete source directory, including dotfiles, exports and archives, and updates project and plugin metadata. BB's central database and attachments remain in BB; outside files and other-device sources are unchanged. The original path becomes a compatibility symlink for existing BB environments: do not remove it while those chats rely on it. Finish running chats and queued work first. Home/runtime directories and linked Git worktrees are rejected. Pending moves block messages and can be retried from the management page. Never substitute a source-path update alone for a physical project move.
 
-Development build: `thread_move` RPC accepts `{ threadId, projectId, folderId, hostId }`; `folderId: null` selects the project root. The UI exposes Move to section in the shared right-click/ellipsis menu and drag/drop. Requires the companion core native directory-update API. Only idle/error chats on the same project and machine can move. History stays in BB; dedicated `.bb/chats/<id>` storage moves, repository files do not. Retry the same destination after an interrupted move.
+Development build: `thread_move` RPC accepts `{ threadId, projectId, folderId, hostId }`; `folderId: null` selects the project root. The UI exposes Move to section in the shared chat right-click/ellipsis menu and drag/drop. Project and section headings use the same right-click menu as their ellipsis button. Requires the companion core native directory-update API. Only idle/error chats on the same project and machine can move. History stays in BB; dedicated `.bb/chats/<id>` storage moves, repository files do not. Retry the same destination after an interrupted move.
 
 CLI: `bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>`. A dash selects the project root.
 

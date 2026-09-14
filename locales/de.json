@@ -82,5 +82,11 @@
   "Удалить пустую папку": "Leeren Ordner löschen",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Ordner mit Dateien werden nicht gelöscht. Verwenden Sie für Bereiche das Archiv.",
   "Удалить": "Löschen",
-  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Warten Sie, bis die Antwort und die Nachrichten in der Warteschlange abgeschlossen sind, und versuchen Sie es erneut."
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Warten Sie, bis die Antwort und die Nachrichten in der Warteschlange abgeschlossen sind, und versuchen Sie es erneut.",
+  "Удалить проект": "Projekt löschen",
+  "Проект пропадёт из дерева BB. Его чаты будут удалены из BB. Это нельзя отменить из плагина.": "Das Projekt verschwindet aus dem BB-Baum. Seine Chats werden aus BB gelöscht. Das Plugin kann das nicht rückgängig machen.",
+  "Не трогать файлы": "Dateien nicht anfassen",
+  "Папка на диске останется на месте.": "Der Ordner auf der Festplatte bleibt an Ort und Stelle.",
+  "Перенести файлы в архив": "Dateien ins Archiv verschieben",
+  "Папка переедет в скрытый архив рядом с проектом, в .bb/archive/projects/.": "Der Ordner wandert in ein verstecktes Archiv neben dem Projekt, nach .bb/archive/projects/."
 }

@@ -4,7 +4,13 @@ import { MoveDialog, PendingMoves } from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import { sortChats } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
-import { useCallback, useEffect, useState, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  type DragEventHandler,
+} from "react";
 import {
   definePluginApp,
   useRpc,
@@ -41,7 +47,7 @@ import { Icon } from "./components/ui/icon";
 import "./style.css";
 type Target = { projectId: string; folderId: string | null };
 type Modal = {
-  action: "create" | "rules" | "rename" | "forget";
+  action: "create" | "rules" | "rename" | "forget" | "remove";
   target: Target;
   folder: Folder;
 };
@@ -104,6 +110,7 @@ function FolderDialog({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [projectFiles, setProjectFiles] = useState<"keep" | "archive">("keep");
   useEffect(() => {
     setHostId(modal?.folder.hostId ?? "");
     setLocations([]);
@@ -130,6 +137,7 @@ function FolderDialog({
     setBrowse(null);
     setError("");
     setContent("");
+    setProjectFiles("keep");
     setLoading(false);
     if (modal?.action === "rules") {
       setLoading(true);
@@ -200,6 +208,11 @@ function FolderDialog({
         await rpc.call("rename", { ...modal.target, name });
       else if (modal.action === "forget")
         await rpc.call("forget", modal.target);
+      else if (modal.action === "remove")
+        await rpc.call("project_delete", {
+          projectId: modal.target.projectId,
+          files: projectFiles,
+        });
       else await rpc.call("rules_save", { ...modal.target, content, sha });
       onCreated();
       onClose();
@@ -232,7 +245,9 @@ function FolderDialog({
           ? t("Правила работы")
           : modal?.action === "rename"
             ? t("Переименовать")
-            : t("Архивировать раздел");
+            : modal?.action === "remove"
+              ? t("Удалить проект")
+              : t("Архивировать раздел");
   return (
     <Dialog
       open={!!modal}
@@ -475,12 +490,54 @@ function FolderDialog({
                 )}
               </p>
             )}
+            {modal?.action === "remove" && (
+              <fieldset className="mb-4 space-y-3">
+                <p className="text-sm">
+                  {t(
+                    "Проект пропадёт из дерева BB. Его чаты будут удалены из BB. Это нельзя отменить из плагина.",
+                  )}
+                </p>
+                <label className="pf-field">
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="project-files"
+                      checked={projectFiles === "keep"}
+                      onChange={() => setProjectFiles("keep")}
+                    />
+                    {t("Не трогать файлы")}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {t("Папка на диске останется на месте.")}
+                  </span>
+                </label>
+                <label className="pf-field">
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="project-files"
+                      checked={projectFiles === "archive"}
+                      onChange={() => setProjectFiles("archive")}
+                    />
+                    {t("Перенести файлы в архив")}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {t(
+                      "Папка переедет в скрытый архив рядом с проектом, в .bb/archive/projects/.",
+                    )}
+                  </span>
+                </label>
+              </fieldset>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
                 {t("Отмена")}
               </Button>
               <Button
                 type="submit"
+                variant={
+                  modal?.action === "remove" ? "destructive" : "default"
+                }
                 disabled={
                   busy ||
                   loading ||
@@ -496,7 +553,9 @@ function FolderDialog({
                       : t("Создать")
                     : modal?.action === "forget"
                       ? t("Архивировать")
-                      : t("Сохранить")}
+                      : modal?.action === "remove"
+                        ? t("Удалить")
+                        : t("Сохранить")}
               </Button>
             </DialogFooter>
           </form>
@@ -953,6 +1012,130 @@ function ThreadRow({
     </div>
   );
 }
+function FolderHeading({
+  folder,
+  root,
+  closed,
+  highlighted,
+  onToggle,
+  onNewChat,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onNewProject,
+  onCreate,
+  onMove,
+  onRules,
+  onRename,
+  onRemove,
+  onArchive,
+}: {
+  folder: Folder;
+  root: boolean;
+  closed: boolean;
+  highlighted: boolean;
+  onToggle: () => void;
+  onNewChat: () => void;
+  onDragOver: DragEventHandler<HTMLDivElement>;
+  onDragLeave: DragEventHandler<HTMLDivElement>;
+  onDrop: DragEventHandler<HTMLDivElement>;
+  onNewProject: () => void;
+  onCreate: () => void;
+  onMove: () => void;
+  onRules: () => void;
+  onRename: () => void;
+  onRemove: () => void;
+  onArchive: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div
+      className={"pf-heading" + (highlighted ? " pf-drop-target" : "")}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setMenuOpen(true);
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <button className="pf-label" onClick={onToggle} title={folder.path}>
+        <Icon
+          name={closed ? "ChevronRight" : "ChevronDown"}
+          className="pf-chevron"
+        />
+        <Icon name="Folder" />
+        <span>{folder.name}</span>
+      </button>
+      <button
+        className="pf-icon"
+        title={t("Новый чат")}
+        aria-label={`${t("Новый чат")}: ${folder.name}`}
+        onClick={onNewChat}
+      >
+        <Icon name="MessageCirclePlus" />
+      </button>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="pf-icon"
+            aria-label={`${t("Действия чата")}: ${folder.name}`}
+          >
+            <Icon name="MoreHorizontal" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {root && (
+            <DropdownMenuItem onSelect={onNewProject}>
+              <Icon name="FolderPlus" />
+              {t("Новый проект")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={onCreate}>
+            <Icon name="SectionAdd" />
+            {t("Новый раздел")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <ChatSortMenu />
+          {root && (
+            <DropdownMenuItem onSelect={onMove}>
+              <Icon name="Folder" />
+              {t("Перенести")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onRules}>
+            <Icon name="Settings" />
+            {t("Правила работы")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onRename}>
+            <Icon name="Edit" />
+            {t("Переименовать")}
+          </DropdownMenuItem>
+          {root && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+                <Icon name="Trash2" />
+                {t("Удалить")}
+              </DropdownMenuItem>
+            </>
+          )}
+          {!root && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                <Icon name="Archive" />
+                {t("Архивировать")}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 function Tree(props: PluginThreadListProps) {
   const language = useLanguage();
   const [listSettings] = useChatSettings();
@@ -1104,10 +1287,13 @@ function Tree(props: PluginThreadListProps) {
     );
     return (
       <div key={f.id} className={root ? "pf-project" : "pf-folder"}>
-        <div
-          className={
-            "pf-heading" + (dropTarget === f.id ? " pf-drop-target" : "")
-          }
+        <FolderHeading
+          folder={f}
+          root={root}
+          closed={!!closed[f.id]}
+          highlighted={dropTarget === f.id}
+          onToggle={() => toggle(f.id)}
+          onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
             if (!moveBusy && canMove(draggedChat, f)) {
               event.preventDefault();
@@ -1133,94 +1319,14 @@ function Tree(props: PluginThreadListProps) {
             )
               void moveChat(draggedChat, f, root, true);
           }}
-        >
-          <button
-            className="pf-label"
-            onClick={() => toggle(f.id)}
-            title={f.path}
-          >
-            <Icon
-              name={closed[f.id] ? "ChevronRight" : "ChevronDown"}
-              className="pf-chevron"
-            />
-            <Icon name="Folder" />
-            <span>{f.name}</span>
-          </button>
-          <button
-            className="pf-icon"
-            title={t("Новый чат")}
-            aria-label={`${t("Новый чат")}: ${f.name}`}
-
-            onClick={() => void open(f, root)}
-          >
-            <Icon name="MessageCirclePlus" />
-          </button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="pf-icon"
-                aria-label={`${t("Действия чата")}: ${f.name}`}
-              >
-                <Icon name="MoreHorizontal" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {root && (
-                <DropdownMenuItem onSelect={() => setNewProject(true)}>
-                  <Icon name="FolderPlus" />
-                  {t("Новый проект")}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onSelect={() =>
-                  setModal({ action: "create", target, folder: f })
-                }
-              >
-                <Icon name="SectionAdd" />
-                {t("Новый раздел")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <ChatSortMenu />
-              {root && (
-                <DropdownMenuItem onSelect={() => setMovingProject(f)}>
-                  <Icon name="Folder" />
-                  {t("Перенести")}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() =>
-                  setModal({ action: "rules", target, folder: f })
-                }
-              >
-                <Icon name="Settings" />
-                {t("Правила работы")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
-                  setModal({ action: "rename", target, folder: f })
-                }
-              >
-                <Icon name="Edit" />
-                {t("Переименовать")}
-              </DropdownMenuItem>
-              {!root && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onSelect={() =>
-                      setModal({ action: "forget", target, folder: f })
-                    }
-                  >
-                    <Icon name="Archive" />
-                    {t("Архивировать")}
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          onNewProject={() => setNewProject(true)}
+          onCreate={() => setModal({ action: "create", target, folder: f })}
+          onMove={() => setMovingProject(f)}
+          onRules={() => setModal({ action: "rules", target, folder: f })}
+          onRename={() => setModal({ action: "rename", target, folder: f })}
+          onRemove={() => setModal({ action: "remove", target, folder: f })}
+          onArchive={() => setModal({ action: "forget", target, folder: f })}
+        />
         {!closed[f.id] && (
           <div className="pf-children">
             {children.map((c) => node(c))}
@@ -1637,6 +1743,21 @@ function Panel({ subPath }: PluginNavPanelProps) {
             <Button variant="ghost" onClick={() => setMovingProject(r)}>
               <Icon name="Folder" />
               {t("Перенести")}
+            </Button>
+          )}
+          {root && (
+            <Button
+              variant="ghost"
+              onClick={() =>
+                setModal({
+                  action: "remove",
+                  target: { projectId: r.projectId, folderId: null },
+                  folder: r,
+                })
+              }
+            >
+              <Icon name="Trash2" />
+              {t("Удалить")}
             </Button>
           )}
           {!root && (

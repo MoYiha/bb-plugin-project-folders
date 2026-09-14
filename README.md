@@ -35,7 +35,7 @@ The folders exist on the selected connected device. Chats appear in the tree und
 ## From a folder to a working chat
 
 1. Create a project and choose its device and folder.
-2. Open the project's **⋯** menu and choose **New section**. Create a folder or select an existing one.
+2. Open the project's **⋯** menu or right-click the project or section heading and choose **New section**. Create a folder or select an existing one.
 3. Use the section's **chat-plus** button. BB's standard composer opens with that section's working directory selected.
 4. Add **Working rules** for the section when it needs its own conventions.
 5. When the work is finished, **Archive** the section. Restore it later from the archive, or accept the restoration offer when reusing its name.
@@ -109,6 +109,8 @@ Interrupted operations remain visible with **Retry**. Permanent archive deletion
 
 ## Move a project
 
+Choose **Delete** on the project card or in its **⋯** menu to remove the project from the BB tree. **Leave files in place** (default) only unregisters the project; the folder stays. **Move files to the archive** relocates that one local folder to `<parent>/.bb/archive/projects/<id>/folder`. BB chats belonging to the project are deleted. The plugin refuses to move files when the folder is also a section of another project or contains another project. This does not delete a GitHub remote.
+
 Choose **Move** on the project card or in its **⋯** menu. Browse for a destination parent folder, then confirm the new project path. The entire project directory moves together: files, dotfiles, working rules, nested sections, chat exports and section archives. Project sources and the plugin's section/archive paths are updated.
 
 Existing BB environments keep their stored working paths, so the old directory is replaced by a symbolic link to the new location. Keep that link while existing chats use it. BB's central database, attachment storage and files outside the project directory are not relocated. A project source on another device is unchanged.
@@ -124,6 +126,7 @@ bb project-folders sync <thread-id>
 bb project-folders archive <folder-id>
 bb project-folders archives --json
 bb project-folders restore <archive-id>
+bb project-folders delete-project <project-id> keep|archive
 ```
 
 `forget` is a compatibility alias for `archive`.
@@ -143,11 +146,11 @@ Tests cover path boundaries, multiple devices, composer forwarding, rule conflic
 
 MIT. Vendored BB UI source retains its attribution in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-### Moving existing chats (preview release)
+### Moving existing chats (requires a BB core patch)
 
 Right-click a chat or use its `…` menu and choose **Move to section…**. You can also drag a chat onto a section or the project root. The destination must belong to the same project and device. Chat identity and history stay intact; only the chat's `.bb/chats/<id>` directory moves. Repository files and other project files do not move.
 
-This feature requires BB's experimental directory-update API (`threads.update.experimental_directory`), supplied by the [companion BB core patch](docs/bb-native-thread-relocation.patch), based on BB 0.43.1. Stock BB 0.43.0 and 0.43.1 do not have it: an unsupported server reports an error without moving files. This prerelease is not selected by the stable marketplace version range. General release remains pending the core API. The patch also hides native browser panes while plugin dialogs are open; it must be applied to the BB UI used by the desktop client.
+This feature requires BB's experimental directory-update API (`threads.update.experimental_directory`), supplied by the [companion BB core patch](docs/bb-native-thread-relocation.patch), based on BB 0.43.1. Stock BB 0.43.0 and 0.43.1 do not have it: an unsupported server reports an error without moving files, and every other feature of the plugin keeps working. The patch also hides native browser panes while plugin dialogs are open; it must be applied to the BB UI used by the desktop client.
 
 Active chats and queued messages prevent relocation. If storage relocation fails after the environment switches, a durable journal blocks new messages and exports. Repeat the same move to finish it. Existing destination folders are never merged or overwritten.
 

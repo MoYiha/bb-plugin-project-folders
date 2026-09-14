@@ -97,4 +97,12 @@ export const english = {
   Удалить: "Delete",
   "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.":
     "Wait for the reply and queued messages to finish, then try moving again.",
+  "Удалить проект": "Delete project",
+  "Проект пропадёт из дерева BB. Его чаты будут удалены из BB. Это нельзя отменить из плагина.":
+    "The project will leave the BB tree. Its chats will be deleted from BB. The plugin cannot undo this.",
+  "Не трогать файлы": "Leave files in place",
+  "Папка на диске останется на месте.": "The folder on disk will stay where it is.",
+  "Перенести файлы в архив": "Move files to the archive",
+  "Папка переедет в скрытый архив рядом с проектом, в .bb/archive/projects/.":
+    "The folder will move to a hidden archive next to the project, in .bb/archive/projects/.",
 } as const;

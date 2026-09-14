@@ -82,5 +82,11 @@
   "Удалить пустую папку": "Supprimer le dossier vide",
   "Папки с файлами не удаляются. Для разделов используйте архив.": "Les dossiers contenant des fichiers ne sont pas supprimés. Pour les sections, utilisez les archives.",
   "Удалить": "Supprimer",
-  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Attendez la fin de la réponse et des messages en attente, puis réessayez."
+  "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.": "Attendez la fin de la réponse et des messages en attente, puis réessayez.",
+  "Удалить проект": "Supprimer le projet",
+  "Проект пропадёт из дерева BB. Его чаты будут удалены из BB. Это нельзя отменить из плагина.": "Le projet disparaîtra de l’arbre BB. Ses discussions seront supprimées de BB. Le greffon ne peut pas annuler cela.",
+  "Не трогать файлы": "Ne pas toucher aux fichiers",
+  "Папка на диске останется на месте.": "Le dossier sur le disque restera en place.",
+  "Перенести файлы в архив": "Déplacer les fichiers vers l’archive",
+  "Папка переедет в скрытый архив рядом с проектом, в .bb/archive/projects/.": "Le dossier ira dans une archive cachée à côté du projet, dans .bb/archive/projects/."
 }
