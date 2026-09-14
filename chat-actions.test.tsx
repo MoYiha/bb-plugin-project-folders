@@ -94,6 +94,25 @@ it("opens the project menu on right-click with the same actions as the ellipsis"
   expect(view.queryByRole("menuitem", { name: /^Archive$/ })).toBeNull();
   view.lifecycle.unmount();
 });
+it("sends new chats on a project to the plugin composer with the section tree", async () => {
+  const view = mount();
+  fireEvent.click(
+    await view.findByRole("button", { name: "New chat: Project" }),
+  );
+  expect(
+    view.inspection.navigateCalls.some(
+      (c) =>
+        c.method === "toPluginPanel" &&
+        JSON.stringify(c).includes("chat/p1/root:h1"),
+    ),
+  ).toBe(true);
+  expect(
+    view.inspection.sidebarActionCalls.some((c) =>
+      JSON.stringify(c).includes("openNewThread"),
+    ),
+  ).toBe(false);
+  view.lifecycle.unmount();
+});
 it("opens the section menu on right-click with archive instead of delete", async () => {
   const view = mount();
   fireEvent.contextMenu(await view.findByText("Section"));

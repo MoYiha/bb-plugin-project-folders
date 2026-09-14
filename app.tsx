@@ -1224,13 +1224,10 @@ function Tree(props: PluginThreadListProps) {
       localStorage.setItem("project-folders:collapsed", JSON.stringify(next));
       return next;
     });
-  const open = async (f: Folder, root: boolean) => {
-    if (root) {
-      actions.openNewThread({ projectId: f.projectId, focusPrompt: true });
-      props.onNavigate();
-      return;
-    }
-    nav.toPluginPanel("folders", { subPath: `chat/${f.projectId}/${f.id}` });
+  const open = (f: Folder, root: boolean) => {
+    nav.toPluginPanel("folders", {
+      subPath: `chat/${f.projectId}/${root ? `root:${f.hostId}` : f.id}`,
+    });
     props.onNavigate();
   };
   const rows = (ts: readonly PluginSidebarThread[], group: string) => {
@@ -1657,7 +1654,14 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const nav = useBbNavigate();
   const [action, projectId, folderId] = (subPath || "")
     .replace(/^\//, "")
-    .split("/");
+    .split("/")
+    .map((s) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        return s;
+      }
+    });
   const f =
     data.folders.find((f) => f.id === folderId && f.projectId === projectId) ??
     data.roots.find(
@@ -1667,6 +1671,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const sectionMenu = (r: Folder, depth = 0): React.ReactNode => (
     <div key={`${r.id}:${r.hostId}`}>
       <DropdownMenuItem
+        style={depth > 0 ? { paddingLeft: 8 + depth * 16 } : undefined}
         onSelect={() => {
           setSubmitError("");
           nav.toPluginPanel("folders", {
@@ -1778,6 +1783,19 @@ function Panel({ subPath }: PluginNavPanelProps) {
         </div>
       </div>
       <p className="pf-folder-path">{r.path}</p>
+      {root && (
+        <Button
+          variant="outline"
+          onClick={() =>
+            nav.toPluginPanel("folders", {
+              subPath: `chat/${r.projectId}/root:${r.hostId}`,
+            })
+          }
+        >
+          <Icon name="MessageCirclePlus" />
+          {t("Новый чат")}
+        </Button>
+      )}
       <Button
         variant="outline"
         onClick={() =>

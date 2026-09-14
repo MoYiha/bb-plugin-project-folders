@@ -68,12 +68,12 @@ Enable the Projects & Sections thread list in BB's sidebar customization if BB d
 
 - **New project:** choose a connected device, name and existing or new folder.
 - **New section:** open a project's three-dot menu. Choose a project source on a device and create a subfolder or select an existing one. Nested sections stay on their parent's device.
-- **New chat:** use the chat-plus button. Section chats use BB's standard composer and the section's directory. Project chats use BB's normal project environment selection.
+- **New chat:** use the chat-plus button in the sidebar tree or on the management page. The composer's project control becomes a project/section tree, so a new chat can be bound to the project root or any nested section before sending.
 - **Rules:** edit `AGENTS.md` in the selected project or section. Conflicting edits are rejected until the file is reopened.
 - **Rename:** changes the displayed section name without moving its directory.
 - **Language:** English is the default for every new installation. Choose English, Russian, Spanish, French, German, Portuguese, Simplified Chinese, Japanese, Korean, Hindi or Arabic on the management page. The selection is saved in this browser. Arabic uses right-to-left layout. Unsupported language settings fall back to English. Backend diagnostics and generated documentation use English. Project names and file contents are never translated.
 
-The section composer integrates a project/section tree into the project control beneath the editor. The selected hierarchy is shown on the control; its tooltip contains the destination path. Use it to choose the project root or a nested section before sending. Submission errors remain visible and preserve your draft.
+The composer integrates a project/section tree into the project control beneath the editor, for chats created on a project or on a section. The selected hierarchy is shown on the control; its tooltip contains the destination path. Use it to choose the project root or a nested section before sending. Submission errors remain visible and preserve your draft.
 
 ## Sort and shorten chat lists
 
