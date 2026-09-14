@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5
+
+- Project and section chats share one composer: the project control becomes a project/section tree with nested sections indented by depth, so a new chat can be bound to the project root or any nested section before sending. The chat-plus button on a project card and the project's new-chat button in the sidebar tree open it.
+- Fix the project-root composer route failing to load: panel sub-paths are now URL-decoded, so `root:<host>` destinations resolve correctly.
+
 ## 0.3.4
 
 Stable release of the 0.3.4 preview series: it contains everything from 0.3.4-rc.1 through 0.3.4-rc.4 listed below.
