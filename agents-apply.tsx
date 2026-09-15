@@ -1,0 +1,311 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { useRpc } from "@get-bb/plugin-sdk/app";
+import type { rpcContract } from "./server";
+import { t } from "./i18n";
+import { Button } from "./components/ui/button";
+import { Icon } from "./components/ui/icon";
+import { AGENTS_BLOCK_END, AGENTS_BLOCK_START } from "./agents-template";
+
+type ApplyResult = {
+  updated: number;
+  unchanged: number;
+  failed: number;
+  error: string | null;
+};
+
+export function AgentsApply() {
+  const rpc = useRpc<typeof rpcContract>();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ApplyResult | null>(null);
+  const [error, setError] = useState("");
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    setResult(null);
+    try {
+      setResult(await rpc.call("agents_apply", null));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="pf-agents-apply">
+      <Button variant="outline" disabled={busy} onClick={() => void run()}>
+        <Icon name="FolderSync" />
+        {busy ? t("Применяю…") : t("Применить к существующим разделам")}
+      </Button>
+      {result && (
+        <p className="pf-agents-result">
+          {t("Обновлено")}: {result.updated} · {t("без изменений")}:{" "}
+          {result.unchanged} · {t("с ошибками")}: {result.failed}
+          {result.error ? ` — ${result.error}` : ""}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function AgentsRulesEditor() {
+  const rpc = useRpc<typeof rpcContract>();
+  const [config, setConfig] = useState<{
+    autoCreate: boolean;
+    template: string;
+    projectTemplate: string;
+    custom: string;
+  } | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    rpc.call("agents_config", null).then(
+      (c) => {
+        if (live) setConfig(c);
+      },
+      (e) => {
+        if (live) setError(String(e));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [rpc]);
+  if (!config)
+    return error ? (
+      <p role="alert" className="text-destructive text-sm">
+        {error}
+      </p>
+    ) : null;
+  const save = async () => {
+    if (!config) return;
+    setBusy(true);
+    setError("");
+    try {
+      setConfig(await rpc.call("agents_config_save", config));
+      setDirty(false);
+      setSaved(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const patch = (value: Partial<typeof config>) => {
+    setConfig({ ...config, ...value });
+    setDirty(true);
+    setSaved(false);
+  };
+  return (
+    <div className="pf-agents-editor">
+      <label className="pf-agents-toggle">
+        <input
+          type="checkbox"
+          checked={config.autoCreate}
+          disabled={busy}
+          onChange={(e) => patch({ autoCreate: e.target.checked })}
+        />
+        {t("Автосоздание AGENTS.md")}
+      </label>
+      <label className="pf-agents-field">
+        {t("Шаблон проектов")}
+        <textarea
+          className="pf-rules"
+          rows={5}
+          dir="ltr"
+          disabled={busy || !config.autoCreate}
+          value={config.projectTemplate}
+          onChange={(e) => patch({ projectTemplate: e.target.value })}
+        />
+      </label>
+      <label className="pf-agents-field">
+        {t("Шаблон разделов")}
+        <textarea
+          className="pf-rules"
+          rows={5}
+          dir="ltr"
+          disabled={busy || !config.autoCreate}
+          value={config.template}
+          onChange={(e) => patch({ template: e.target.value })}
+        />
+      </label>
+      <label className="pf-agents-field">
+        {t("Свои правила")}
+        <textarea
+          className="pf-rules"
+          rows={4}
+          dir="ltr"
+          disabled={busy}
+          value={config.custom}
+          onChange={(e) => patch({ custom: e.target.value })}
+        />
+      </label>
+      <p className="pf-agents-hint">
+        {t(
+          "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Действуют во всём дереве, пока не переопределены в проекте или разделе.",
+        )}
+      </p>
+      <div className="pf-agents-actions">
+        <Button disabled={busy || !dirty} onClick={() => void save()}>
+          <Icon name={saved && !dirty ? "CircleCheck" : "Settings"} />
+          {saved && !dirty ? t("Сохранено") : t("Сохранить")}
+        </Button>
+        <AgentsApply />
+      </div>
+      {error && (
+        <p role="alert" className="text-destructive text-sm">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export type RuleDraft = {
+  mode: "manual" | "inherit" | "custom";
+  sectionTemplate: string;
+  projectTemplate: string;
+  custom: string;
+};
+
+/** The per-project/per-section rules editor shared by the details pane and the rules dialog. */
+export function RuleFields({
+  draft,
+  onChange,
+  showProject,
+  namePrefix,
+  fileSlot,
+  customNote,
+}: {
+  draft: RuleDraft;
+  onChange: (patch: Partial<RuleDraft>) => void;
+  showProject: boolean;
+  namePrefix: string;
+  /** The AGENTS.md / CLAUDE.md editors shown on the "own file" tab. */
+  fileSlot?: ReactNode;
+  /** Shown above the fields of the "custom template" tab. */
+  customNote?: ReactNode;
+}) {
+  // The open tab is the mode: switching tabs switches what the folder uses.
+  const tab = (mode: RuleDraft["mode"], label: string) => (
+    <button
+      type="button"
+      role="tab"
+      id={`${namePrefix}-mode-${mode}`}
+      aria-selected={draft.mode === mode}
+      className={"pf-tab" + (draft.mode === mode ? " pf-selected" : "")}
+      onClick={() => onChange({ mode })}
+    >
+      {label}
+    </button>
+  );
+  const customField = (
+    <label className="pf-agents-field">
+      {t("Свои правила")}
+      <textarea
+        className="pf-rules"
+        rows={4}
+        dir="ltr"
+        value={draft.custom}
+        onChange={(e) => onChange({ custom: e.target.value })}
+      />
+    </label>
+  );
+  const customHint = (
+    <p className="pf-agents-hint">
+      {t(
+        "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Вписываются в блок правил после шаблона и дописываются вниз AGENTS.md и CLAUDE.md.",
+      )}
+    </p>
+  );
+  return (
+    <>
+      <div
+        className="pf-tabs"
+        role="tablist"
+        aria-label={t("Правила AGENTS.md")}
+      >
+        {tab("inherit", t("По умолчанию"))}
+        {tab("custom", t("Свой шаблон"))}
+        {tab("manual", t("Свой файл"))}
+      </div>
+      <div role="tabpanel" aria-labelledby={`${namePrefix}-mode-${draft.mode}`}>
+        {draft.mode === "manual" && (
+          <>
+            <p className="pf-agents-hint">
+              {t(
+                "Плагин не вписывает в эти файлы ничего: ни шаблон, ни свои правила.",
+              )}
+            </p>
+            {fileSlot}
+          </>
+        )}
+        {draft.mode === "inherit" && (
+          <>
+            <p className="pf-agents-hint">
+              {t("Шаблон берётся из настроек плагина.")}
+            </p>
+            {customField}
+            {customHint}
+          </>
+        )}
+        {draft.mode === "custom" && (
+          <>
+            {customNote}
+            {showProject && (
+              <label className="pf-agents-field">
+                {t("Шаблон проектов")}
+                <textarea
+                  className="pf-rules"
+                  rows={4}
+                  dir="ltr"
+                  value={draft.projectTemplate}
+                  onChange={(e) =>
+                    onChange({ projectTemplate: e.target.value })
+                  }
+                />
+              </label>
+            )}
+            <label className="pf-agents-field">
+              {t("Шаблон разделов")}
+              <textarea
+                className="pf-rules"
+                rows={4}
+                dir="ltr"
+                value={draft.sectionTemplate}
+                onChange={(e) => onChange({ sectionTemplate: e.target.value })}
+              />
+            </label>
+            {customField}
+            {customHint}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+export function AgentsTemplateSection() {
+  return (
+    <div className="pf-agents-section">
+      <p className="pf-agents-hint">
+        {t(
+          "Проекты получают шаблон проектов, разделы уровней 1–2 — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.",
+        )}
+      </p>
+      <pre className="pf-agents-preview" dir="ltr">
+        {AGENTS_BLOCK_START}
+        {"\n···\n"}
+        {AGENTS_BLOCK_END}
+      </pre>
+      <AgentsApply />
+    </div>
+  );
+}

@@ -25,6 +25,10 @@ async function setup(projects = [root]) {
     pluginId: "project-folders",
     agentSkillIds: ["project-folders"],
     sdk: {
+      hosts: {
+        list: async () =>
+          [{ id: "h1", name: "Mac", status: "connected" }] as never,
+      },
       projects: {
         list: async () => projects as never,
         delete: async (args: { projectId: string }) => {

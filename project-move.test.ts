@@ -85,6 +85,8 @@ async function setup() {
             : [],
       },
       hosts: {
+        list: async () =>
+          [{ id: "h1", name: "Mac", status: "connected" }] as never,
         pathsExist: async (args) => ({
           existence: Object.fromEntries(
             await Promise.all(

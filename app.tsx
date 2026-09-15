@@ -2,6 +2,12 @@ import { FolderBrowser } from "./folder-browser";
 import { ThreadSectionLabel } from "./thread-section-label";
 import { MoveDialog, PendingMoves } from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
+import {
+  AgentsRulesEditor,
+  AgentsTemplateSection,
+  RuleFields,
+  type RuleDraft,
+} from "./agents-apply";
 import { sortChats } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import {
@@ -50,6 +56,12 @@ type Modal = {
   action: "create" | "rules" | "rename" | "forget" | "remove";
   target: Target;
   folder: Folder;
+  /** 0 = project root, 1 = section, 2 = subsection; 3+ has no rules. */
+  level: number;
+  /** Per-device copies of the project root, for the rules tabs. */
+  copies?: Folder[];
+  /** Preset the rules dialog to this device's tab. */
+  rulesHost?: string;
 };
 function useTree() {
   const rpc = useRpc<typeof rpcContract>();
@@ -58,7 +70,8 @@ function useTree() {
     roots: Folder[];
     bindings: Record<string, string>;
     errors: string[];
-  }>({ folders: [], roots: [], bindings: {}, errors: [] });
+    machines: { id: string; name: string; connected: boolean }[];
+  }>({ folders: [], roots: [], bindings: {}, errors: [], machines: [] });
   const [error, setError] = useState("");
   const refresh = useCallback(() => {
     rpc.call("list").then(
@@ -106,16 +119,34 @@ function FolderDialog({
   const [browse, setBrowse] = useState<string | null>(null);
   const [dirs, setDirs] = useState<{ name: string; relative: string }[]>([]);
   const [content, setContent] = useState("");
+  const [claude, setClaude] = useState<string | null>(null);
   const [sha, setSha] = useState<string | null>(null);
+  const [dialogRules, setDialogRules] = useState<RuleDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [projectFiles, setProjectFiles] = useState<"keep" | "archive">("keep");
+  /** Rules tabs: which device's copy of the project root is being edited. */
+  const [rulesHost, setRulesHost] = useState<string | null>(null);
+  const [machines, setMachines] = useState<
+    { id: string; name: string; connected: boolean }[]
+  >([]);
+  const ruleCopies =
+    modal?.action === "rules" && !modal.target.folderId
+      ? (modal.copies ?? [modal.folder])
+      : null;
+  const machineName = (id: string) =>
+    machines.find((m) => m.id === id)?.name ?? id;
   useEffect(() => {
     setHostId(modal?.folder.hostId ?? "");
     setLocations([]);
     setLocationsLoading(modal?.action === "create");
     let live = true;
+    if (modal?.action === "rules" && !modal.target.folderId)
+      rpc.call("machines").then(
+        (r) => live && setMachines(r.machines),
+        () => {},
+      );
     if (modal?.action === "create")
       rpc.call("locations", modal.target).then(
         (r) => {
@@ -137,26 +168,51 @@ function FolderDialog({
     setBrowse(null);
     setError("");
     setContent("");
+    setClaude(null);
+    setDialogRules(null);
     setProjectFiles("keep");
     setLoading(false);
-    if (modal?.action === "rules") {
+    // Root rules wait for the rules tab (rulesHost); sections load right away.
+    if (
+      modal?.action === "rules" &&
+      (modal.target.folderId || rulesHost !== null)
+    ) {
       setLoading(true);
-      rpc.call("rules_read", modal.target).then(
-        (r) => {
-          setContent(r.content);
-          setSha(r.sha);
-          setLoading(false);
-        },
-        (e) => {
-          setError(String(e));
-          setLoading(false);
-        },
-      );
+      rpc
+        .call("rules_read", {
+          ...modal.target,
+          ...(rulesHost ? { hostId: rulesHost } : {}),
+        })
+        .then(
+          (r) => {
+            setContent(r.content);
+            setClaude(r.claude);
+            setSha(r.sha);
+            setDialogRules({
+              mode: r.mode,
+              sectionTemplate: r.template || r.suggestedSection,
+              projectTemplate: r.projectTemplate || r.suggestedProject,
+              custom: r.custom,
+            });
+            setLoading(false);
+          },
+          (e) => {
+            setError(String(e));
+            setLoading(false);
+          },
+        );
     }
     return () => {
       live = false;
     };
-  }, [modal, rpc]);
+  }, [modal, rpc, rulesHost]);
+  useEffect(() => {
+    setRulesHost(
+      modal?.action === "rules" && !modal.target.folderId
+        ? (modal.rulesHost ?? modal.folder.hostId)
+        : null,
+    );
+  }, [modal]);
   useEffect(() => {
     if (browse === null || !modal) return;
     let live = true;
@@ -213,7 +269,23 @@ function FolderDialog({
           projectId: modal.target.projectId,
           files: projectFiles,
         });
-      else await rpc.call("rules_save", { ...modal.target, content, sha });
+      else {
+        await rpc.call("rules_save", {
+          ...modal.target,
+          content,
+          sha,
+          ...(rulesHost ? { hostId: rulesHost } : {}),
+        });
+        if (dialogRules)
+          await rpc.call("rules_settings_save", {
+            projectId: modal.target.projectId,
+            folderId: modal.target.folderId,
+            mode: dialogRules.mode,
+            sectionTemplate: dialogRules.sectionTemplate,
+            projectTemplate: dialogRules.projectTemplate,
+            custom: dialogRules.custom,
+          });
+      }
       onCreated();
       onClose();
     } catch (e) {
@@ -473,14 +545,69 @@ function FolderDialog({
             )}
             {modal?.action === "rules" && (
               <>
-                <p className="pf-folder-path">{modal.folder.path}/AGENTS.md</p>
+                {ruleCopies && ruleCopies.length > 1 && (
+                  <div
+                    className="pf-tabs"
+                    role="tablist"
+                    aria-label={t("Устройство")}
+                  >
+                    {ruleCopies.map((c) => (
+                      <button
+                        key={`${c.projectId}:${c.hostId}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={rulesHost === c.hostId}
+                        className={
+                          "pf-tab" +
+                          (rulesHost === c.hostId ? " pf-selected" : "") +
+                          (machines.find((m) => m.id === c.hostId)?.connected
+                            ? " pf-tab-live"
+                            : "")
+                        }
+                        title={c.path}
+                        disabled={busy}
+                        onClick={() => setRulesHost(c.hostId)}
+                      >
+                        <Icon name="Zap" />
+                        {machineName(c.hostId)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="pf-folder-path">
+                  {(ruleCopies?.find((c) => c.hostId === rulesHost)?.path ??
+                    modal.folder.path) + "/AGENTS.md"}
+                </p>
                 <textarea
                   className="pf-rules"
                   aria-label={t("Правила AGENTS.md")}
-                  rows={12}
+                  rows={10}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                 />
+                {claude !== null && (
+                  <div className="mt-3">
+                    <p className="pf-agents-hint">CLAUDE.md</p>
+                    <pre className="pf-rules-preview">{claude}</pre>
+                  </div>
+                )}
+                {dialogRules && (
+                  <div className="pf-agents-override">
+                    <RuleFields
+                      draft={dialogRules}
+                      onChange={(patch) =>
+                        setDialogRules({ ...dialogRules, ...patch })
+                      }
+                      showProject={!modal.target.folderId}
+                      namePrefix="pf-dialog"
+                    />
+                    <p className="pf-agents-hint">
+                      {t(
+                        "Сохранение вписывает свои правила вниз AGENTS.md и CLAUDE.md, если он есть.",
+                      )}
+                    </p>
+                  </div>
+                )}
               </>
             )}
             {modal?.action === "forget" && (
@@ -535,9 +662,7 @@ function FolderDialog({
               </Button>
               <Button
                 type="submit"
-                variant={
-                  modal?.action === "remove" ? "destructive" : "default"
-                }
+                variant={modal?.action === "remove" ? "destructive" : "default"}
                 disabled={
                   busy ||
                   loading ||
@@ -583,6 +708,7 @@ function ProjectDialog({
   const [name, setName] = useState("");
   const [base, setBase] = useState("");
   const [chosen, setChosen] = useState<string | null>(null);
+  /** Open folder browser: null = closed, copyHost = picking for that copy's row. */
   const [browse, setBrowse] = useState(false);
   const [listing, setListing] = useState<{
     path: string;
@@ -818,6 +944,347 @@ function ProjectDialog({
     </Dialog>
   );
 }
+function CopiesDialog({
+  root,
+  presetHost,
+  onClose,
+  onChanged,
+  onRelocate,
+}: {
+  root: Folder | null;
+  /** Opens with this device already chosen in the "add a copy" form. */
+  presetHost?: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  /** Hands a copy over to the folder picker of the move dialog. */
+  onRelocate: (copy: Folder) => void;
+}) {
+  const rpc = useRpc<typeof rpcContract>();
+  const [machines, setMachines] = useState<
+    { id: string; name: string; connected: boolean }[]
+  >([]);
+  const [copies, setCopies] = useState<Folder[]>([]);
+  const [hostId, setHostId] = useState("");
+  const [base, setBase] = useState("");
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [browse, setBrowse] = useState(false);
+  const [listing, setListing] = useState<{
+    path: string;
+    parent: string | null;
+    directories: { name: string; path: string }[];
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmHost, setConfirmHost] = useState<string | null>(null);
+  const load = useCallback(() => {
+    rpc.call("machines").then(
+      (r) => setMachines(r.machines),
+      (e) => setError(String(e)),
+    );
+    if (root)
+      rpc.call("list").then(
+        (r) => setCopies(r.roots.filter((x) => x.projectId === root.projectId)),
+        () => {},
+      );
+  }, [rpc, root]);
+  useEffect(() => {
+    if (!root) return;
+    setHostId(presetHost ?? "");
+    setChosen(null);
+    setBrowse(false);
+    setError("");
+    setConfirmHost(null);
+    load();
+  }, [root, presetHost, load]);
+  useEffect(() => {
+    if (!root || !hostId) return;
+    let live = true;
+    setChosen(null);
+    setBrowse(false);
+    setLoading(true);
+    rpc.call("project_browse", { hostId }).then(
+      (r) => {
+        if (live) {
+          setBase(r.path);
+          setListing(r);
+          setLoading(false);
+        }
+      },
+      (e) => {
+        if (live) {
+          setError(String(e));
+          setLoading(false);
+        }
+      },
+    );
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [root, hostId, rpc]);
+  const enter = async (p: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      setListing(await rpc.call("project_browse", { hostId, path: p }));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const add = async () => {
+    if (!root || !hostId) return;
+    setBusy(true);
+    setError("");
+    try {
+      await rpc.call("copy_add", {
+        projectId: root.projectId,
+        hostId,
+        path: chosen ?? base,
+      });
+      setHostId("");
+      setChosen(null);
+      onChanged();
+      load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = async (host: string) => {
+    if (!root) return;
+    setBusy(true);
+    setError("");
+    try {
+      await rpc.call("copy_remove", {
+        projectId: root.projectId,
+        hostId: host,
+      });
+      setConfirmHost(null);
+      onChanged();
+      load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const free = machines.filter(
+    (m) => m.connected && !copies.some((c) => c.hostId === m.id),
+  );
+  const name = (id: string) => machines.find((m) => m.id === id)?.name ?? id;
+  return (
+    <Dialog
+      open={!!root}
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose();
+      }}
+    >
+      <DialogContent className="pf-dialog" dir={direction()}>
+        <DialogHeader>
+          <DialogTitle>
+            {browse ? t("Выбор папки") : t("Рабочие копии")}
+          </DialogTitle>
+          <DialogDescription>
+            {t("У проекта может быть своя рабочая папка на каждом устройстве.")}
+          </DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+        {browse ? (
+          <>
+            {listing && (
+              <FolderBrowser
+                key={hostId + listing.path}
+                hostId={hostId}
+                path={listing.path}
+                parent={listing.parent}
+                directories={listing.directories}
+                loading={loading || busy}
+                navigate={(p) => void enter(p)}
+                refresh={() => void enter(listing.path)}
+                onBusyChange={setBusy}
+              />
+            )}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => setBrowse(false)}
+              >
+                {t("Назад")}
+              </Button>
+              <Button
+                disabled={busy || loading || !listing}
+                onClick={() => {
+                  setChosen(listing!.path.replace(/\/$/, ""));
+                  setBrowse(false);
+                }}
+              >
+                {t("Выбрать папку")}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <div className="pf-copies">
+            <p className="text-sm text-muted-foreground">
+              {t(
+                "Папка копии на устройстве. Кнопка рядом с путём открывает выбор папки: проект можно перенести в новую папку или привязать к существующей.",
+              )}
+            </p>
+            {copies.map((c) => (
+              <div key={`${c.projectId}:${c.hostId}`} className="pf-copy-row">
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 font-medium">
+                    <Icon
+                      name="Zap"
+                      className={
+                        machines.find((m) => m.id === c.hostId)?.connected
+                          ? "pf-bolt-live"
+                          : ""
+                      }
+                    />
+                    {name(c.hostId)}
+                  </p>
+                  <div className="pf-path-control">
+                    <Input
+                      readOnly
+                      aria-label={`${t("Папка проекта")} — ${name(c.hostId)}`}
+                      value={c.path}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      aria-label={t("Выбрать папку")}
+                      onClick={() => onRelocate(c)}
+                    >
+                      <Icon name="Folder" />
+                    </Button>
+                  </div>
+                </div>
+                <span className="flex shrink-0 items-center gap-1">
+                  {confirmHost === c.hostId ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        disabled={busy}
+                        onClick={() => void remove(c.hostId)}
+                      >
+                        {t("Убрать")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setConfirmHost(null)}
+                      >
+                        {t("Отмена")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      disabled={busy || copies.length <= 1}
+                      onClick={() => setConfirmHost(c.hostId)}
+                    >
+                      <Icon name="Trash2" />
+                      {t("Убрать")}
+                    </Button>
+                  )}
+                </span>
+              </div>
+            ))}
+            <form
+              className="pf-copy-add"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void add();
+              }}
+            >
+              <label className="pf-field">
+                {t("Добавить копию на устройстве")}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-2 w-full justify-between"
+                      disabled={busy || loading}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon name="Monitor" />
+                        {free.find((m) => m.id === hostId)?.name ??
+                          t("Выберите устройство")}
+                      </span>
+                      <Icon name="ChevronDown" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {free.map((m) => (
+                      <DropdownMenuItem
+                        key={m.id}
+                        onSelect={() => setHostId(m.id)}
+                      >
+                        <Icon name="Monitor" />
+                        {m.name}
+                      </DropdownMenuItem>
+                    ))}
+                    {!free.length && (
+                      <DropdownMenuItem disabled>
+                        {t("Все подключённые устройства уже заняты.")}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </label>
+              {hostId && (
+                <label className="pf-field">
+                  {t("Папка")}
+                  <div className="pf-path-control">
+                    <Input
+                      aria-label={t("Папка проекта")}
+                      required
+                      value={chosen ?? base}
+                      onChange={(e) => setChosen(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={loading}
+                      aria-label={t("Выбрать папку")}
+                      onClick={() => setBrowse(true)}
+                    >
+                      <Icon name="Folder" />
+                    </Button>
+                  </div>
+                </label>
+              )}
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  "Папка будет создана при необходимости, в неё впишутся правила AGENTS.md. Чаты проекта доступны на каждом устройстве отдельно.",
+                )}
+              </p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={onClose}>
+                  {t("Готово")}
+                </Button>
+                <Button type="submit" disabled={busy || !hostId}>
+                  {busy ? t("Сохраняю…") : t("Добавить копию")}
+                </Button>
+              </DialogFooter>
+            </form>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 function ThreadRow({
   thread,
   active,
@@ -1017,6 +1484,7 @@ function FolderHeading({
   root,
   closed,
   highlighted,
+  rulesAllowed,
   onToggle,
   onNewChat,
   onDragOver,
@@ -1024,6 +1492,7 @@ function FolderHeading({
   onDrop,
   onNewProject,
   onCreate,
+  onConfigure,
   onMove,
   onRules,
   onRename,
@@ -1034,6 +1503,7 @@ function FolderHeading({
   root: boolean;
   closed: boolean;
   highlighted: boolean;
+  rulesAllowed: boolean;
   onToggle: () => void;
   onNewChat: () => void;
   onDragOver: DragEventHandler<HTMLDivElement>;
@@ -1041,6 +1511,7 @@ function FolderHeading({
   onDrop: DragEventHandler<HTMLDivElement>;
   onNewProject: () => void;
   onCreate: () => void;
+  onConfigure: () => void;
   onMove: () => void;
   onRules: () => void;
   onRename: () => void;
@@ -1096,6 +1567,10 @@ function FolderHeading({
             <Icon name="SectionAdd" />
             {t("Новый раздел")}
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onConfigure}>
+            <Icon name="SlidersHorizontal" />
+            {t("Настройка")}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <ChatSortMenu />
           {root && (
@@ -1105,10 +1580,12 @@ function FolderHeading({
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onRules}>
-            <Icon name="Settings" />
-            {t("Правила работы")}
-          </DropdownMenuItem>
+          {rulesAllowed && (
+            <DropdownMenuItem onSelect={onRules}>
+              <Icon name="Settings" />
+              {t("Правила работы")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={onRename}>
             <Icon name="Edit" />
             {t("Переименовать")}
@@ -1230,6 +1707,10 @@ function Tree(props: PluginThreadListProps) {
     });
     props.onNavigate();
   };
+  /** One entry per project: roots of other devices are picked in the composer and the copies dialog. */
+  const visibleRoots = data.roots.filter(
+    (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
+  );
   const rows = (ts: readonly PluginSidebarThread[], group: string) => {
     const sorted = sortChats(ts, listSettings.sort, language);
     const shown = expanded[group]
@@ -1270,7 +1751,7 @@ function Tree(props: PluginThreadListProps) {
       </>
     );
   };
-  const node = (f: Folder, root = false): React.ReactNode => {
+  const node = (f: Folder, root = false, level = 0): React.ReactNode => {
     const children = data.folders.filter(
       (c) => c.projectId === f.projectId && c.parentId === (root ? null : f.id),
     );
@@ -1289,6 +1770,7 @@ function Tree(props: PluginThreadListProps) {
           root={root}
           closed={!!closed[f.id]}
           highlighted={dropTarget === f.id}
+          rulesAllowed={root || level <= 2}
           onToggle={() => toggle(f.id)}
           onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
@@ -1317,16 +1799,42 @@ function Tree(props: PluginThreadListProps) {
               void moveChat(draggedChat, f, root, true);
           }}
           onNewProject={() => setNewProject(true)}
-          onCreate={() => setModal({ action: "create", target, folder: f })}
+          onCreate={() =>
+            setModal({ action: "create", target, folder: f, level })
+          }
+          onConfigure={() => {
+            nav.toPluginPanel("folders", {
+              subPath: `select/${f.projectId}/${
+                root ? `root:${f.hostId}` : f.id
+              }`,
+            });
+            props.onNavigate();
+          }}
           onMove={() => setMovingProject(f)}
-          onRules={() => setModal({ action: "rules", target, folder: f })}
-          onRename={() => setModal({ action: "rename", target, folder: f })}
-          onRemove={() => setModal({ action: "remove", target, folder: f })}
-          onArchive={() => setModal({ action: "forget", target, folder: f })}
+          onRules={() =>
+            setModal({
+              action: "rules",
+              target,
+              folder: f,
+              level,
+              copies: root
+                ? data.roots.filter((r) => r.projectId === f.projectId)
+                : undefined,
+            })
+          }
+          onRename={() =>
+            setModal({ action: "rename", target, folder: f, level })
+          }
+          onRemove={() =>
+            setModal({ action: "remove", target, folder: f, level })
+          }
+          onArchive={() =>
+            setModal({ action: "forget", target, folder: f, level })
+          }
         />
         {!closed[f.id] && (
           <div className="pf-children">
-            {children.map((c) => node(c))}
+            {children.map((c) => node(c, false, level + 1))}
             {rows(ts, f.id)}
           </div>
         )}
@@ -1349,7 +1857,7 @@ function Tree(props: PluginThreadListProps) {
         </p>
       )}
       {status === "loading" && <p>{t("Загрузка…")}</p>}
-      {data.roots.map((f) => node(f, true))}
+      {visibleRoots.map((f) => node(f, true))}
       {projects
         .filter((p) => !data.roots.some((r) => r.projectId === p.id))
         .map((p) => (
@@ -1566,36 +2074,34 @@ function ArchiveList() {
           {error}
         </p>
       )}
-      {!items.length && (
-        <p className="text-muted-foreground">{t("Архив пуст")}</p>
-      )}
+      {!items.length && <p className="pf-archive-empty">{t("Архив пуст")}</p>}
       {items.map((a) => (
-        <div key={a.id} className="border-t py-3 mt-3">
-          <div className="flex justify-between items-center gap-3">
+        <div key={a.id} className="pf-archive-item">
+          <div className="pf-archive-info">
             <strong>{a.folder.name}</strong>
-            <Button
-              variant="outline"
-              disabled={busy === a.id}
-              onClick={() => void run(a)}
-            >
-              {busy === a.id
-                ? t("Выполняю…")
-                : a.state === "archived"
-                  ? t("Восстановить")
-                  : t("Повторить")}
-            </Button>
+            <span className="pf-archive-meta">{a.folder.path}</span>
+            <span className="pf-archive-meta">
+              {new Date(a.createdAt).toLocaleString()} · {a.members.length}{" "}
+              {t("разделов ·")}
+              {a.threadIds.length} {t("чатов")}
+            </span>
+            {a.error && (
+              <span role="alert" className="text-destructive pf-archive-meta">
+                {a.error}
+              </span>
+            )}
           </div>
-          <p className="pf-folder-path">{a.folder.path}</p>
-          <p className="text-sm text-muted-foreground">
-            {new Date(a.createdAt).toLocaleString()} · {a.members.length}{" "}
-            {t("разделов ·")}
-            {a.threadIds.length} {t("чатов")}
-          </p>
-          {a.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {a.error}
-            </p>
-          )}
+          <Button
+            variant="outline"
+            disabled={busy === a.id}
+            onClick={() => void run(a)}
+          >
+            {busy === a.id
+              ? t("Выполняю…")
+              : a.state === "archived"
+                ? t("Восстановить")
+                : t("Повторить")}
+          </Button>
         </div>
       ))}
     </section>
@@ -1651,6 +2157,43 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
+  const [copyRoot, setCopyRoot] = useState<Folder | null>(null);
+  /** Device preselected in the working-copies dialog, when it opens from a free tab. */
+  const [copyHost, setCopyHost] = useState<string | null>(null);
+  /** Device tab in the project card; null = the selected root's own device. */
+  const [cardHostState, setCardHostState] = useState<string | null>(null);
+  /** AGENTS.md draft of the card's active device copy: draft, saved copy, its CLAUDE.md. */
+  const [cardDraft, setCardDraft] = useState<string | null>(null);
+  const [cardSaved, setCardSaved] = useState("");
+  const [cardClaude, setCardClaude] = useState<string | null>(null);
+  const [cardClaudeDraft, setCardClaudeDraft] = useState<string | null>(null);
+  const [cardSaving, setCardSaving] = useState(false);
+  const [cardRuleError, setCardRuleError] = useState("");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [sideClosed, setSideClosed] = useState<Record<string, boolean>>({});
+  const [menuKey, setMenuKey] = useState<string | null>(null);
+  const [dragInfo, setDragInfo] = useState<{
+    key: string;
+    scope: string;
+  } | null>(null);
+  const [dropKey, setDropKey] = useState<{
+    key: string;
+    pos: "above" | "below";
+  } | null>(null);
+  const [reorderError, setReorderError] = useState("");
+  const [ruleDraft, setRuleDraft] = useState<{
+    mode: "manual" | "inherit" | "custom";
+    sectionTemplate: string;
+    projectTemplate: string;
+    custom: string;
+  } | null>(null);
+  const [ruleSaving, setRuleSaving] = useState(false);
+  const [ruleSaved, setRuleSaved] = useState(false);
+  const [ruleError, setRuleError] = useState("");
+  /** The mode saved for the folder; the open tab may differ until saved. */
+  const [ruleModeSaved, setRuleModeSaved] = useState<
+    "manual" | "inherit" | "custom" | null
+  >(null);
   const nav = useBbNavigate();
   const [action, projectId, folderId] = (subPath || "")
     .replace(/^\//, "")
@@ -1668,6 +2211,23 @@ function Panel({ subPath }: PluginNavPanelProps) {
       (r) => r.projectId === projectId && folderId === `root:${r.hostId}`,
     );
   const rootSelected = folderId?.startsWith("root:") ?? false;
+  // `select/<project>/<folder-or-root:host>` opens management with the row selected.
+  useEffect(() => {
+    if (action !== "select" || !projectId) return;
+    setSelectedKey(
+      folderId?.startsWith("root:")
+        ? `${projectId}|${folderId.slice("root:".length)}`
+        : (folderId ?? null),
+    );
+  }, [action, projectId, folderId]);
+  const machineName = (hostId: string) =>
+    data.machines.find((m) => m.id === hostId)?.name ?? hostId;
+  const projectCopies = (projectId: string) =>
+    data.roots.filter((r) => r.projectId === projectId);
+  /** One project entry in the tree; per-device copies live in the copies dialog. */
+  const visibleRoots = data.roots.filter(
+    (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
+  );
   const sectionMenu = (r: Folder, depth = 0): React.ReactNode => (
     <div key={`${r.id}:${r.hostId}`}>
       <DropdownMenuItem
@@ -1681,6 +2241,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
       >
         <Icon name="Folder" />
         {r.name}
+        {depth === 0 && projectCopies(r.projectId).length > 1 && (
+          <span className="pf-menu-host">· {machineName(r.hostId)}</span>
+        )}
         {f?.path === r.path && f?.hostId === r.hostId ? " ✓" : ""}
       </DropdownMenuItem>
       {data.folders
@@ -1707,115 +2270,790 @@ function Panel({ subPath }: PluginNavPanelProps) {
     (r) => r.projectId === projectId && r.hostId === f?.hostId,
   )?.name;
   if (!rootSelected && projectName) selectedNames.unshift(projectName);
-  const card = (r: Folder, root = false): React.ReactNode => (
-    <div className={root ? "pf-card" : "border-l pl-4 mt-4"} key={r.id}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2>{r.name}</h2>
-        <div className="flex flex-wrap gap-1">
-          <Button
-            variant="ghost"
-            onClick={() =>
-              setModal({
-                action: "rules",
-                target: {
-                  projectId: r.projectId,
-                  folderId: root ? null : r.id,
-                },
-                folder: r,
-              })
-            }
+  const levelOf = (f: Folder) => {
+    let level = 1;
+    let parent = f.parentId
+      ? data.folders.find((x) => x.id === f.parentId)
+      : undefined;
+    const visited = new Set<string>();
+    while (parent && !visited.has(parent.id)) {
+      visited.add(parent.id);
+      level++;
+      parent = parent.parentId
+        ? data.folders.find((x) => x.id === parent!.parentId)
+        : undefined;
+    }
+    return level;
+  };
+  const scopeOf = (root: boolean, f: Folder) =>
+    root ? "projects" : (f.parentId ?? `project:${f.projectId}`);
+  const siblingKeys = (scope: string): string[] =>
+    scope === "projects"
+      ? [
+          ...new Map(
+            data.roots.map((r) => [r.projectId, `${r.projectId}|${r.hostId}`]),
+          ).values(),
+        ]
+      : scope.startsWith("project:")
+        ? data.folders
+            .filter(
+              (x) =>
+                !x.parentId && x.projectId === scope.slice("project:".length),
+            )
+            .map((x) => x.id)
+        : data.folders.filter((x) => x.parentId === scope).map((x) => x.id);
+  const reorder = (scope: string, from: string, to: string, below = false) => {
+    setReorderError("");
+    const ids = siblingKeys(scope);
+    const i = ids.indexOf(from);
+    const j = ids.indexOf(to);
+    if (i < 0 || j < 0 || (i === j && !below)) return;
+    ids.splice(i, 1);
+    ids.splice(ids.indexOf(to) + (below ? 1 : 0), 0, from);
+    const call =
+      scope === "projects"
+        ? rpc.call("reorder", {
+            kind: "projects",
+            ids: ids.map((k) => k.split("|")[0]),
+          })
+        : rpc.call("reorder", {
+            kind: "sections",
+            projectId:
+              data.folders.find((x) => x.id === ids[0])?.projectId ?? "",
+            parentId: scope.startsWith("project:") ? null : scope,
+            ids,
+          });
+    call.then(
+      () => refresh(),
+      (e) => setReorderError(String(e)),
+    );
+  };
+  const sideNode = (f: Folder, root: boolean): React.ReactNode => {
+    const key = root ? `${f.projectId}|${f.hostId}` : f.id;
+    const children = data.folders.filter(
+      (c) => c.projectId === f.projectId && c.parentId === (root ? null : f.id),
+    );
+    const open = !sideClosed[key];
+    const level = root ? 0 : levelOf(f);
+    const target = { projectId: f.projectId, folderId: root ? null : f.id };
+    const scope = scopeOf(root, f);
+    const siblings = siblingKeys(scope);
+    const at = siblings.indexOf(key);
+    const move = (dir: -1 | 1) => {
+      const other = siblings[at + dir];
+      if (other) reorder(scope, key, other);
+    };
+    const dropHere = dropKey?.key === key ? dropKey.pos : null;
+    return (
+      <div key={key} className={root ? "pf-side-project" : undefined}>
+        <div
+          className={
+            "pf-side-row" +
+            (selectedKey === key ? " pf-selected" : "") +
+            (dropHere ? ` pf-drop-${dropHere}` : "")
+          }
+          draggable
+          onDragStart={(event) => {
+            event.dataTransfer.setData("text/plain", key);
+            event.dataTransfer.effectAllowed = "move";
+            setDragInfo({ key, scope });
+          }}
+          onDragEnd={() => {
+            setDragInfo(null);
+            setDropKey(null);
+          }}
+          onDragOver={(event) => {
+            if (!dragInfo || dragInfo.key === key) return;
+            if (dragInfo.scope !== scope) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            const rect = event.currentTarget.getBoundingClientRect();
+            setDropKey({
+              key,
+              pos:
+                event.clientY < rect.top + rect.height / 2 ? "above" : "below",
+            });
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            const info = dragInfo;
+            const drop = dropKey;
+            setDragInfo(null);
+            setDropKey(null);
+            if (!info || !drop || drop.key !== key) return;
+            reorder(scope, info.key, key, drop.pos === "below");
+          }}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setMenuKey(key);
+          }}
+        >
+          <button
+            type="button"
+            className="pf-icon"
+            aria-label={f.name}
+            aria-expanded={open}
+            style={{ visibility: children.length ? "visible" : "hidden" }}
+            onClick={() => setSideClosed((old) => ({ ...old, [key]: open }))}
           >
-            <Icon name="Settings" />
-            {t("Правила")}
+            <Icon name={open ? "ChevronDown" : "ChevronRight"} />
+          </button>
+          <button
+            type="button"
+            className="pf-side-label"
+            title={f.path}
+            onClick={() => setSelectedKey(key)}
+          >
+            <Icon name="Folder" />
+            <span>{f.name}</span>
+          </button>
+          <DropdownMenu
+            open={menuKey === key}
+            onOpenChange={(o) => setMenuKey(o ? key : null)}
+          >
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="pf-icon"
+                aria-label={`${t("Действия чата")}: ${f.name}`}
+              >
+                <Icon name="MoreHorizontal" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() =>
+                  nav.toPluginPanel("folders", {
+                    subPath: `chat/${f.projectId}/${
+                      root ? `root:${f.hostId}` : f.id
+                    }`,
+                  })
+                }
+              >
+                <Icon name="MessageCirclePlus" />
+                {t("Новый чат")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  setModal({ action: "create", target, folder: f, level })
+                }
+              >
+                <Icon name="SectionAdd" />
+                {t("Новый раздел")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSelectedKey(key)}>
+                <Icon name="SlidersHorizontal" />
+                {t("Настройка")}
+              </DropdownMenuItem>
+              {root && (
+                <DropdownMenuItem onSelect={() => setNewProject(true)}>
+                  <Icon name="FolderPlus" />
+                  {t("Новый проект")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              {(root || level <= 2) && (
+                <DropdownMenuItem
+                  onSelect={() =>
+                    setModal({
+                      action: "rules",
+                      target,
+                      folder: f,
+                      level,
+                      copies: projectCopies(f.projectId),
+                    })
+                  }
+                >
+                  <Icon name="Settings" />
+                  {t("Правила")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onSelect={() =>
+                  setModal({ action: "rename", target, folder: f, level })
+                }
+              >
+                <Icon name="Edit" />
+                {t("Переименовать")}
+              </DropdownMenuItem>
+              {root && (
+                <DropdownMenuItem onSelect={() => setMovingProject(f)}>
+                  <Icon name="Folder" />
+                  {t("Перенести")}
+                </DropdownMenuItem>
+              )}
+              {root && (
+                <DropdownMenuItem onSelect={() => setCopyRoot(f)}>
+                  <Icon name="Copy" />
+                  {t("Рабочие копии")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={at <= 0} onSelect={() => move(-1)}>
+                {t("Сдвинуть вверх")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={at < 0 || at >= siblings.length - 1}
+                onSelect={() => move(1)}
+              >
+                {t("Сдвинуть вниз")}
+              </DropdownMenuItem>
+              {!root && (
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() =>
+                    setModal({
+                      action: "forget",
+                      target: { projectId: f.projectId, folderId: f.id },
+                      folder: f,
+                      level,
+                    })
+                  }
+                >
+                  <Icon name="Archive" />
+                  {t("В архив")}
+                </DropdownMenuItem>
+              )}
+              {root && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() =>
+                      setModal({
+                        action: "remove",
+                        target: {
+                          projectId: f.projectId,
+                          folderId: null,
+                        },
+                        folder: f,
+                        level,
+                      })
+                    }
+                  >
+                    <Icon name="Trash2" />
+                    {t("Удалить")}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        {open && children.length > 0 && (
+          <div className="pf-side-children">
+            {children.map((c) => sideNode(c, false))}
+          </div>
+        )}
+      </div>
+    );
+  };
+  const selectedNode = (() => {
+    if (!selectedKey) return null;
+    if (selectedKey.includes("|")) {
+      const [projectId, hostId] = selectedKey.split("|");
+      return (
+        data.roots.find(
+          (r) => r.projectId === projectId && r.hostId === hostId,
+        ) ?? null
+      );
+    }
+    return data.folders.find((x) => x.id === selectedKey) ?? null;
+  })();
+  const sel = selectedNode;
+  const selRoot = !!sel && (selectedKey?.includes("|") ?? false);
+  const selLevel = sel && !selRoot ? levelOf(sel) : 0;
+  const selRulesAllowed = !!sel && (selRoot || selLevel <= 2);
+  useEffect(() => {
+    if (!selectedNode || !(selRoot || selLevel <= 2)) {
+      setRuleDraft(null);
+      setRuleModeSaved(null);
+      return;
+    }
+    let live = true;
+    rpc
+      .call("rules_read", {
+        projectId: selectedNode.projectId,
+        folderId: selRoot ? null : selectedNode.id,
+      })
+      .then(
+        (r) => {
+          if (live) {
+            setRuleDraft({
+              mode: r.mode,
+              sectionTemplate: r.template || r.suggestedSection,
+              projectTemplate: r.projectTemplate || r.suggestedProject,
+              custom: r.custom,
+            });
+            setRuleModeSaved(r.mode);
+          }
+        },
+        () => {
+          if (live) {
+            setRuleDraft(null);
+            setRuleModeSaved(null);
+          }
+        },
+      );
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, rpc]);
+  const cardCopies = sel && selRoot ? projectCopies(sel.projectId) : [];
+  /** Every machine BB knows: the ones holding a copy first, then the free ones. */
+  const cardMachines =
+    sel && selRoot
+      ? [
+          ...cardCopies.map((c) => c.hostId),
+          ...data.machines
+            .filter((m) => !cardCopies.some((c) => c.hostId === m.id))
+            .map((m) => m.id),
+        ]
+      : [];
+  const cardHost =
+    (sel &&
+      selRoot &&
+      cardMachines.find((id) => id === (cardHostState ?? sel.hostId))) ||
+    sel?.hostId ||
+    "";
+  /** The copy on the open device tab, or null when that machine has none yet. */
+  const cardCopy = cardCopies.find((c) => c.hostId === cardHost) ?? null;
+  const online = (id: string) =>
+    data.machines.find((m) => m.id === id)?.connected ?? false;
+  useEffect(() => {
+    // Follow the clicked row: stale device tabs leaked content across projects.
+    setCardHostState(null);
+  }, [selectedKey]);
+  useEffect(() => {
+    setCardDraft(null);
+    setCardClaude(null);
+    setCardClaudeDraft(null);
+    setCardRuleError("");
+    // Every project and section with rules shows its own AGENTS.md.
+    if (!sel || !(selRoot || selLevel <= 2)) return;
+    // A machine without a copy has no file to read yet.
+    if (selRoot && !cardCopy) return;
+    let live = true;
+    rpc
+      .call("rules_read", {
+        projectId: sel.projectId,
+        folderId: selRoot ? null : sel.id,
+        hostId: cardHost,
+      })
+      .then(
+        (r) => {
+          if (live) {
+            setCardDraft(r.content);
+            setCardSaved(r.content);
+            setCardClaude(r.claude);
+            setCardClaudeDraft(r.claude);
+          }
+        },
+        (e) => {
+          if (live) {
+            setCardDraft("");
+            setCardRuleError(String(e));
+          }
+        },
+      );
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel?.projectId, sel?.id, selRoot, selLevel, cardHost, cardCopy, rpc]);
+  const saveCardRules = async (file: "AGENTS.md" | "CLAUDE.md") => {
+    if (!sel) return;
+    const draft = file === "AGENTS.md" ? cardDraft : cardClaudeDraft;
+    if (draft === null) return;
+    setCardSaving(true);
+    setCardRuleError("");
+    try {
+      const at = {
+        projectId: sel.projectId,
+        folderId: selRoot ? null : sel.id,
+        hostId: cardHost,
+      };
+      await rpc.call("rules_save", {
+        ...at,
+        content: draft,
+        sha: null,
+        ...(file === "CLAUDE.md" ? { file } : {}),
+      });
+      if (file === "AGENTS.md") {
+        setCardSaved(draft);
+        const r = await rpc.call("rules_read", at);
+        setCardClaude(r.claude);
+        setCardClaudeDraft(r.claude);
+      } else {
+        setCardClaude(draft);
+      }
+    } catch (e) {
+      setCardRuleError(String(e));
+    } finally {
+      setCardSaving(false);
+    }
+  };
+  const saveRules = async () => {
+    if (!selectedNode || !ruleDraft) return;
+    setRuleSaving(true);
+    setRuleSaved(false);
+    setRuleError("");
+    try {
+      await rpc.call("rules_settings_save", {
+        projectId: selectedNode.projectId,
+        folderId: selRoot ? null : selectedNode.id,
+        mode: ruleDraft.mode,
+        sectionTemplate: ruleDraft.sectionTemplate,
+        projectTemplate: ruleDraft.projectTemplate,
+        custom: ruleDraft.custom,
+      });
+      setRuleModeSaved(ruleDraft.mode);
+      setRuleSaved(true);
+    } catch (e) {
+      setRuleError(String(e));
+    } finally {
+      setRuleSaving(false);
+    }
+  };
+  // AGENTS.md and CLAUDE.md of the selected copy: the files the agents read.
+  const fileEditors = (
+    <div className="pf-agents-preview" key={cardHost}>
+      <label className="pf-field">
+        AGENTS.md · {machineName(cardHost)}
+        {cardDraft === null ? (
+          <p className="pf-agents-hint">{t("Загрузка…")}</p>
+        ) : (
+          <textarea
+            className="pf-rules"
+            rows={8}
+            aria-label={`${t("Содержимое AGENTS.md")} — ${machineName(cardHost)}`}
+            value={cardDraft}
+            disabled={cardSaving}
+            onChange={(e) => setCardDraft(e.target.value)}
+          />
+        )}
+      </label>
+      {cardClaude !== null && cardClaudeDraft !== null && (
+        <label className="pf-field">
+          CLAUDE.md · {machineName(cardHost)}
+          <textarea
+            className="pf-rules"
+            rows={5}
+            aria-label={`CLAUDE.md — ${machineName(cardHost)}`}
+            value={cardClaudeDraft}
+            disabled={cardSaving}
+            onChange={(e) => setCardClaudeDraft(e.target.value)}
+          />
+          {cardClaudeDraft !== cardClaude && (
+            <span className="pf-agents-actions">
+              <Button
+                size="sm"
+                disabled={cardSaving || !cardClaudeDraft.trim()}
+                onClick={() => void saveCardRules("CLAUDE.md")}
+              >
+                {cardSaving ? t("Сохраняю…") : t("Сохранить")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={cardSaving}
+                onClick={() => setCardClaudeDraft(cardClaude)}
+              >
+                {t("Отмена")}
+              </Button>
+            </span>
+          )}
+        </label>
+      )}
+      {cardDraft !== null && cardDraft !== cardSaved && (
+        <div className="pf-agents-actions">
+          <Button
+            size="sm"
+            disabled={cardSaving || !cardDraft.trim()}
+            onClick={() => void saveCardRules("AGENTS.md")}
+          >
+            <Icon name={cardSaving ? "Settings" : "CircleCheck"} />
+            {cardSaving ? t("Сохраняю…") : t("Сохранить")}
           </Button>
           <Button
+            size="sm"
             variant="ghost"
-            onClick={() =>
-              setModal({
-                action: "rename",
-                target: {
-                  projectId: r.projectId,
-                  folderId: root ? null : r.id,
-                },
-                folder: r,
-              })
-            }
+            disabled={cardSaving}
+            onClick={() => setCardDraft(cardSaved)}
           >
-            <Icon name="Edit" />
-            {t("Переименовать")}
+            {t("Отмена")}
           </Button>
-          {root && (
-            <Button variant="ghost" onClick={() => setMovingProject(r)}>
-              <Icon name="Folder" />
-              {t("Перенести")}
-            </Button>
-          )}
-          {root && (
-            <Button
-              variant="ghost"
-              onClick={() =>
-                setModal({
-                  action: "remove",
-                  target: { projectId: r.projectId, folderId: null },
-                  folder: r,
-                })
-              }
+        </div>
+      )}
+      {cardRuleError && (
+        <p role="alert" className="text-destructive text-sm">
+          {cardRuleError}
+        </p>
+      )}
+    </div>
+  );
+  const details = sel && (
+    <section className="pf-card pf-details">
+      <h2>{sel.name}</h2>
+      {selRoot ? (
+        <div className="pf-root-copies">
+          {cardMachines.length > 1 && (
+            <div
+              className="pf-tabs"
+              role="tablist"
+              aria-label={t("Устройство")}
             >
-              <Icon name="Trash2" />
-              {t("Удалить")}
-            </Button>
+              {cardMachines.map((id) => {
+                const copy = cardCopies.find((c) => c.hostId === id) ?? null;
+                // A solid bolt means the machine is connected right now.
+                return (
+                  <button
+                    key={`${sel.projectId}:${id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={cardHost === id}
+                    className={
+                      "pf-tab" +
+                      (cardHost === id ? " pf-selected" : "") +
+                      (online(id) ? " pf-tab-live" : "") +
+                      (copy ? "" : " pf-tab-free")
+                    }
+                    title={
+                      copy?.path ??
+                      (online(id)
+                        ? t("Копии проекта на этой машине нет")
+                        : t("Машина не подключена"))
+                    }
+                    onClick={() => setCardHostState(id)}
+                  >
+                    <Icon name="Zap" />
+                    {machineName(id)}
+                  </button>
+                );
+              })}
+            </div>
           )}
-          {!root && (
-            <Button
-              variant="ghost"
-              onClick={() =>
-                setModal({
-                  action: "forget",
-                  target: { projectId: r.projectId, folderId: r.id },
-                  folder: r,
-                })
-              }
-            >
-              <Icon name="Archive" />
-              {t("В архив")}
-            </Button>
+          {cardCopy ? (
+            <div className="pf-path-control">
+              <Input
+                readOnly
+                aria-label={t("Папка проекта")}
+                value={cardCopy.path}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                aria-label={t("Выбрать папку")}
+                onClick={() => setMovingProject(cardCopy)}
+              >
+                <Icon name="Folder" />
+              </Button>
+            </div>
+          ) : (
+            <div className="pf-path-control">
+              <Input
+                readOnly
+                disabled
+                value=""
+                aria-label={t("Папка проекта")}
+                placeholder={t("Копии проекта на этой машине нет")}
+              />
+              <Button
+                variant="outline"
+                disabled={!online(cardHost)}
+                onClick={() => {
+                  setCopyHost(cardHost);
+                  setCopyRoot(sel);
+                }}
+              >
+                <Icon name="Plus" />
+                {online(cardHost)
+                  ? t("Добавить копию")
+                  : t("Машина не подключена")}
+              </Button>
+            </div>
           )}
         </div>
-      </div>
-      <p className="pf-folder-path">{r.path}</p>
-      {root && (
+      ) : (
+        <p className="pf-folder-path">{sel.path}</p>
+      )}
+      <div className="pf-details-actions">
         <Button
+          size="sm"
           variant="outline"
           onClick={() =>
             nav.toPluginPanel("folders", {
-              subPath: `chat/${r.projectId}/root:${r.hostId}`,
+              subPath: `chat/${sel.projectId}/${
+                selRoot ? `root:${sel.hostId}` : sel.id
+              }`,
             })
           }
         >
           <Icon name="MessageCirclePlus" />
           {t("Новый чат")}
         </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() =>
+            setModal({
+              action: "create",
+              target: {
+                projectId: sel.projectId,
+                folderId: selRoot ? null : sel.id,
+              },
+              folder: sel,
+              level: selLevel,
+            })
+          }
+        >
+          <Icon name="SectionAdd" />
+          {t("Новый раздел")}
+        </Button>
+        {!selRoot && selLevel <= 2 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setModal({
+                action: "rules",
+                target: {
+                  projectId: sel.projectId,
+                  folderId: sel.id,
+                },
+                folder: sel,
+                level: selLevel,
+              })
+            }
+          >
+            <Icon name="Settings" />
+            {t("Правила")}
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="pf-ghost-muted"
+          onClick={() =>
+            setModal({
+              action: "rename",
+              target: {
+                projectId: sel.projectId,
+                folderId: selRoot ? null : sel.id,
+              },
+              folder: sel,
+              level: selLevel,
+            })
+          }
+        >
+          <Icon name="Edit" />
+          {t("Переименовать")}
+        </Button>
+        {selRoot && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="pf-ghost-muted"
+            onClick={() => setCopyRoot(sel)}
+          >
+            <Icon name="Copy" />
+            {t("Рабочие копии")}
+          </Button>
+        )}
+        {!selRoot && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setModal({
+                action: "forget",
+                target: { projectId: sel.projectId, folderId: sel.id },
+                folder: sel,
+                level: selLevel,
+              })
+            }
+          >
+            <Icon name="Archive" />
+            {t("В архив")}
+          </Button>
+        )}
+        {selRoot && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              setModal({
+                action: "remove",
+                target: { projectId: sel.projectId, folderId: null },
+                folder: sel,
+                level: selLevel,
+              })
+            }
+          >
+            <Icon name="Trash2" />
+            {t("Удалить")}
+          </Button>
+        )}
+      </div>
+      {selRulesAllowed && (
+        <div className="pf-agents-rule">
+          <h3>{t("Правила AGENTS.md")}</h3>
+          {ruleDraft ? (
+            <>
+              <RuleFields
+                draft={ruleDraft}
+                onChange={(patch) => {
+                  setRuleDraft({ ...ruleDraft, ...patch });
+                  setRuleSaved(false);
+                }}
+                showProject={selRoot}
+                namePrefix="pf-details"
+                fileSlot={
+                  selRoot && !cardCopy ? (
+                    <p className="pf-agents-empty">
+                      {t("Копии проекта на этой машине нет")}
+                    </p>
+                  ) : (
+                    fileEditors
+                  )
+                }
+                customNote={
+                  <p className="pf-agents-hint">
+                    {selRoot
+                      ? t(
+                          "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».",
+                        )
+                      : t(
+                          "Этот шаблон получают новые подразделы и команда «Применить к существующим разделам» для этого раздела.",
+                        )}
+                  </p>
+                }
+              />
+              {/* The file tab saves through its own buttons; the mode itself
+                  is only saved when it differs from the stored one. */}
+              {(ruleDraft.mode !== "manual" || ruleModeSaved !== "manual") && (
+                <div className="pf-agents-actions">
+                  <Button
+                    disabled={ruleSaving}
+                    onClick={() => void saveRules()}
+                  >
+                    <Icon name={ruleSaved ? "CircleCheck" : "Settings"} />
+                    {ruleSaved ? t("Сохранено") : t("Сохранить")}
+                  </Button>
+                </div>
+              )}
+              {ruleError && (
+                <p role="alert" className="text-destructive text-sm">
+                  {ruleError}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="pf-agents-hint">{t("Загрузка…")}</p>
+          )}
+        </div>
       )}
-      <Button
-        variant="outline"
-        onClick={() =>
-          setModal({
-            action: "create",
-            target: { projectId: r.projectId, folderId: root ? null : r.id },
-            folder: r,
-          })
-        }
-      >
-        <Icon name="SectionAdd" />
-        {t("Новый раздел")}
-      </Button>
-      {data.folders
-        .filter(
-          (f) =>
-            f.projectId === r.projectId && f.parentId === (root ? null : r.id),
-        )
-        .map((f) => card(f))}
-    </div>
+    </section>
   );
   if (action === "chat")
     return f ? (
@@ -1871,7 +3109,15 @@ function Panel({ subPath }: PluginNavPanelProps) {
               });
               nav.toThread(t.id);
             } catch (e) {
-              setSubmitError(e instanceof Error ? e.message : String(e));
+              const message = e instanceof Error ? e.message : String(e);
+              const m = message.match(
+                /This section lives on the "(.+)" device\./,
+              );
+              setSubmitError(
+                m
+                  ? `${t("Этот раздел живёт на устройстве")} «${m[1]}». ${t("Выберите это устройство или создайте раздел на нужном сервере.")}`
+                  : message,
+              );
               throw e;
             }
           }}
@@ -1882,32 +3128,69 @@ function Panel({ subPath }: PluginNavPanelProps) {
     );
   return (
     <div className="pf pf-panel" dir={direction()}>
-      <div className="flex items-center justify-between gap-4">
+      <div className="pf-header">
         <h1>{t("Проекты и разделы")}</h1>
-        <LanguagePicker />
-        <Button onClick={() => setNewProject(true)}>
-          <Icon name="FolderPlus" />
-          {t("Новый проект")}
-        </Button>
+        <div className="pf-header-side">
+          <LanguagePicker />
+          <Button onClick={() => setNewProject(true)}>
+            <Icon name="FolderPlus" />
+            {t("Новый проект")}
+          </Button>
+        </div>
       </div>
-      <p>
+      <p className="pf-intro">
         {t(
           "Разделы — папки проекта. Переписка и служебные материалы хранятся в скрытой папке",
         )}{" "}
         <code>.bb/chats/</code> {t("каждого раздела.")}
       </p>
-      {data.roots.map((r) => card(r, true))}
-      <section className="pf-card">
-        <h2>{t("Настройки списка")}</h2>
-        <ChatSettings />
-      </section>
-      <PendingMoves />
-      <ArchiveList />
-      {[error, ...data.errors].filter(Boolean).map((e, i) => (
-        <p className="text-destructive" role="alert" key={i}>
-          {e}
-        </p>
-      ))}
+      <div className="pf-layout">
+        <aside className="pf-side" aria-label={t("Проекты и разделы")}>
+          {error && (
+            <p role="alert" className="text-destructive">
+              {error}
+            </p>
+          )}
+          {visibleRoots.map((r) => sideNode(r, true))}
+          {reorderError && (
+            <p role="alert" className="text-destructive pf-side-error">
+              {reorderError}
+            </p>
+          )}
+        </aside>
+        <main className="pf-main">
+          {details}
+          {!sel && (
+            <section className="pf-card">
+              <h2>{t("Общие настройки")}</h2>
+              {!selectedKey && (
+                <p className="pf-agents-hint">
+                  {t(
+                    "Выберите проект или раздел слева — здесь появятся его настройки.",
+                  )}
+                </p>
+              )}
+              <ChatSettings />
+              <div className="pf-agents-rule">
+                <h3>{t("Правила AGENTS.md по умолчанию")}</h3>
+                <p className="pf-agents-hint">
+                  {t(
+                    "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.",
+                  )}
+                </p>
+                <AgentsRulesEditor />
+              </div>
+            </section>
+          )}
+          <PendingMoves />
+          <ArchiveList />
+          {[error, ...data.errors].filter(Boolean).map((e, i) => (
+            <p className="text-destructive" role="alert" key={i}>
+              {e}
+            </p>
+          ))}
+        </main>
+      </div>
       <MoveDialog
         folder={movingProject}
         onClose={() => setMovingProject(null)}
@@ -1923,6 +3206,16 @@ function Panel({ subPath }: PluginNavPanelProps) {
         modal={modal}
         onClose={() => setModal(null)}
         onCreated={refresh}
+      />
+      <CopiesDialog
+        root={copyRoot}
+        presetHost={copyHost}
+        onRelocate={(copy) => {
+          setCopyRoot(null);
+          setMovingProject(copy);
+        }}
+        onClose={() => setCopyRoot(null)}
+        onChanged={refresh}
       />
     </div>
   );
@@ -1945,5 +3238,13 @@ export default definePluginApp((app) => {
     title: t("Проекты и разделы"),
     icon: "Folder",
     component: Panel,
+  });
+  app.slots.settingsSection({
+    id: "agents-template",
+    title: t("Правила AGENTS.md по умолчанию"),
+    description: t(
+      "Текст, который вписывается в конец AGENTS.md новых разделов; шаблон меняется в настройках плагина.",
+    ),
+    component: AgentsTemplateSection,
   });
 });

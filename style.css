@@ -117,7 +117,7 @@
   border-radius: 6px;
 }
 .pf-panel {
-  max-width: 900px;
+  max-width: 1100px;
   width: 100%;
   margin: auto;
   padding: 24px;
@@ -126,21 +126,381 @@
 .pf-panel h1 {
   font-size: 24px;
   font-weight: 650;
-  margin: 18px 0;
+  margin: 0;
+}
+.pf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.pf-header-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pf-intro {
+  margin: 10px 0 0;
+}
+.pf-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-top: 18px;
+}
+.pf-side {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 44px);
+  overflow: auto;
+}
+.pf-side-row {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  border-radius: 7px;
+}
+.pf-side-row:hover {
+  background: var(--accent);
+}
+.pf-side-row .pf-icon {
+  flex: none;
+}
+.pf-side-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+}
+.pf-side-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-side-label svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pf-side-row.pf-selected {
+  background: var(--accent);
+}
+.pf-side-row.pf-selected .pf-side-label {
+  font-weight: 650;
+}
+.pf-host-badge {
+  flex: none;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid
+    var(--border, color-mix(in srgb, currentColor 25%, transparent));
+  color: var(--muted-foreground);
+}
+.pf-menu-host {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.pf-copies {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pf-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pf-copy-add {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+.pf-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--muted-foreground) 14%, transparent);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  max-width: 100%;
+  overflow: auto;
+}
+.pf-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pf-tab svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.pf-tab:hover {
+  color: var(--foreground);
+}
+.pf-tab.pf-selected {
+  background: var(--background);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.14),
+    0 0 0 1px var(--border);
+}
+/* A machine tab: the bolt is solid while the machine is connected. */
+.pf-tab.pf-tab-live svg path {
+  fill: currentColor;
+}
+.pf-bolt-live path {
+  fill: currentColor;
+}
+/* A machine without a copy of the project: nothing to open there yet. */
+.pf-tab.pf-tab-free:not(.pf-selected) {
+  opacity: 0.45;
+}
+/* Stands in for the file editors so the card keeps its height. */
+.pf-agents-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 230px;
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.pf-root-copies {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.pf-root-copies .pf-folder-path {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.pf-root-copies svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pf-copy-host {
+  flex: none;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.pf-copy-row-btn {
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: start;
+}
+.pf-copy-row-btn:hover {
+  background: var(--state-hover);
+}
+.pf-copy-row-btn .pf-copy-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.pf-copy-row-btn .pf-copy-edit {
+  margin-inline-start: auto;
+  opacity: 0;
+}
+.pf-copy-row-btn:hover .pf-copy-edit {
+  opacity: 1;
+}
+.pf-root-copies .pf-copy-current {
+  background: var(--accent);
+}
+.pf-root-copies .pf-copy-current .pf-copy-path {
+  color: var(--foreground);
+}
+.pf-details-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 4px;
+}
+.pf-details-actions .pf-ghost-muted {
+  color: var(--muted-foreground);
+}
+.pf-details-actions .pf-ghost-muted:hover {
+  color: var(--foreground);
+}
+.pf-details .pf-agents-rule {
+  margin-top: 16px;
+}
+.pf-details > .pf-agents-rule h3 {
+  margin: 0 0 10px;
+}
+.pf-copies-list + .pf-details-actions,
+.pf-root-copies + .pf-details-actions {
+  margin-top: 14px;
+}
+.pf-agents-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.pf-agents-preview > p {
+  margin: 0;
+}
+.pf-agents-preview summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+.pf-agents-preview .pf-rules-preview {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--accent);
+}
+.pf-side-row.pf-drop-above {
+  box-shadow: inset 0 2px 0 0 var(--ink);
+}
+.pf-side-row.pf-drop-below {
+  box-shadow: inset 0 -2px 0 0 var(--ink);
+}
+.pf-side-error {
+  font-size: 12px;
+  padding: 6px 8px 2px;
+  overflow-wrap: anywhere;
+}
+.pf-archive-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0;
+}
+.pf-archive-item:first-of-type {
+  border-top: 0;
+  padding-top: 4px;
+}
+.pf-archive-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pf-archive-info strong {
+  font-size: 13px;
+}
+.pf-archive-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+.pf-archive-empty {
+  color: var(--muted-foreground);
+  margin: 6px 0 0;
+}
+.pf-agents-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pf-side-children {
+  margin-left: 12px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border);
+}
+.pf[dir="rtl"] .pf-side-children {
+  border-left: 0;
+  border-right: 1px solid var(--border);
+  margin-left: 0;
+  margin-right: 12px;
+  padding-left: 0;
+  padding-right: 6px;
+}
+.pf-details h2 {
+  margin: 0 0 4px;
+}
+.pf-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+@media (max-width: 860px) {
+  .pf-layout {
+    grid-template-columns: 1fr;
+  }
+  .pf-side {
+    position: static;
+    max-height: 320px;
+  }
 }
 .pf-panel h2 {
   font-size: 18px;
   font-weight: 600;
 }
 .pf-panel p {
-  margin: 12px 0;
-  line-height: 1.6;
+  margin: 6px 0;
+  line-height: 1.55;
 }
 .pf-card {
   border: 1px solid var(--border);
-  padding: 18px;
+  padding: 14px 16px;
   border-radius: 12px;
-  margin-top: 16px;
+  margin-top: 14px;
 }
 .pf-dialog {
   max-width: 520px;
@@ -170,7 +530,7 @@
   font-size: 12px;
   color: var(--muted-foreground);
   overflow-wrap: anywhere;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 .pf-folder-picker {
   border: 1px solid var(--border);
@@ -419,4 +779,96 @@
 .pf-move-notice svg {
   width: 16px;
   height: 16px;
+}
+
+.pf-chat-settings {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (min-width: 640px) {
+  .pf-chat-settings {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+  .pf-chat-settings > p {
+    grid-column: 1 / -1;
+  }
+}
+
+.pf-agents-rule {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.pf-agents-rule h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+.pf-agents-hint {
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+.pf-agents-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 10px;
+}
+.pf-agents-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pf-agents-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pf-agents-override {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px 12px;
+  margin: 0 0 12px;
+}
+.pf-agents-override legend {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+.pf-agents-override .pf-agents-hint {
+  margin: 8px 0 0;
+}
+.pf-agents-apply {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 8px;
+}
+.pf-agents-result {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.pf-agents-section {
+  margin-top: 4px;
+}
+.pf-agents-preview {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

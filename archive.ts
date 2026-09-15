@@ -358,8 +358,8 @@ export function makeArchives(
         db.transaction(() => {
           for (const f of a.members)
             db.prepare(
-              "INSERT OR IGNORE INTO folders VALUES (@id,@projectId,@hostId,@parentId,@name,@path)",
-            ).run(f);
+              "INSERT OR IGNORE INTO folders (id,projectId,hostId,parentId,name,path,sort) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort)",
+            ).run({ ...f, sort: (f as { sort?: number }).sort ?? 0 });
         })();
         for (const threadId of a.restoreThreadIds)
           await bb.sdk.threads.unarchive({ threadId });

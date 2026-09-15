@@ -24,6 +24,8 @@ export function MoveDialog({
 }) {
   const rpc = useRpc<typeof rpcContract>();
   const [destination, setDestination] = useState("");
+  /** true when the picked folder already exists: then nothing is moved. */
+  const [adopt, setAdopt] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [listing, setListing] = useState<{
@@ -33,6 +35,7 @@ export function MoveDialog({
   } | null>(null);
   useEffect(() => {
     setDestination("");
+    setAdopt(false);
     setError("");
     setListing(null);
   }, [folder]);
@@ -42,7 +45,11 @@ export function MoveDialog({
     setError("");
     try {
       setListing(
-        await rpc.call("project_browse", { hostId: folder.hostId, path }),
+        // An explicit undefined path is not a valid RPC value: omit the key.
+        await rpc.call("project_browse", {
+          hostId: folder.hostId,
+          ...(path ? { path } : {}),
+        }),
       );
     } catch (e) {
       setError(String(e));
@@ -55,11 +62,19 @@ export function MoveDialog({
     setBusy(true);
     setError("");
     try {
-      await rpc.call("project_move", {
-        projectId: folder.projectId,
-        hostId: folder.hostId,
-        destination,
-      });
+      // An existing folder is adopted as is; a new one takes the files along.
+      if (adopt)
+        await rpc.call("copy_edit", {
+          projectId: folder.projectId,
+          hostId: folder.hostId,
+          path: destination,
+        });
+      else
+        await rpc.call("project_move", {
+          projectId: folder.projectId,
+          hostId: folder.hostId,
+          destination,
+        });
       onMoved();
       onClose();
     } catch (e) {
@@ -121,11 +136,9 @@ export function MoveDialog({
               <Button
                 disabled={busy}
                 onClick={() => {
-                  setDestination(
-                    listing.path.replace(/\/$/, "") +
-                      "/" +
-                      folder!.path.split("/").at(-1),
-                  );
+                  const name = folder!.path.split("/").filter(Boolean).at(-1)!;
+                  setDestination(listing.path.replace(/\/$/, "") + "/" + name);
+                  setAdopt(listing.directories.some((d) => d.name === name));
                   setListing(null);
                 }}
               >
@@ -145,7 +158,10 @@ export function MoveDialog({
               <div className="pf-path-control">
                 <Input
                   value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    setAdopt(false);
+                  }}
                   required
                   disabled={busy}
                 />
@@ -160,16 +176,26 @@ export function MoveDialog({
                 </Button>
               </div>
             </label>
-            <p className="text-sm text-muted-foreground mb-3">
-              {t(
-                "Вся папка переедет вместе со скрытыми файлами и архивом. Старый путь останется ссылкой для существующих чатов. История в базе BB остаётся в BB.",
-              )}
-            </p>
-            <p className="text-sm text-muted-foreground mb-3">
-              {t(
-                "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.",
-              )}
-            </p>
+            {adopt ? (
+              <p className="text-sm text-muted-foreground mb-3">
+                {t(
+                  "Папка с таким именем уже есть: проект привяжется к ней, файлы останутся на месте.",
+                )}
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {t(
+                    "Вся папка переедет вместе со скрытыми файлами и архивом. Старый путь останется ссылкой для существующих чатов. История в базе BB остаётся в BB.",
+                  )}
+                </p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {t(
+                    "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.",
+                  )}
+                </p>
+              </>
+            )}
             <DialogFooter>
               <Button
                 type="button"
@@ -180,7 +206,11 @@ export function MoveDialog({
                 {t("Отмена")}
               </Button>
               <Button disabled={busy || !destination}>
-                {busy ? t("Выполняю…") : t("Перенести")}
+                {busy
+                  ? t("Выполняю…")
+                  : adopt
+                    ? t("Использовать эту папку")
+                    : t("Перенести")}
               </Button>
             </DialogFooter>
           </form>

@@ -50,6 +50,22 @@ Keep coding conventions with the website and research instructions with the rese
 
 This is useful when one project contains several workstreams: chats start in the intended directory, supporting reports have a dedicated place, and completed sections can leave the active tree without losing their files and history.
 
+### Default rules for new sections
+
+Plugin settings provide separate **project** and **sections** AGENTS.md templates with an auto-create toggle. The shipped presets are in English (cheap for agents to consume) and combine working-project discipline with Karpathy-style coding guidelines — edit them freely in the plugin settings. Creating a project, section or subsection writes the matching template between service markers at the end of that folder's `AGENTS.md`:
+
+```
+<!-- bb-project-folders:agents:start -->
+…your default instructions…
+<!-- bb-project-folders:agents:end -->
+```
+
+Content above the markers is never modified. If the file already exists, the block is appended at the bottom; changing the template later rewrites the same block in place. **Apply to existing sections** — on the management page or in the plugin settings — writes the effective template into every project and section at once and reports updated, unchanged and failed counts. Turn off auto-creation or clear the templates to stop seeding.
+
+Rules are hierarchical. The plugin settings hold the shared defaults. Selecting a project or section in the management page opens three tabs — **Default**, **Custom template** and **Own file** — and the open tab is what the folder uses once saved. **Own file** shows the AGENTS.md and CLAUDE.md of the selected device as editors and keeps the plugin out of them: no template, no custom-rules block, and **Apply to existing sections** skips the folder. A folder whose AGENTS.md carries no plugin markers — a folder you wrote by hand — opens on that tab by itself. The custom tab holds **project-level overrides**: a different project template for that project's root and a different sections template for new sections inside it. First and second level sections can set their own template the same way — nearest override wins, otherwise the project's, otherwise the shared one. **Third-level sections get no rules** — the Rules action is hidden and no template is seeded there.
+
+Manual ordering: drag projects and sections up or down in the tree, or use the **Move up** / **Move down** actions in the row menu. The order is stored in the plugin database and used in the management page and the sidebar.
+
 ## Requirements and installation
 
 - BB 0.43+ with Plugin SDK 0.4.84+ APIs, including the experimental sidebar and new-thread composer surfaces.
@@ -69,7 +85,7 @@ Enable the Projects & Sections thread list in BB's sidebar customization if BB d
 - **New project:** choose a connected device, name and existing or new folder.
 - **New section:** open a project's three-dot menu. Choose a project source on a device and create a subfolder or select an existing one. Nested sections stay on their parent's device.
 - **New chat:** use the chat-plus button in the sidebar tree or on the management page. The composer's project control becomes a project/section tree, so a new chat can be bound to the project root or any nested section before sending.
-- **Rules:** edit `AGENTS.md` in the selected project or section. Conflicting edits are rejected until the file is reopened.
+- **Rules:** edit `AGENTS.md` in the selected project or section. Conflicting edits are rejected until the file is reopened. New sections can receive a default template automatically (see above).
 - **Rename:** changes the displayed section name without moving its directory.
 - **Language:** English is the default for every new installation. Choose English, Russian, Spanish, French, German, Portuguese, Simplified Chinese, Japanese, Korean, Hindi or Arabic on the management page. The selection is saved in this browser. Arabic uses right-to-left layout. Unsupported language settings fall back to English. Backend diagnostics and generated documentation use English. Project names and file contents are never translated.
 
@@ -77,7 +93,7 @@ The composer integrates a project/section tree into the project control beneath 
 
 ## Sort and shorten chat lists
 
-Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **List settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
+Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **Settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
 
 Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are saved in the current browser and update open plugin views immediately.
 
@@ -107,6 +123,10 @@ Running chats, queued work and another project's sources or environments inside 
 
 Interrupted operations remain visible with **Retry**. Permanent archive deletion is not provided. Keep the plugin's database and BB chat storage in your normal backups; the archive folder alone does not recreate BB's database. Disabling or uninstalling the plugin does not move archived folders back; restore sections first if you want to keep using those chat environments without the plugin.
 
+## One project, many devices
+
+A project can keep a working copy on every device: the Mac, the Mac mini, a server. Open **Working copies** from the project root's **⋯** menu or details pane, pick a device and a folder — the plugin creates the folder if it is missing, seeds the AGENTS.md rules and registers it as a project source. The sidebar keeps one entry per project; the details pane switches between copies with device tabs, and each copy carries its own path, sections, chats and AGENTS.md. The tabs list **every** machine, not only the ones already holding a copy: a machine without one says so and offers **Add copy**, which opens the Working copies dialog with that device preselected. A solid bolt on a tab means the machine is connected; a faded tab means the project has no copy there. The path itself sits next to the tabs as a field with a folder button that opens the device's folder browser (folders can be created there). Pick a place where the project is not yet, and the button becomes **Move** — the folder relocates with everything inside; pick a place that already holds the project folder, and it becomes **Use this folder**, which only re-registers it. The same picker is available for every copy in the Working copies dialog. New chat dialogs offer every device where the project has a copy. The last copy cannot be removed; a copy with sections or chats in the tree must be cleared first.
+
 ## Move a project
 
 Choose **Delete** on the project card or in its **⋯** menu to remove the project from the BB tree. **Leave files in place** (default) only unregisters the project; the folder stays. **Move files to the archive** relocates that one local folder to `<parent>/.bb/archive/projects/<id>/folder`. BB chats belonging to the project are deleted. The plugin refuses to move files when the folder is also a section of another project or contains another project. This does not delete a GitHub remote.
@@ -122,6 +142,8 @@ Relocation currently works on the **same device and disk volume**, to a path tha
 ```
 bb project-folders list --json
 bb project-folders create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id]
+bb project-folders copy-add <project-id> <host-id> <path>
+bb project-folders copy-remove <project-id> <host-id>
 bb project-folders sync <thread-id>
 bb project-folders archive <folder-id>
 bb project-folders archives --json

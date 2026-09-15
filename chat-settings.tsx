@@ -41,7 +41,7 @@ export function useChatSettings() {
 export function ChatSettings() {
   const [settings, update] = useChatSettings();
   return (
-    <div className="space-y-3 p-3" style={{ minWidth: 220 }}>
+    <div className="pf-chat-settings">
       <label className="block text-sm">
         {t("Сортировка чатов")}
         <select
