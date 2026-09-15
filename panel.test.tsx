@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, afterEach, expect, it } from "vitest";
-import { cleanup, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 let app: Awaited<ReturnType<typeof loadPluginApp>>;
 beforeAll(async () => {
@@ -161,6 +161,8 @@ it("switches device tabs on the project card and edits that copy's AGENTS.md", a
             template: "",
             projectTemplate: "",
             custom: "",
+            customTarget: "session" as const,
+            startup: "",
             suggestedSection: "",
             suggestedProject: "",
           });
@@ -230,6 +232,8 @@ it("switches device tabs on the project card and previews that copy's rules", as
             template: "",
             projectTemplate: "",
             custom: "",
+            customTarget: "session" as const,
+            startup: "",
             suggestedSection: "",
             suggestedProject: "",
           });
@@ -273,6 +277,8 @@ it("switches the project between inherited and custom rules with the mode tabs",
             template: "",
             projectTemplate: "",
             custom: "",
+            customTarget: "session" as const,
+            startup: "",
             suggestedSection: "section template",
             suggestedProject: "project template",
           }),
@@ -347,6 +353,8 @@ it("offers a tab for a machine that has no copy of the project yet", async () =>
             template: "",
             projectTemplate: "",
             custom: "",
+            customTarget: "session" as const,
+            startup: "",
             suggestedSection: "",
             suggestedProject: "",
           }),
@@ -472,5 +480,55 @@ it("adopts an existing folder instead of moving the files", async () => {
   (await view.findByRole("button", { name: /Use this folder/ })).click();
   await waitFor(() => expect(edits).toHaveLength(1));
   expect(edits[0]).toMatchObject({ path: "/Users/kirill/Clients/work" });
+  view.lifecycle.unmount();
+});
+
+it("saves custom rules for BB sessions and a startup instruction", async () => {
+  const saves: { customTarget?: string; startup?: string }[] = [];
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: {
+        ...rpc,
+        rules_read: () =>
+          Promise.resolve({
+            content: "",
+            claude: null,
+            sha: null,
+            path: "/work/Section/AGENTS.md",
+            mode: "inherit" as const,
+            template: "",
+            projectTemplate: "",
+            custom: "",
+            customTarget: "session" as const,
+            startup: "",
+            suggestedSection: "",
+            suggestedProject: "",
+          }),
+        rules_settings_save: (input: { customTarget?: string }) => {
+          saves.push(input);
+          return Promise.resolve({ ok: true as const });
+        },
+      },
+    },
+  );
+  await view.findByText("Project");
+  view.getByText("Section").click();
+  const rules = await view.findByRole("textbox", { name: /Custom rules/ });
+  const startup = view.getByRole("textbox", { name: /Startup instruction/ });
+  // Both fields sit outside the mode tabs and explain themselves.
+  expect(
+    view.getAllByRole("button", { name: /Standing rules for this place/ }),
+  ).not.toHaveLength(0);
+  fireEvent.change(rules, { target: { value: "Ads go to the agency" } });
+  fireEvent.change(startup, { target: { value: "Run the tasks skill" } });
+  view.getByRole("button", { name: /^Save$/ }).click();
+  await waitFor(() => expect(saves).toHaveLength(1));
+  expect(saves[0]).toMatchObject({
+    customTarget: "session",
+    startup: "Run the tasks skill",
+    custom: "Ads go to the agency",
+  });
   view.lifecycle.unmount();
 });

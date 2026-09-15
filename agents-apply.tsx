@@ -173,7 +173,20 @@ export type RuleDraft = {
   sectionTemplate: string;
   projectTemplate: string;
   custom: string;
+  /** Where custom rules apply: the files, BB sessions, or both. */
+  customTarget: "file" | "session" | "both";
+  /** One-shot text added to the first message of a new chat here. */
+  startup: string;
 };
+
+/** A "?" next to a heading; the bubble opens on hover and on keyboard focus. */
+export function Help({ text }: { text: string }) {
+  return (
+    <button type="button" className="pf-help" aria-label={text}>
+      ?<span className="pf-help-bubble">{text}</span>
+    </button>
+  );
+}
 
 /** The per-project/per-section rules editor shared by the details pane and the rules dialog. */
 export function RuleFields({
@@ -206,24 +219,62 @@ export function RuleFields({
       {label}
     </button>
   );
-  const customField = (
-    <label className="pf-agents-field">
-      {t("Свои правила")}
-      <textarea
-        className="pf-rules"
-        rows={4}
-        dir="ltr"
-        value={draft.custom}
-        onChange={(e) => onChange({ custom: e.target.value })}
-      />
-    </label>
-  );
-  const customHint = (
-    <p className="pf-agents-hint">
-      {t(
-        "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Вписываются в блок правил после шаблона и дописываются вниз AGENTS.md и CLAUDE.md.",
-      )}
-    </p>
+  const extras = (
+    <div className="pf-agents-extra">
+      <div className="pf-agents-field">
+        <span className="pf-agents-label">
+          {t("Свои правила")}
+          <Help
+            text={t(
+              "Постоянные правила этого места: роутинг моделей, делегирование, порядок работы. «В файл» дописывает их в конец AGENTS.md и CLAUDE.md — они действуют и в консоли на машине. «В сессии BB» ничего не пишет на диск: текст попадает в инструкции агента, запущенного из BB, и действует весь разговор.",
+            )}
+          />
+        </span>
+        <textarea
+          className="pf-rules"
+          rows={4}
+          dir="ltr"
+          aria-label={t("Свои правила")}
+          value={draft.custom}
+          onChange={(e) => onChange({ custom: e.target.value })}
+        />
+      </div>
+      <label className="pf-agents-target">
+        {t("Куда применять")}
+        <select
+          className="pf-select"
+          value={draft.mode === "manual" ? "session" : draft.customTarget}
+          disabled={draft.mode === "manual"}
+          onChange={(e) =>
+            onChange({
+              customTarget: e.target.value as RuleDraft["customTarget"],
+            })
+          }
+        >
+          <option value="file">{t("В файл")}</option>
+          <option value="session">{t("В сессии BB")}</option>
+          <option value="both">{t("И туда и туда")}</option>
+        </select>
+      </label>
+      <div className="pf-agents-field">
+        <span className="pf-agents-label">
+          {t("Стартовое поручение")}
+          <Help
+            text={t(
+              "Одноразовый текст: дописывается к первому сообщению нового чата в этой папке — например «запусти скилл и пришли текущие задачи». В файлы не пишется, в следующих ходах не участвует и в инструкциях сессии не висит.",
+            )}
+          />
+        </span>
+        <textarea
+          className="pf-rules"
+          rows={3}
+          dir="ltr"
+          aria-label={t("Стартовое поручение")}
+          value={draft.startup}
+          onChange={(e) => onChange({ startup: e.target.value })}
+        />
+      </div>
+    </div>
   );
   return (
     <>
@@ -252,8 +303,6 @@ export function RuleFields({
             <p className="pf-agents-hint">
               {t("Шаблон берётся из настроек плагина.")}
             </p>
-            {customField}
-            {customHint}
           </>
         )}
         {draft.mode === "custom" && (
@@ -283,11 +332,10 @@ export function RuleFields({
                 onChange={(e) => onChange({ sectionTemplate: e.target.value })}
               />
             </label>
-            {customField}
-            {customHint}
           </>
         )}
       </div>
+      {extras}
     </>
   );
 }

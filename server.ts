@@ -299,6 +299,8 @@ export const rpcContract = defineRpcContract({
       template: z.string(),
       projectTemplate: z.string(),
       custom: z.string(),
+      customTarget: z.enum(["file", "session", "both"]),
+      startup: z.string(),
       suggestedSection: z.string(),
       suggestedProject: z.string(),
     }),
@@ -319,6 +321,8 @@ export const rpcContract = defineRpcContract({
       sectionTemplate: z.string().max(20000),
       projectTemplate: z.string().max(20000).optional(),
       custom: z.string().max(20000).optional(),
+      customTarget: z.enum(["file", "session", "both"]).optional(),
+      startup: z.string().max(4000).optional(),
     }),
     output: z.object({ ok: z.literal(true) }),
   },
@@ -423,14 +427,28 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE project_rules (projectId TEXT PRIMARY KEY, mode TEXT NOT NULL, projectTemplate TEXT NOT NULL, sectionTemplate TEXT NOT NULL)`,
     `ALTER TABLE folder_rules ADD COLUMN custom TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE project_rules ADD COLUMN custom TEXT NOT NULL DEFAULT ''`,
+    // Where custom rules go: the files, the BB session instructions, or both.
+    `ALTER TABLE folder_rules ADD COLUMN customTarget TEXT NOT NULL DEFAULT 'file'`,
+    `ALTER TABLE project_rules ADD COLUMN customTarget TEXT NOT NULL DEFAULT 'file'`,
+    // One-shot text appended to the first message of a new chat here.
+    `ALTER TABLE folder_rules ADD COLUMN startup TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE project_rules ADD COLUMN startup TEXT NOT NULL DEFAULT ''`,
   ]);
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
-  type FolderRule = { mode: string; template: string; custom?: string };
+  /** Where custom rules apply: the AGENTS.md files, BB sessions, or both. */
+  type RuleTarget = "file" | "session" | "both";
+  type FolderRule = {
+    mode: string;
+    template: string;
+    custom?: string;
+    customTarget?: string;
+    startup?: string;
+  };
   const folderRule = (folderId: string): FolderRule | undefined =>
     db
       .prepare(
-        "SELECT mode, template, custom FROM folder_rules WHERE folderId=?",
+        "SELECT mode, template, custom, customTarget, startup FROM folder_rules WHERE folderId=?",
       )
       .get(folderId) as FolderRule | undefined;
   type ProjectRule = {
@@ -438,13 +456,21 @@ export default async function plugin(bb: BbPluginApi) {
     projectTemplate: string;
     sectionTemplate: string;
     custom?: string;
+    customTarget?: string;
+    startup?: string;
   };
   const projectRule = (projectId: string): ProjectRule | undefined =>
     db
       .prepare(
-        "SELECT mode, projectTemplate, sectionTemplate, custom FROM project_rules WHERE projectId=?",
+        "SELECT mode, projectTemplate, sectionTemplate, custom, customTarget, startup FROM project_rules WHERE projectId=?",
       )
       .get(projectId) as ProjectRule | undefined;
+  const hits = (
+    rule: { custom?: string; customTarget?: string } | undefined,
+    channel: "file" | "session",
+  ) =>
+    !!rule?.custom?.trim() &&
+    (rule.customTarget ?? "file") !== (channel === "file" ? "session" : "file");
   /** Levels: project root is 0; a section under it is 1, its subsection 2. Rules exist for levels 1–2 only. */
   const folderLevel = (f: Folder) => {
     let level = 1;
@@ -497,23 +523,51 @@ export default async function plugin(bb: BbPluginApi) {
       ? pr.projectTemplate
       : fallback;
   };
-  /** Nearest individual ("custom") rules from the folder upwards, else the project's, else the shared ones. */
+  /**
+   * Nearest individual ("custom") rules from the folder upwards, else the
+   * project's, else the shared ones. A rule counts only for the channel it is
+   * addressed to: the AGENTS.md files, the BB session instructions, or both.
+   */
   const effectiveCustom = (
     f: Folder | null,
     projectId: string,
     shared: string,
+    channel: "file" | "session" = "file",
   ) => {
     let cur: Folder | undefined = f ?? undefined;
     const visited = new Set<string>();
     while (cur && !visited.has(cur.id)) {
       visited.add(cur.id);
       const rule = folderRule(cur.id);
-      if (rule?.custom && rule.custom.trim()) return rule.custom;
+      if (hits(rule, channel)) return rule!.custom!;
       cur = cur.parentId
         ? (folders().find((x) => x.id === cur!.parentId) as Folder | undefined)
         : undefined;
     }
-    return projectRule(projectId)?.custom?.trim() || shared;
+    const pr = projectRule(projectId);
+    if (hits(pr, channel)) return pr!.custom!;
+    // Plugin-wide custom rules are a file default; sessions stay explicit.
+    return channel === "file" ? shared : "";
+  };
+  /** One-shot text for the first message of a new chat, nearest place wins. */
+  const effectiveStartup = (f: Folder | null, projectId: string) => {
+    let cur: Folder | undefined = f ?? undefined;
+    const visited = new Set<string>();
+    while (cur && !visited.has(cur.id)) {
+      visited.add(cur.id);
+      const own = folderRule(cur.id)?.startup?.trim();
+      if (own) return own;
+      cur = cur.parentId
+        ? (folders().find((x) => x.id === cur!.parentId) as Folder | undefined)
+        : undefined;
+    }
+    return projectRule(projectId)?.startup?.trim() ?? "";
+  };
+  /** The section a workspace path belongs to, resolved without any IO. */
+  const folderAt = (hostId: string, workspace: string | null) => {
+    if (!workspace) return null;
+    const p = moves.canonical(hostId, workspace);
+    return folders().find((f) => f.hostId === hostId && f.path === p) ?? null;
   };
   /**
    * What the folder uses: its own untouched file ("manual"), the shared
@@ -1496,6 +1550,9 @@ export default async function plugin(bb: BbPluginApi) {
       const suggestedProject =
         readManagedBlock(input.folderId ? null : content) ??
         effectiveProjectTemplate(f.projectId, s.agents_project_template);
+      const own = input.folderId ? folderOverride : projectOverride;
+      const custom = folderOverride?.custom ?? projectOverride?.custom ?? "";
+      const storedTarget = own?.customTarget as RuleTarget | undefined;
       return {
         content: content ?? "",
         claude: await readAgents(f, "CLAUDE.md"),
@@ -1504,7 +1561,10 @@ export default async function plugin(bb: BbPluginApi) {
         mode,
         template: storedSection,
         projectTemplate: storedProject,
-        custom: folderOverride?.custom ?? projectOverride?.custom ?? "",
+        custom,
+        // An untouched field starts session-only; saved rules keep their channel.
+        customTarget: storedTarget ?? (custom.trim() ? "file" : "session"),
+        startup: own?.startup ?? "",
         suggestedSection,
         suggestedProject,
       };
@@ -1534,22 +1594,33 @@ export default async function plugin(bb: BbPluginApi) {
           "Rules are available only for projects and sections of the first two levels.",
         );
       const custom = input.custom ?? "";
+      const customTarget = input.customTarget ?? "file";
+      const startup = input.startup ?? "";
+      // Session-only rules never reach the files, and switching a rule over
+      // also clears the block it used to write there.
+      const fileCustom = customTarget === "session" ? "" : custom;
       if (input.folderId) {
-        db.prepare("INSERT OR REPLACE INTO folder_rules VALUES (?,?,?,?)").run(
+        db.prepare(
+          "INSERT OR REPLACE INTO folder_rules VALUES (?,?,?,?,?,?)",
+        ).run(
           f.id,
           input.mode,
           input.sectionTemplate,
           custom,
+          customTarget,
+          startup,
         );
       } else {
         db.prepare(
-          "INSERT OR REPLACE INTO project_rules VALUES (?,?,?,?,?)",
+          "INSERT OR REPLACE INTO project_rules VALUES (?,?,?,?,?,?,?)",
         ).run(
           f.projectId,
           input.mode,
           input.projectTemplate ?? "",
           input.sectionTemplate,
           custom,
+          customTarget,
+          startup,
         );
       }
       // Individual rules land at the bottom of AGENTS.md and CLAUDE.md right away.
@@ -1568,13 +1639,13 @@ export default async function plugin(bb: BbPluginApi) {
             const merged = applyRuleBlocks(
               await readAgents(t),
               input.projectTemplate ?? "",
-              custom,
+              fileCustom,
             );
             if (merged !== null) await writeAgents(t, merged);
           } else {
-            const merged = applyCustomBlock(await readAgents(t), custom);
+            const merged = applyCustomBlock(await readAgents(t), fileCustom);
             if (merged !== null) await writeAgents(t, merged);
-            await syncClaudeCustom(t, custom);
+            await syncClaudeCustom(t, fileCustom);
           }
           if (!input.folderId) {
             // CLAUDE.md becomes a one-line bridge; Claude Code reads
@@ -1780,8 +1851,23 @@ export default async function plugin(bb: BbPluginApi) {
         req.environment.workspace.type === "unmanaged"
           ? req.environment.workspace.branch
           : undefined;
+      // A one-shot startup instruction rides along with the first message and
+      // is never repeated: later turns carry nothing of it.
+      const startup = effectiveStartup(input.folderId ? f : null, f.projectId);
+      const startupInput = startup
+        ? [
+            ...req.input,
+            {
+              type: "text" as const,
+              text: startup,
+              mentions: [],
+              visibility: "agent-only" as const,
+            },
+          ]
+        : req.input;
       const t = await bb.sdk.threads.spawn({
         ...req,
+        input: startupInput,
         projectId: f.projectId,
         environment:
           req.environment.type === "provider"
@@ -1813,14 +1899,31 @@ export default async function plugin(bb: BbPluginApi) {
     sync: ({ threadId }) => sync(threadId),
   };
   bb.rpc.register(rpcContract, handlers);
-  bb.agents.configure((ctx) => ({
-    tools: [],
-    skills: ["project-folders"],
-    instructions:
-      ctx.project.kind === "standard" && ctx.environment.path
-        ? `Store this chat's supporting files in ${path.join(ctx.environment.path, ".bb/chats", ctx.thread.id)}: documents and reports in artifacts/, notes in notes/, temporary files in tmp/. Create directories as needed. Keep conversation artifacts out of the working folder root. Place source code and project files according to the task. Do not edit automatically exported thread.json or history/. Read applicable AGENTS.md files, including parent folder rules.`
-        : undefined,
-  }));
+  bb.agents.configure((ctx) => {
+    const blocks: string[] = [];
+    if (ctx.project.kind === "standard" && ctx.environment.path)
+      blocks.push(
+        `Store this chat's supporting files in ${path.join(ctx.environment.path, ".bb/chats", ctx.thread.id)}: documents and reports in artifacts/, notes in notes/, temporary files in tmp/. Create directories as needed. Keep conversation artifacts out of the working folder root. Place source code and project files according to the task. Do not edit automatically exported thread.json or history/. Read applicable AGENTS.md files, including parent folder rules.`,
+      );
+    // Custom rules addressed to BB sessions: the files on disk never see them.
+    try {
+      const folder = folderAt(ctx.host.id, ctx.environment.path);
+      const rules = effectiveCustom(
+        folder,
+        folder?.projectId ?? ctx.project.id,
+        "",
+        "session",
+      ).trim();
+      if (rules) blocks.push(rules);
+    } catch (e) {
+      bb.log.warn(`Session rules for ${ctx.thread.id}: ${String(e)}`);
+    }
+    return {
+      tools: [],
+      skills: ["project-folders"],
+      instructions: blocks.length ? blocks.join("\n\n") : undefined,
+    };
+  });
   for (const event of [
     "thread.idle",
     "thread.archived",

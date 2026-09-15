@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8
+
+- Custom rules choose where they apply: **Into the file** appends them to AGENTS.md and CLAUDE.md as before, **Into BB sessions** writes nothing to disk and hands the text to the agent as session instructions, and **Both** does the two. A terminal session on the machine keeps seeing only what is in the files; a chat started from BB also gets the session rules of the nearest project or section.
+- New **Startup instruction** per project or section: a one-shot text appended to the first message of a new chat there — "run the skill and send the current tasks", say. It is never written to the files, never repeated on later turns and never sits in the session instructions.
+- Both fields moved out of the mode tabs, since they apply whichever way the folder's AGENTS.md is kept, and every heading in the rules block now carries a **?** with an explanation on hover or keyboard focus.
+
 ## 0.3.7
 
 - A new chat or section started from a project card follows the device tab that is open, instead of always using the project's first copy.

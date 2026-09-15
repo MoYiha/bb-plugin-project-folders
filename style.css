@@ -292,6 +292,90 @@
   opacity: 0.45;
 }
 /* Stands in for the file editors so the card keeps its height. */
+/* Inline help: a "?" next to a heading, bubble on hover and keyboard focus. */
+.pf-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  margin-inline-start: 6px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+}
+.pf-help:hover,
+.pf-help:focus-visible {
+  color: var(--foreground);
+  border-color: var(--muted-foreground);
+}
+.pf-help-bubble {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 8px);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  max-width: 70vw;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover, var(--background));
+  color: var(--foreground);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.55;
+  text-align: start;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.pf[dir="rtl"] .pf-help-bubble {
+  transform: translateX(50%);
+}
+.pf-help:hover .pf-help-bubble,
+.pf-help:focus-visible .pf-help-bubble {
+  opacity: 1;
+  visibility: visible;
+}
+.pf-agents-extra {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.pf-agents-label {
+  display: inline-flex;
+  align-items: center;
+}
+.pf-agents-target {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -8px 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.pf-select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.pf-select:disabled {
+  opacity: 0.6;
+}
 .pf-agents-empty {
   display: flex;
   align-items: center;

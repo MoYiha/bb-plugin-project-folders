@@ -113,6 +113,17 @@ export const english = {
   "Выберите это устройство или создайте раздел на нужном сервере.":
     "Pick that device for the chat, or create a section on the target server.",
   "Свои правила": "Custom rules",
+  "Куда применять": "Where it applies",
+  "В файл": "Into the file",
+  "В сессии BB": "Into BB sessions",
+  "И туда и туда": "Both",
+  "Стартовое поручение": "Startup instruction",
+  "Постоянные правила этого места: роутинг моделей, делегирование, порядок работы. «В файл» дописывает их в конец AGENTS.md и CLAUDE.md — они действуют и в консоли на машине. «В сессии BB» ничего не пишет на диск: текст попадает в инструкции агента, запущенного из BB, и действует весь разговор.":
+    "Standing rules for this place: model routing, delegation, how work is done. “Into the file” appends them to the end of AGENTS.md and CLAUDE.md, so they also apply in a terminal on that machine. “Into BB sessions” writes nothing to disk: the text goes into the instructions of an agent started from BB and holds for the whole conversation.",
+  "Одноразовый текст: дописывается к первому сообщению нового чата в этой папке — например «запусти скилл и пришли текущие задачи». В файлы не пишется, в следующих ходах не участвует и в инструкциях сессии не висит.":
+    "A one-shot text appended to the first message of a new chat here — “run the skill and send the current tasks”, say. It is never written to the files, never repeated on later turns and never sits in the session instructions.",
+  "Вкладка решает, кто ведёт AGENTS.md этой папки: шаблон из настроек плагина, свой шаблон для этого места или ваш файл, в который плагин не пишет ничего.":
+    "The open tab decides who keeps this folder's AGENTS.md: the template from the plugin settings, your own template for this place, or your file, which the plugin never writes to.",
   "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Вписываются в блок правил после шаблона и дописываются вниз AGENTS.md и CLAUDE.md.":
     "Optional: model routing, delegation to Tasks or Agency, other individual rules. Appended to the rules block after the template and written to the bottom of AGENTS.md and CLAUDE.md.",
   "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Действуют во всём дереве, пока не переопределены в проекте или разделе.":

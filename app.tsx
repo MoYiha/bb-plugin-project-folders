@@ -5,6 +5,7 @@ import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import {
   AgentsRulesEditor,
   AgentsTemplateSection,
+  Help,
   RuleFields,
   type RuleDraft,
 } from "./agents-apply";
@@ -193,6 +194,8 @@ function FolderDialog({
               sectionTemplate: r.template || r.suggestedSection,
               projectTemplate: r.projectTemplate || r.suggestedProject,
               custom: r.custom,
+              customTarget: r.customTarget,
+              startup: r.startup,
             });
             setLoading(false);
           },
@@ -284,6 +287,8 @@ function FolderDialog({
             sectionTemplate: dialogRules.sectionTemplate,
             projectTemplate: dialogRules.projectTemplate,
             custom: dialogRules.custom,
+            customTarget: dialogRules.customTarget,
+            startup: dialogRules.startup,
           });
       }
       onCreated();
@@ -2181,12 +2186,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
     pos: "above" | "below";
   } | null>(null);
   const [reorderError, setReorderError] = useState("");
-  const [ruleDraft, setRuleDraft] = useState<{
-    mode: "manual" | "inherit" | "custom";
-    sectionTemplate: string;
-    projectTemplate: string;
-    custom: string;
-  } | null>(null);
+  const [ruleDraft, setRuleDraft] = useState<RuleDraft | null>(null);
   const [ruleSaving, setRuleSaving] = useState(false);
   const [ruleSaved, setRuleSaved] = useState(false);
   const [ruleError, setRuleError] = useState("");
@@ -2583,6 +2583,8 @@ function Panel({ subPath }: PluginNavPanelProps) {
               sectionTemplate: r.template || r.suggestedSection,
               projectTemplate: r.projectTemplate || r.suggestedProject,
               custom: r.custom,
+              customTarget: r.customTarget,
+              startup: r.startup,
             });
             setRuleModeSaved(r.mode);
           }
@@ -2706,6 +2708,8 @@ function Panel({ subPath }: PluginNavPanelProps) {
         sectionTemplate: ruleDraft.sectionTemplate,
         projectTemplate: ruleDraft.projectTemplate,
         custom: ruleDraft.custom,
+        customTarget: ruleDraft.customTarget,
+        startup: ruleDraft.startup,
       });
       setRuleModeSaved(ruleDraft.mode);
       setRuleSaved(true);
@@ -2998,7 +3002,14 @@ function Panel({ subPath }: PluginNavPanelProps) {
       </div>
       {selRulesAllowed && (
         <div className="pf-agents-rule">
-          <h3>{t("Правила AGENTS.md")}</h3>
+          <h3>
+            {t("Правила AGENTS.md")}
+            <Help
+              text={t(
+                "Вкладка решает, кто ведёт AGENTS.md этой папки: шаблон из настроек плагина, свой шаблон для этого места или ваш файл, в который плагин не пишет ничего.",
+              )}
+            />
+          </h3>
           {ruleDraft ? (
             <>
               <RuleFields

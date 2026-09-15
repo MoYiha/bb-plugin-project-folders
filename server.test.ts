@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createFakePluginHost,
+  makePluginAgentConfigurationContext,
   makeThreadResponse,
 } from "@get-bb/plugin-sdk/testing";
 import plugin, { resolveFolderPath } from "./server";
@@ -418,6 +419,128 @@ describe("AGENTS.md template", () => {
       )) as { failed: number; error: string | null };
       expect(failing.failed).toBe(2);
       expect(failing.error).toContain("permission denied");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("keeps session-only custom rules out of the files and puts them in the instructions", async () => {
+    const h = await setup();
+    try {
+      const section = (await createSection(h, "Ads")) as { id: string };
+      const before = h.writes.length;
+      await h.harness.behavior.callRpc("rules_settings_save", {
+        projectId: "p1",
+        folderId: section.id,
+        mode: "inherit",
+        sectionTemplate: "",
+        custom: "Рекламные задачи делегируй в Агентство.",
+        customTarget: "session",
+      });
+      // Nothing about those rules reaches AGENTS.md or CLAUDE.md.
+      expect(
+        h.writes
+          .slice(before)
+          .some((w) => String(w.content ?? "").includes("Агентство")),
+      ).toBe(false);
+      const resolved = await h.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          host: { id: "h1", name: "Mac" },
+          environment: { path: "/work/ads" },
+        }),
+      );
+      expect(resolved.instructions).toContain(
+        "Рекламные задачи делегируй в Агентство.",
+      );
+      // A chat in another folder of the project does not inherit it upwards.
+      const other = await h.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          host: { id: "h1", name: "Mac" },
+          environment: { path: "/work" },
+        }),
+      );
+      expect(other.instructions ?? "").not.toContain("Агентство");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("writes file-targeted rules to disk and keeps them out of the instructions", async () => {
+    const h = await setup();
+    try {
+      const section = (await createSection(h, "Docs")) as { id: string };
+      await h.harness.behavior.callRpc("rules_settings_save", {
+        projectId: "p1",
+        folderId: section.id,
+        mode: "inherit",
+        sectionTemplate: "",
+        custom: "Пиши отчёты по-русски.",
+        customTarget: "file",
+      });
+      expect(
+        h.writes.some((w) =>
+          String(w.content ?? "").includes("Пиши отчёты по-русски."),
+        ),
+      ).toBe(true);
+      const resolved = await h.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          host: { id: "h1", name: "Mac" },
+          environment: { path: "/work/docs" },
+        }),
+      );
+      expect(resolved.instructions ?? "").not.toContain("по-русски");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("adds the startup instruction to the first message only", async () => {
+    const h = await setup();
+    try {
+      await h.harness.behavior.callRpc("rules_settings_save", {
+        projectId: "p1",
+        folderId: null,
+        mode: "inherit",
+        sectionTemplate: "",
+        startup: "Запусти скилл tasks и пришли текущие задачи.",
+      });
+      h.harness.inspection.sdk.stub("threads.spawn", async () =>
+        makeThreadResponse({ id: "t9", projectId: "p1" }),
+      );
+      h.harness.inspection.sdk.stub("threads.get", async () =>
+        makeThreadResponse({ id: "t9", projectId: "p1", environmentId: null }),
+      );
+      await h.harness.behavior.callRpc("spawn", {
+        projectId: "p1",
+        folderId: null,
+        request: {
+          projectId: "p1",
+          providerId: "codex",
+          model: "selected-model",
+          reasoningLevel: "medium",
+          permissionMode: "full",
+          environment: {
+            type: "provider",
+            environmentProviderId: "project-checkout",
+            machine: { type: "existing", hostId: "h1" },
+          },
+          input: [],
+          executionInputSources: {},
+        },
+      });
+      const spawned = JSON.stringify(
+        h.harness.inspection.sdk.callsTo("threads.spawn"),
+      );
+      expect(spawned).toContain("Запусти скилл tasks");
+      expect(spawned).toContain("agent-only");
+      // It is a message part, not a standing instruction.
+      const resolved = await h.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          host: { id: "h1", name: "Mac" },
+          environment: { path: "/work" },
+        }),
+      );
+      expect(resolved.instructions ?? "").not.toContain("Запусти скилл");
     } finally {
       await h.harness.lifecycle.dispose();
     }
