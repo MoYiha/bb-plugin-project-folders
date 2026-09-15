@@ -1041,6 +1041,88 @@ describe("multi-device working copies", () => {
     }
   });
 
+  it("spawns a root chat on the device the composer picked", async () => {
+    const { h } = await twoDeviceSetup();
+    try {
+      await h.harness.behavior.callRpc("copy_add", {
+        projectId: "p1",
+        hostId: "h2",
+        path: "/srv/selfy",
+      });
+      h.harness.inspection.sdk.stub("threads.spawn", async () =>
+        makeThreadResponse({ id: "t3", projectId: "p1" }),
+      );
+      h.harness.inspection.sdk.stub("threads.get", async () =>
+        makeThreadResponse({ id: "t3", projectId: "p1", environmentId: null }),
+      );
+      // The page was opened on the first copy, the composer points at h2.
+      await h.harness.behavior.callRpc("spawn", {
+        projectId: "p1",
+        folderId: null,
+        hostId: "h1",
+        request: {
+          projectId: "p1",
+          providerId: "codex",
+          model: "selected-model",
+          reasoningLevel: "medium",
+          permissionMode: "full",
+          environment: {
+            type: "provider",
+            environmentProviderId: "project-checkout",
+            machine: { type: "existing", hostId: "h2" },
+          },
+          input: [],
+          executionInputSources: {},
+        },
+      });
+      const calls = h.harness.inspection.sdk.callsTo("threads.spawn");
+      expect(JSON.stringify(calls)).toContain("/srv/selfy");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("still refuses a section chat on another device", async () => {
+    const { h } = await twoDeviceSetup();
+    try {
+      await h.harness.behavior.callRpc("copy_add", {
+        projectId: "p1",
+        hostId: "h2",
+        path: "/srv/selfy",
+      });
+      const section = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: null,
+        hostId: "h1",
+        name: "Local",
+        relativePath: "local",
+      })) as { id: string };
+      await expect(
+        h.harness.behavior.callRpc("spawn", {
+          projectId: "p1",
+          folderId: section.id,
+          hostId: "h1",
+          request: {
+            projectId: "p1",
+            providerId: "codex",
+            model: "selected-model",
+            reasoningLevel: "medium",
+            permissionMode: "full",
+            environment: {
+              type: "provider",
+              environmentProviderId: "project-checkout",
+              machine: { type: "existing", hostId: "h2" },
+            },
+            input: [],
+            executionInputSources: {},
+          },
+        }),
+      ).rejects.toThrow(/lives on the/);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
   it("refuses to remove the last copy or a copy with sections or chats", async () => {
     const { h, sources } = await twoDeviceSetup();
     try {

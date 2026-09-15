@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.7
+
+- A new chat or section started from a project card follows the device tab that is open, instead of always using the project's first copy.
+- A root chat no longer fails when the composer points at another device: the plugin now uses that device's copy of the project. A section chat still refuses — a section exists on its own device only.
+
 ## 0.3.6
 
 - **Per-device working copies**: a project can hold its own working folder on every connected device — one path on the Mac mini, another on a server, a third on the MacBook. The sidebar keeps one entry per project, while the project card gains **device tabs for every machine BB knows**, each with a solid bolt while that machine is connected. A tab with a copy shows its folder as a path field with a folder button; a machine without a copy says so and offers **Add copy**, which opens the Working copies dialog with that device preselected — the folder is created when missing and seeded with AGENTS.md. The folder button opens that device's folder browser, where folders can be created, and the action follows what you pick: a place that does not hold the project folder yet means **Move** — the folder relocates with everything inside, the old path stays as a link for open chats, and sections, chat exports and archives are remapped — while a place that already holds it means **Use this folder**, which only re-registers the path. Every copy keeps its own AGENTS.md and CLAUDE.md; project-level rules are written to all of them. New chats pick the device in the composer's project dropdown (each copy is listed with its device name), and a **Configure** item in the ⋯ / right-click menu jumps to the project's settings. The last copy is protected; copies with sections or chats must be cleared first. CLI: `bb project-folders copy-add` / `copy-remove`.

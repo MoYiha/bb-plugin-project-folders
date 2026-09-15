@@ -1721,12 +1721,27 @@ export default async function plugin(bb: BbPluginApi) {
       return { updated, unchanged, failed, error };
     },
     spawn: async (input) => {
-      const f = await target(input);
+      let f = await target(input);
       if (input.request.projectId !== f.projectId)
         throw new Error(
           "The composer project must match the selected section.",
         );
       const req = input.request as NewThreadRequest;
+      // The composer may point at another device. A project root exists on
+      // every copy, so follow the choice instead of refusing it.
+      const picked =
+        req.environment.type === "provider" &&
+        req.environment.machine?.type === "existing"
+          ? req.environment.machine.hostId
+          : req.environment.type === "host"
+            ? req.environment.hostId
+            : undefined;
+      if (!input.folderId && picked && picked !== f.hostId) {
+        const copy = (await roots()).find(
+          (r) => r.projectId === f.projectId && r.hostId === picked,
+        );
+        if (copy) f = copy;
+      }
       if (
         req.environment.type === "host" &&
         ((req.environment.hostId && req.environment.hostId !== f.hostId) ||

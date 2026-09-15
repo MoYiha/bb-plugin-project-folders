@@ -2883,8 +2883,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
           variant="outline"
           onClick={() =>
             nav.toPluginPanel("folders", {
+              // Follow the open device tab: the copy you are looking at.
               subPath: `chat/${sel.projectId}/${
-                selRoot ? `root:${sel.hostId}` : sel.id
+                selRoot ? `root:${cardCopy?.hostId ?? sel.hostId}` : sel.id
               }`,
             })
           }
@@ -2902,7 +2903,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 projectId: sel.projectId,
                 folderId: selRoot ? null : sel.id,
               },
-              folder: sel,
+              folder: selRoot ? (cardCopy ?? sel) : sel,
               level: selLevel,
             })
           }
