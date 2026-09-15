@@ -330,6 +330,8 @@ export const rpcContract = defineRpcContract({
     input: z.null(),
     output: z.object({
       autoCreate: z.boolean(),
+      customTarget: z.enum(["file", "session", "both"]),
+      startup: z.string(),
       template: z.string(),
       projectTemplate: z.string(),
       custom: z.string(),
@@ -341,9 +343,13 @@ export const rpcContract = defineRpcContract({
       template: z.string().max(20000),
       projectTemplate: z.string().max(20000),
       custom: z.string().max(20000),
+      customTarget: z.enum(["file", "session", "both"]),
+      startup: z.string().max(4000),
     }),
     output: z.object({
       autoCreate: z.boolean(),
+      customTarget: z.enum(["file", "session", "both"]),
+      startup: z.string(),
       template: z.string(),
       projectTemplate: z.string(),
       custom: z.string(),
@@ -408,11 +414,33 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "Свои правила",
       description:
-        "Необязательные индивидуальные правила (роутинг моделей, делегирование в Tasks или Агентство). Действуют во всём дереве, пока проект или раздел не задал свои; вписываются в AGENTS.md и CLAUDE.md после шаблона.",
+        "Необязательные индивидуальные правила (роутинг моделей, делегирование в Tasks или Агентство). Действуют во всём дереве, пока проект или раздел не задал свои.",
       experimental_multiline: true,
       experimental_schema: z.string().max(20000),
       default: "",
     },
+    agents_custom_target: {
+      type: "string",
+      label: "Куда применять свои правила",
+      description:
+        "file — дописывать в AGENTS.md и CLAUDE.md, они действуют и в консоли; session — отдавать инструкциями агенту, запущенному из BB, не трогая файлы; both — и то и другое.",
+      experimental_schema: z.enum(["file", "session", "both"]),
+      default: "file",
+    },
+    agents_startup: {
+      type: "string",
+      label: "Стартовое поручение",
+      description:
+        "Одноразовый текст, который дописывается к первому сообщению нового чата: например «запусти скилл и пришли текущие задачи». В файлы не пишется и в следующих ходах не повторяется.",
+      experimental_multiline: true,
+      experimental_schema: z.string().max(4000),
+      default: "",
+    },
+  });
+  // The agent hook is synchronous, so the shared values are kept in memory.
+  let shared = await settings.get();
+  settings.onChange((next) => {
+    shared = next;
   });
   const db = bb.storage.database();
   bb.storage.migrate(db, [
@@ -531,7 +559,7 @@ export default async function plugin(bb: BbPluginApi) {
   const effectiveCustom = (
     f: Folder | null,
     projectId: string,
-    shared: string,
+    sharedCustom: string,
     channel: "file" | "session" = "file",
   ) => {
     let cur: Folder | undefined = f ?? undefined;
@@ -546,8 +574,13 @@ export default async function plugin(bb: BbPluginApi) {
     }
     const pr = projectRule(projectId);
     if (hits(pr, channel)) return pr!.custom!;
-    // Plugin-wide custom rules are a file default; sessions stay explicit.
-    return channel === "file" ? shared : "";
+    // Plugin-wide rules follow the target chosen in the plugin settings.
+    return hits(
+      { custom: sharedCustom, customTarget: shared.agents_custom_target },
+      channel,
+    )
+      ? sharedCustom
+      : "";
   };
   /** One-shot text for the first message of a new chat, nearest place wins. */
   const effectiveStartup = (f: Folder | null, projectId: string) => {
@@ -561,7 +594,9 @@ export default async function plugin(bb: BbPluginApi) {
         ? (folders().find((x) => x.id === cur!.parentId) as Folder | undefined)
         : undefined;
     }
-    return projectRule(projectId)?.startup?.trim() ?? "";
+    return (
+      projectRule(projectId)?.startup?.trim() || shared.agents_startup.trim()
+    );
   };
   /** The section a workspace path belongs to, resolved without any IO. */
   const folderAt = (hostId: string, workspace: string | null) => {
@@ -1674,6 +1709,8 @@ export default async function plugin(bb: BbPluginApi) {
       const s = await settings.get();
       return {
         autoCreate: s.agents_auto_create,
+        customTarget: s.agents_custom_target as RuleTarget,
+        startup: s.agents_startup,
         template: s.agents_template,
         projectTemplate: s.agents_project_template,
         custom: s.agents_custom,
@@ -1685,9 +1722,15 @@ export default async function plugin(bb: BbPluginApi) {
         agents_template: input.template,
         agents_project_template: input.projectTemplate,
         agents_custom: input.custom,
+        agents_custom_target: input.customTarget,
+        agents_startup: input.startup,
       });
+      // The sync agent hook reads this copy; do not wait for the change event.
+      shared = s;
       return {
         autoCreate: s.agents_auto_create,
+        customTarget: s.agents_custom_target as RuleTarget,
+        startup: s.agents_startup,
         template: s.agents_template,
         projectTemplate: s.agents_project_template,
         custom: s.agents_custom,
@@ -1911,7 +1954,7 @@ export default async function plugin(bb: BbPluginApi) {
       const rules = effectiveCustom(
         folder,
         folder?.projectId ?? ctx.project.id,
-        "",
+        shared.agents_custom,
         "session",
       ).trim();
       if (rules) blocks.push(rules);

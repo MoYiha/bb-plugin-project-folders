@@ -59,6 +59,8 @@ export function AgentsRulesEditor() {
     template: string;
     projectTemplate: string;
     custom: string;
+    customTarget: "file" | "session" | "both";
+    startup: string;
   } | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -136,17 +138,61 @@ export function AgentsRulesEditor() {
           onChange={(e) => patch({ template: e.target.value })}
         />
       </label>
-      <label className="pf-agents-field">
-        {t("Свои правила")}
+      <div className="pf-agents-field">
+        <span className="pf-agents-label">
+          {t("Свои правила")}
+          <Help
+            text={t(
+              "Постоянные правила этого места: роутинг моделей, делегирование, порядок работы. «В файл» дописывает их в конец AGENTS.md и CLAUDE.md — они действуют и в консоли на машине. «В сессии BB» ничего не пишет на диск: текст попадает в инструкции агента, запущенного из BB, и действует весь разговор.",
+            )}
+          />
+        </span>
         <textarea
           className="pf-rules"
           rows={4}
           dir="ltr"
           disabled={busy}
+          aria-label={t("Свои правила")}
           value={config.custom}
           onChange={(e) => patch({ custom: e.target.value })}
         />
+      </div>
+      <label className="pf-agents-target">
+        {t("Куда применять")}
+        <select
+          className="pf-select"
+          disabled={busy}
+          value={config.customTarget}
+          onChange={(e) =>
+            patch({
+              customTarget: e.target.value as typeof config.customTarget,
+            })
+          }
+        >
+          <option value="file">{t("В файл")}</option>
+          <option value="session">{t("В сессии BB")}</option>
+          <option value="both">{t("И туда и туда")}</option>
+        </select>
       </label>
+      <div className="pf-agents-field">
+        <span className="pf-agents-label">
+          {t("Стартовое поручение")}
+          <Help
+            text={t(
+              "Одноразовый текст: дописывается к первому сообщению нового чата в этой папке — например «запусти скилл и пришли текущие задачи». В файлы не пишется, в следующих ходах не участвует и в инструкциях сессии не висит.",
+            )}
+          />
+        </span>
+        <textarea
+          className="pf-rules"
+          rows={3}
+          dir="ltr"
+          disabled={busy}
+          aria-label={t("Стартовое поручение")}
+          value={config.startup}
+          onChange={(e) => patch({ startup: e.target.value })}
+        />
+      </div>
       <p className="pf-agents-hint">
         {t(
           "Необязательно: роутинг моделей, делегирование в Tasks или Агентство, другие индивидуальные правила. Действуют во всём дереве, пока не переопределены в проекте или разделе.",

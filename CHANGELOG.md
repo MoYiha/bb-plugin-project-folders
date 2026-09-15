@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9
+
+- The plugin settings gained the same two controls as a project or section: **Where it applies** for the shared custom rules, and a shared **Startup instruction**. A plugin-wide rule addressed to BB sessions now reaches every chat started from BB without touching a single AGENTS.md.
+- Every heading of the default-rules block carries a **?** with an explanation on hover or keyboard focus.
+
 ## 0.3.8
 
 - Custom rules choose where they apply: **Into the file** appends them to AGENTS.md and CLAUDE.md as before, **Into BB sessions** writes nothing to disk and hands the text to the agent as session instructions, and **Both** does the two. A terminal session on the machine keeps seeing only what is in the files; a chat started from BB also gets the session rules of the nearest project or section.

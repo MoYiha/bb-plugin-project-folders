@@ -494,6 +494,40 @@ describe("AGENTS.md template", () => {
     }
   });
 
+  it("sends plugin-wide rules to sessions when the settings say so", async () => {
+    const h = await setup();
+    try {
+      await h.harness.behavior.callRpc("agents_config_save", {
+        autoCreate: true,
+        template: "",
+        projectTemplate: "",
+        custom: "Отвечай по-русски.",
+        customTarget: "session" as const,
+        startup: "",
+      });
+      const before = h.writes.length;
+      const applied = (await h.harness.behavior.callRpc(
+        "agents_apply",
+        null,
+      )) as { updated: number };
+      void applied;
+      expect(
+        h.writes
+          .slice(before)
+          .some((w) => String(w.content ?? "").includes("Отвечай по-русски.")),
+      ).toBe(false);
+      const resolved = await h.harness.behavior.resolveAgentConfiguration(
+        makePluginAgentConfigurationContext({
+          host: { id: "h1", name: "Mac" },
+          environment: { path: "/work" },
+        }),
+      );
+      expect(resolved.instructions).toContain("Отвечай по-русски.");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
   it("adds the startup instruction to the first message only", async () => {
     const h = await setup();
     try {
@@ -711,6 +745,8 @@ describe("AGENTS.md template", () => {
         template: "Правила разделов",
         projectTemplate: "Правила проекта",
         custom: "",
+        customTarget: "file" as const,
+        startup: "",
       });
       h.harness.inspection.sdk.stub("projects.create", async () => ({
         id: "p2",
