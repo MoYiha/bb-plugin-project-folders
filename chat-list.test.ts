@@ -8,6 +8,7 @@ import {
   collectFolderThreads,
   isSectionInactive,
   isSectionCollapsed,
+  hasFolderUnread,
   INACTIVE_SECTION_THRESHOLD_MS,
 } from "./chat-list";
 const chat = (id: string, overrides = {}) => ({
@@ -381,7 +382,7 @@ describe("auto-collapsing inactive sections", () => {
       }),
     ).toBe(true);
 
-    // If new activity arrives after manual collapse, section opens
+    // If user explicitly collapsed, it stays collapsed even with busy threads or active chat
     expect(
       isSectionCollapsed({
         folderId: "sec1",
@@ -394,13 +395,15 @@ describe("auto-collapsing inactive sections", () => {
             id: "t1",
             projectId: "p1",
             environment: { id: "env1" },
-            updatedAt: now - 5 * 60 * 1000,
+            updatedAt: now,
+            indicator: "workflow",
           },
         ],
-        record: { collapsed: true, at: now - 10 * 60 * 1000 },
+        activeThreadId: "t1",
+        record: { collapsed: true, at: now },
         now,
       }),
-    ).toBe(false);
+    ).toBe(true);
 
     // When autoCollapseInactive is false, old chats do not auto-collapse
     expect(
@@ -413,6 +416,85 @@ describe("auto-collapsing inactive sections", () => {
         threads: oldThreads,
         autoCollapseInactive: false,
         now,
+      }),
+    ).toBe(false);
+  });
+
+  it("detects unread chats anywhere in the hierarchy", () => {
+    const threads = [
+      {
+        id: "t1",
+        projectId: "p1",
+        environment: { id: "env1" },
+        isUnread: false,
+      },
+      {
+        id: "t2",
+        projectId: "p1",
+        environment: { id: "env2" },
+        isUnread: true,
+      },
+    ];
+
+    // Parent folder sec1 sees unread from subfolder sub1
+    expect(
+      hasFolderUnread({
+        folderId: "sec1",
+        projectId: "p1",
+        root: false,
+        folders,
+        bindings,
+        threads,
+      }),
+    ).toBe(true);
+
+    // Subfolder sub1 itself has unread t2
+    expect(
+      hasFolderUnread({
+        folderId: "sub1",
+        projectId: "p1",
+        root: false,
+        folders,
+        bindings,
+        threads,
+      }),
+    ).toBe(true);
+
+    // Project root has unread
+    expect(
+      hasFolderUnread({
+        folderId: "p1",
+        projectId: "p1",
+        root: true,
+        folders,
+        bindings,
+        threads,
+      }),
+    ).toBe(true);
+
+    // If all threads are read, returns false
+    const readThreads = [
+      {
+        id: "t1",
+        projectId: "p1",
+        environment: { id: "env1" },
+        isUnread: false,
+      },
+      {
+        id: "t2",
+        projectId: "p1",
+        environment: { id: "env2" },
+        isUnread: false,
+      },
+    ];
+    expect(
+      hasFolderUnread({
+        folderId: "sec1",
+        projectId: "p1",
+        root: false,
+        folders,
+        bindings,
+        threads: readThreads,
       }),
     ).toBe(false);
   });

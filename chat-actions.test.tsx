@@ -267,3 +267,80 @@ it("auto-collapses section when chats have been inactive for over 2 hours and ex
 
   view.lifecycle.unmount();
 });
+it("allows manual collapse even when active thread is inside the section", async () => {
+  const activeThread: PluginSidebarThread = {
+    ...thread,
+    id: "active-t1",
+    title: "Working chat",
+    environment: {
+      id: "env-sec",
+      name: null,
+      branchName: null,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: "active-t1", onNavigate() {} },
+    {
+      sidebarThreads: { threads: [activeThread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder],
+          roots: [root],
+          bindings: { "env-sec": folder.id },
+          errors: [],
+        }),
+      },
+    },
+  );
+
+  expect(await view.findByText("Working chat")).toBeTruthy();
+
+  // User clicks to collapse section
+  fireEvent.click(view.getByText("Section"));
+  await waitFor(() => {
+    expect(view.queryByText("Working chat")).toBeNull();
+  });
+
+  view.lifecycle.unmount();
+});
+it("styles section and project labels as bold/unread when there is an unread chat", async () => {
+  const unreadThread: PluginSidebarThread = {
+    ...thread,
+    id: "unread-t1",
+    title: "Unread chat",
+    isUnread: true,
+    environment: {
+      id: "env-sec",
+      name: null,
+      branchName: null,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [unreadThread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder],
+          roots: [root],
+          bindings: { "env-sec": folder.id },
+          errors: [],
+        }),
+      },
+    },
+  );
+
+  const sectionBtn = (await view.findByText("Section")).closest("button")!;
+  expect(sectionBtn.className).toContain("pf-unread");
+
+  const projectBtn = (await view.findByText("Project")).closest("button")!;
+  expect(projectBtn.className).toContain("pf-unread");
+
+  view.lifecycle.unmount();
+});

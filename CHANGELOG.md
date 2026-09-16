@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.12
+
+- **Manual folder collapse**: manual collapse now takes immediate precedence even if a chat inside is active or an agent is working in the background. You can start a task in a chat and collapse the section while the agent runs.
+- **Unread hierarchy indicator**: section and project names now render in regular weight (same as the "New project" button) by default, and become **bold** only when an unread chat exists anywhere in their hierarchy.
+
 ## 0.3.11
 
 - Fix inactivity detection: reading or clicking an old chat no longer resets the inactivity timer. Inactivity now tracks real conversation activity (`latestAttentionAt`, active agents, creation), so sections whose chats haven't had messages for > 2 hours collapse properly even if their threads were viewed.

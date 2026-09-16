@@ -79,6 +79,8 @@ export type ChatThread = {
   latestAttentionAt?: number;
   indicator?: string;
   hasPendingInteraction?: boolean;
+  isUnread?: boolean;
+  isArchived?: boolean;
   status?: string;
   activity?: {
     workflows?: number;
@@ -277,12 +279,16 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     now = Date.now(),
   } = params;
 
+  if (record?.collapsed) {
+    return true;
+  }
+
   if (root) {
-    return !!record?.collapsed;
+    return false;
   }
 
   if (!autoCollapseInactive) {
-    return !!record?.collapsed;
+    return false;
   }
 
   const sectionThreads = collectFolderThreads(
@@ -292,6 +298,12 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     bindings,
     threads,
   );
+
+  if (record && !record.collapsed && record.at > 0) {
+    if (now - record.at < thresholdMs) {
+      return false;
+    }
+  }
 
   if (activeThreadId && sectionThreads.some((t) => t.id === activeThreadId)) {
     return false;
@@ -306,22 +318,33 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     ? Math.max(...sectionThreads.map(getThreadActivity))
     : 0;
 
-  if (record && record.collapsed) {
-    if (latestActivity > record.at && now - latestActivity <= thresholdMs) {
-      return false;
-    }
-    return true;
-  }
-
-  if (record && !record.collapsed && record.at > 0) {
-    if (now - record.at < thresholdMs) {
-      return false;
-    }
-  }
-
   if (hasChats && (latestActivity <= 0 || now - latestActivity > thresholdMs)) {
     return true;
   }
 
   return false;
+}
+
+export function hasFolderUnread<T extends ChatThread>(params: {
+  folderId: string;
+  projectId: string;
+  root: boolean;
+  folders: readonly { id: string; projectId: string; parentId: string | null }[];
+  bindings: Record<string, string>;
+  threads: readonly T[];
+}): boolean {
+  const { folderId, projectId, root, folders, bindings, threads } = params;
+  if (root) {
+    return threads.some(
+      (t) => t.projectId === projectId && !t.isArchived && !!t.isUnread,
+    );
+  }
+  const sectionThreads = collectFolderThreads(
+    folderId,
+    projectId,
+    folders,
+    bindings,
+    threads,
+  );
+  return sectionThreads.some((t) => !t.isArchived && !!t.isUnread);
 }

@@ -19,6 +19,7 @@ import {
   isSectionCollapsed,
   parseCollapseState,
   type CollapseRecord,
+  hasFolderUnread,
 } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import {
@@ -1498,6 +1499,7 @@ function FolderHeading({
   folder,
   root,
   closed,
+  unread = false,
   highlighted,
   rulesAllowed,
   onToggle,
@@ -1518,6 +1520,7 @@ function FolderHeading({
   folder: Folder;
   root: boolean;
   closed: boolean;
+  unread?: boolean;
   highlighted: boolean;
   rulesAllowed: boolean;
   onToggle: () => void;
@@ -1548,7 +1551,11 @@ function FolderHeading({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <button className="pf-label" onClick={onToggle} title={folder.path}>
+      <button
+        className={"pf-label" + (unread ? " pf-unread" : "")}
+        onClick={onToggle}
+        title={folder.path}
+      >
         <Icon
           name={closed ? "ChevronRight" : "ChevronDown"}
           className="pf-chevron"
@@ -1825,12 +1832,21 @@ function Tree(props: PluginThreadListProps) {
           : data.bindings[t.environment?.id ?? ""] === f.id),
     );
     const folderClosed = isClosed(f, root);
+    const folderUnread = hasFolderUnread({
+      folderId: f.id,
+      projectId: f.projectId,
+      root,
+      folders: data.folders,
+      bindings: data.bindings,
+      threads,
+    });
     return (
       <div key={f.id} className={root ? "pf-project" : "pf-folder"}>
         <FolderHeading
           folder={f}
           root={root}
           closed={folderClosed}
+          unread={folderUnread}
           highlighted={dropTarget === f.id}
           rulesAllowed={root || level <= 2}
           onToggle={() => toggle(f.id, folderClosed)}
@@ -1925,11 +1941,14 @@ function Tree(props: PluginThreadListProps) {
         .filter((p) => !data.roots.some((r) => r.projectId === p.id))
         .map((p) => {
           const projectClosed = isProjectClosed(p.id);
+          const projectUnread = threads.some(
+            (t) => t.projectId === p.id && !t.isArchived && !!t.isUnread,
+          );
           return (
             <div className="pf-project" key={p.id}>
               <div className="pf-heading">
                 <button
-                  className="pf-label"
+                  className={"pf-label" + (projectUnread ? " pf-unread" : "")}
                   onClick={() => toggle(p.id, projectClosed)}
                 >
                   <Icon
