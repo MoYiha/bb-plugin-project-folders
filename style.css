@@ -1589,3 +1589,7 @@
   min-width: 160px;
   height: 32px;
 }
+.pf-sgroup > .pf-srow:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}

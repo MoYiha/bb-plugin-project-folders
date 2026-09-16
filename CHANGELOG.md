@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5
+
+- Rewritten README in English and Russian: why the plugin exists, every feature in detail, and screenshots of the chat list, appearance, AGENTS.md rules, section archive, import & export and language settings.
+- Updated marketplace overview.
+- Remove a stray divider above the only row of the Language settings.
+
 ## 0.4.4
 
 - The plugin interface keeps the language chosen in the plugin: its pages, tree, dialogs and menus carry `data-bb-ru-skip`, so BB-wide DOM translators such as the Russifier plugin no longer turn part of an English interface into Russian.
