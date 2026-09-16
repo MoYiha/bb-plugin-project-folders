@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+- **Language section** in the settings menu, on both the management page and the BB settings page. The interface is English by default; the choice is stored per browser.
+- No more wrapped labels in Appearance: the active preset is marked with a corner badge, level tabs share the width evenly (**Level 3+**), and the color mode cards show a short title with a secondary explanation.
+
 ## 0.4.1
 
 - **Settings navigation instead of tabs**: on the management page the tree sidebar gains a **Settings** list above the projects — Chat list, Appearance, AGENTS.md rules, Section archive, Import & export; picking one opens it in the main pane, picking a project opens its card. The plugin page in BB settings shows the same sections with its own side rail. `settings/<section>` deep-links to a section.

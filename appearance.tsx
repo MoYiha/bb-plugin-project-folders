@@ -740,7 +740,7 @@ export function AppearanceSettings() {
     project: t("Проекты"),
     level1: t("1 уровень"),
     level2: t("2 уровень"),
-    level3: t("3 уровень и глубже"),
+    level3: t("3+ уровень"),
   };
   return (
     <div className="pf-appearance">
@@ -769,10 +769,12 @@ export function AppearanceSettings() {
                       <PreviewRow key={i} name="" look={s} depth={i} />
                     ))}
                 </span>
-                <span className="pf-preset-name">
-                  {active && <Icon name="Check" />}
-                  {presetTitle(p)}
-                </span>
+                {active && (
+                  <span className="pf-preset-check" aria-hidden="true">
+                    <Icon name="Check" />
+                  </span>
+                )}
+                <span className="pf-preset-name">{presetTitle(p)}</span>
               </button>
             );
           })}
@@ -782,10 +784,14 @@ export function AppearanceSettings() {
         <div className="pf-choice-grid" role="radiogroup">
           {(
             [
-              ["level", t("Уровнем: у каждого уровня свой цвет")],
-              ["project", t("Проектом: разделы получают цвет своего проекта")],
+              ["level", t("По уровню"), t("У каждого уровня свой цвет")],
+              [
+                "project",
+                t("По проекту"),
+                t("Разделы берут цвет своего проекта"),
+              ],
             ] as const
-          ).map(([value, label]) => (
+          ).map(([value, label, hint]) => (
             <button
               key={value}
               type="button"
@@ -798,7 +804,10 @@ export function AppearanceSettings() {
               onClick={() => void save({ ...prefs.appearance, colorBy: value })}
             >
               <span className="pf-choice-dot" />
-              {label}
+              <span className="pf-choice-text">
+                <strong>{label}</strong>
+                <span>{hint}</span>
+              </span>
             </button>
           ))}
         </div>

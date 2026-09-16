@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { t } from "./i18n";
+import { LanguagePicker, t } from "./i18n";
 import { Icon } from "./components/ui/icon";
 import { ChatSettings } from "./chat-settings";
 import { AppearanceSettings, TransferSettings } from "./appearance";
 import { AgentsMarkersHint, AgentsRulesEditor } from "./agents-apply";
-import { SettingsGroup } from "./settings-ui";
+import { SettingRow, SettingsGroup } from "./settings-ui";
 
 export const SETTINGS_SECTIONS = [
   "list",
@@ -12,6 +12,7 @@ export const SETTINGS_SECTIONS = [
   "rules",
   "archive",
   "transfer",
+  "language",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 export const isSettingsSection = (v: string): v is SettingsSection =>
@@ -38,6 +39,11 @@ const meta = (section: SettingsSection) =>
       icon: "Archive",
       title: t("Архив разделов"),
       hint: t("Заархивированные разделы с историей чатов."),
+    },
+    language: {
+      icon: "Globe",
+      title: t("Язык"),
+      hint: t("Язык интерфейса плагина."),
     },
     transfer: {
       icon: "Download",
@@ -113,6 +119,16 @@ export function SettingsPane({
       )}
       {section === "archive" && archive}
       {section === "transfer" && <TransferSettings />}
+      {section === "language" && (
+        <div className="pf-sgroup">
+          <SettingRow
+            label={t("Язык")}
+            hint={t("Хранится в этом браузере. По умолчанию — English.")}
+          >
+            <LanguagePicker />
+          </SettingRow>
+        </div>
+      )}
     </section>
   );
 }

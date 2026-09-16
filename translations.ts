@@ -306,4 +306,13 @@ export const english = {
   "Шаблоны и свои правила для новых проектов и разделов.":
     "Templates and custom rules for new projects and sections.",
   Экспорт: "Export",
+  Язык: "Language",
+  "Язык интерфейса плагина.": "Plugin interface language.",
+  "Хранится в этом браузере. По умолчанию — English.":
+    "Stored in this browser. English by default.",
+  "3+ уровень": "Level 3+",
+  "По уровню": "By level",
+  "По проекту": "By project",
+  "У каждого уровня свой цвет": "Each level has its own color",
+  "Разделы берут цвет своего проекта": "Sections take their project's color",
 } as const;

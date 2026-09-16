@@ -241,5 +241,13 @@
   "Сворачивание разделов": "Einklappen von Bereichen",
   "Уровни": "Ebenen",
   "Шаблоны и свои правила для новых проектов и разделов.": "Vorlagen und eigene Regeln für neue Projekte und Bereiche.",
-  "Экспорт": "Export"
+  "Экспорт": "Export",
+  "Язык": "Sprache",
+  "Язык интерфейса плагина.": "Sprache der Plugin-Oberfläche.",
+  "Хранится в этом браузере. По умолчанию — English.": "Wird in diesem Browser gespeichert. Standard ist Englisch.",
+  "3+ уровень": "Ebene 3+",
+  "По уровню": "Nach Ebene",
+  "По проекту": "Nach Projekt",
+  "У каждого уровня свой цвет": "Jede Ebene hat ihre eigene Farbe",
+  "Разделы берут цвет своего проекта": "Bereiche übernehmen die Farbe ihres Projekts"
 }

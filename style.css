@@ -1521,3 +1521,71 @@
   border-top: 1px solid var(--border);
   padding-top: 10px;
 }
+
+/* No wrapping in compact settings controls (0.4.2). */
+.pf-preset {
+  position: relative;
+}
+.pf-preset-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--foreground);
+  color: var(--background);
+}
+[dir="rtl"] .pf-preset-check {
+  right: auto;
+  left: 6px;
+}
+.pf-preset-check svg {
+  width: 12px;
+  height: 12px;
+}
+.pf-preset-name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-level-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+}
+.pf-level-tabs .pf-tab {
+  justify-content: center;
+  min-width: 0;
+  padding-inline: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pf-choice {
+  align-items: flex-start;
+}
+.pf-choice-dot {
+  margin-top: 2px;
+}
+.pf-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.pf-choice-text strong {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pf-choice-text span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.pf-srow-control select.bg-background {
+  min-width: 160px;
+  height: 32px;
+}
