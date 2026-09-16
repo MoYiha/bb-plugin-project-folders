@@ -75,9 +75,11 @@ export type ChatThread = {
   environment?: { id: string | null } | null;
   createdAt?: number;
   updatedAt?: number;
+  lastReadAt?: number | null;
   latestAttentionAt?: number;
   indicator?: string;
   hasPendingInteraction?: boolean;
+  status?: string;
   activity?: {
     workflows?: number;
     backgroundAgents?: number;
@@ -127,9 +129,19 @@ export function getThreadActivity(thread: {
   updatedAt?: number;
   latestAttentionAt?: number;
   createdAt?: number;
+  lastReadAt?: number | null;
 }): number {
+  // BB sets updatedAt = lastReadAt = Date.now() whenever a thread is opened/read.
+  // To detect actual conversation activity (messages, turns, attention), ignore updatedAt
+  // if it only reflects reading the thread without new messages.
+  const isOnlyRead =
+    thread.updatedAt &&
+    thread.lastReadAt &&
+    Math.abs(thread.updatedAt - thread.lastReadAt) < 2000;
+  const effectiveUpdatedAt = isOnlyRead ? 0 : (thread.updatedAt ?? 0);
+
   return Math.max(
-    thread.updatedAt ?? 0,
+    effectiveUpdatedAt,
     thread.latestAttentionAt ?? 0,
     thread.createdAt ?? 0,
   );
@@ -138,13 +150,15 @@ export function getThreadActivity(thread: {
 export function isThreadBusy(thread: {
   indicator?: string;
   hasPendingInteraction?: boolean;
+  status?: string;
   activity?: {
     workflows?: number;
     backgroundAgents?: number;
     backgroundCommands?: number;
   };
 }): boolean {
-  if (thread.indicator === "running") return true;
+  if (thread.status === "active") return true;
+  if (thread.indicator && thread.indicator !== "none") return true;
   if (thread.hasPendingInteraction) return true;
   if (thread.activity) {
     if ((thread.activity.workflows ?? 0) > 0) return true;

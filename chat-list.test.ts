@@ -125,11 +125,22 @@ describe("auto-collapsing inactive sections", () => {
     expect(
       getThreadActivity({ createdAt: 10, updatedAt: 20, latestAttentionAt: 30 }),
     ).toBe(30);
+    // When thread is simply read, updatedAt matches lastReadAt and does not count as conversation activity
+    expect(
+      getThreadActivity({
+        createdAt: 10,
+        latestAttentionAt: 25,
+        updatedAt: 1000,
+        lastReadAt: 1000,
+      }),
+    ).toBe(25);
   });
 
   it("identifies busy threads", () => {
     expect(isThreadBusy({})).toBe(false);
     expect(isThreadBusy({ indicator: "running" })).toBe(true);
+    expect(isThreadBusy({ indicator: "workflow" })).toBe(true);
+    expect(isThreadBusy({ status: "active" })).toBe(true);
     expect(isThreadBusy({ hasPendingInteraction: true })).toBe(true);
     expect(isThreadBusy({ activity: { workflows: 1 } })).toBe(true);
     expect(isThreadBusy({ activity: { backgroundAgents: 1 } })).toBe(true);

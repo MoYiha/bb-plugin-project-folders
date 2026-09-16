@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.11
+
+- Fix inactivity detection: reading or clicking an old chat no longer resets the inactivity timer. Inactivity now tracks real conversation activity (`latestAttentionAt`, active agents, creation), so sections whose chats haven't had messages for > 2 hours collapse properly even if their threads were viewed.
+
 ## 0.3.10
 
 - **Change section path**: sections finally get the move action projects always had. The ⋯ / right-click menu of a section and its card offer **Change path** (the project root keeps **Move**): pick a new, nonexistent folder on the same device and the whole section folder relocates with hidden files and chat history — or pick an existing folder and the section re-links to it, for the "I renamed the directory outside BB" case. Either way the old path stays as a compatibility symlink so existing chats keep working, and nested sections, chat exports and archive manifests are remapped. Workspace paths recorded before a finished move now resolve through completed section moves too, so chat labels, bindings and exports keep pointing at the right section. Running chats and queued work block the move; interrupted moves persist a barrier and can be retried from the new **Unfinished section moves** card. CLI: `bb project-folders move-section <folder-id> <absolute-path>`.
