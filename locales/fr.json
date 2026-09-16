@@ -249,5 +249,17 @@
   "По уровню": "Par niveau",
   "По проекту": "Par projet",
   "У каждого уровня свой цвет": "Chaque niveau a sa couleur",
-  "Разделы берут цвет своего проекта": "Les sections prennent la couleur de leur projet"
+  "Разделы берут цвет своего проекта": "Les sections prennent la couleur de leur projet",
+  "Группа не пустая: сначала перенесите или заархивируйте её разделы.": "Le groupe n'est pas vide : déplacez ou archivez d'abord ses sections.",
+  "Группа объединяет разделы в дереве и не создаёт папку. Разделы внутри неё создаются в ближайшей папке выше.": "Un groupe range des sections dans l'arborescence sans créer de dossier. Les sections qu'il contient sont créées dans le dossier le plus proche au-dessus.",
+  "Корень проекта на выбранном устройстве.": "La racine du projet sur l'appareil choisi.",
+  "Корень проекта": "Racine du projet",
+  "Меняется только место в дереве: папка, файлы и чаты остаются на месте.": "Seule la place dans l'arborescence change : le dossier, les fichiers et les chats restent en place.",
+  "Название группы": "Nom du groupe",
+  "Новая группа": "Nouveau groupe",
+  "Переместить в группу": "Déplacer dans un groupe",
+  "Переместить в группу…": "Déplacer dans un groupe…",
+  "Переместить": "Déplacer",
+  "Подходящих групп нет. Создайте группу рядом с этим разделом.": "Aucun groupe adapté. Créez un groupe à côté de cette section.",
+  "Удалить группу": "Supprimer le groupe"
 }

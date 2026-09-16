@@ -402,6 +402,97 @@ describe("shared preferences", () => {
     }
   });
 });
+describe("groups", () => {
+  type F = { id: string; parentId: string | null; path: string; kind?: string };
+  it("arranges sections without a folder and never counts as a level", async () => {
+    const h = await setup();
+    const call = h.harness.behavior.callRpc;
+    try {
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Apps",
+      })) as F;
+      expect(group.kind).toBe("group");
+      expect(group.path.startsWith("/")).toBe(false);
+      const before = h.writes.length;
+      const bot = (await call("create", {
+        projectId: "p1",
+        folderId: group.id,
+        hostId: "h1",
+        name: "VK bot",
+        relativePath: "vk-bot",
+      })) as F;
+      // The folder goes next to the group's place: the project root.
+      expect(bot.path).toBe("/work/vk-bot");
+      expect(bot.parentId).toBe(group.id);
+      // Level 1 section: it still receives the sections template.
+      expect(
+        h.writes.slice(before).some((w) => w.path === "/work/vk-bot/AGENTS.md"),
+      ).toBe(true);
+      expect(h.writes.some((w) => String(w.path).includes("@group"))).toBe(
+        false,
+      );
+      await expect(
+        call("rules_read", { projectId: "p1", folderId: group.id }),
+      ).rejects.toThrow(/group/i);
+      await expect(call("archive", { folderId: group.id })).rejects.toThrow(
+        /group/i,
+      );
+      await expect(
+        call("group_delete", { folderId: group.id }),
+      ).rejects.toThrow(/not empty/);
+      const list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.find((f) => f.id === group.id)?.kind).toBe("group");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("moves an existing section into a group and back without touching its folder", async () => {
+    const h = await setup();
+    const call = h.harness.behavior.callRpc;
+    try {
+      const site = (await call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Site",
+        relativePath: "site",
+      })) as F;
+      const docs = (await call("create", {
+        projectId: "p1",
+        folderId: site.id,
+        name: "Docs",
+        relativePath: "docs",
+      })) as F;
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Apps",
+      })) as F;
+      await call("section_reparent", { folderId: site.id, parentId: group.id });
+      let list = (await call("list", null)) as { folders: F[] };
+      const moved = list.folders.find((f) => f.id === site.id)!;
+      expect(moved.parentId).toBe(group.id);
+      expect(moved.path).toBe("/work/site");
+      // Docs lives inside site/, so it cannot leave that folder through the tree.
+      await expect(
+        call("section_reparent", { folderId: docs.id, parentId: group.id }),
+      ).rejects.toThrow(/same parent folder/);
+      await expect(
+        call("section_reparent", { folderId: group.id, parentId: site.id }),
+      ).rejects.toThrow(/inside itself/);
+      await call("section_reparent", { folderId: site.id, parentId: null });
+      list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.find((f) => f.id === site.id)?.parentId).toBeNull();
+      await call("group_delete", { folderId: group.id });
+      list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.some((f) => f.id === group.id)).toBe(false);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});
 describe("AGENTS.md template", () => {
   const createSection = (h: Awaited<ReturnType<typeof setup>>, name: string) =>
     h.harness.behavior.callRpc("create", {

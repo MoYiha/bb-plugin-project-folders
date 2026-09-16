@@ -556,3 +556,35 @@ it("lists the plugin settings sections in the tree sidebar and opens them", asyn
   ).toBeNull();
   view.lifecycle.unmount();
 });
+
+it("shows a group as a folderless card with group actions", async () => {
+  const group = {
+    ...root,
+    id: "g1",
+    parentId: null,
+    name: "Apps",
+    path: "@group/g1",
+    kind: "group",
+  };
+  const inGroup = {
+    ...root,
+    id: "f2",
+    parentId: "g1",
+    name: "VK bot",
+    path: "/work/vk-bot",
+  };
+  const view = renderSlot(app.navPanels[0]!, { subPath: "" }, {
+    rpc: {
+      ...rpc,
+      list: () => ({ ...rpc.list(), folders: [section, group, inGroup] }),
+    },
+  });
+  await view.findByText("VK bot");
+  view.getByText("Apps").click();
+  await view.findByText(/creates no folder/);
+  const card = view.baseElement.querySelector(".pf-details")!;
+  expect(card.textContent).toContain("Delete group");
+  expect(card.textContent).not.toContain("Rules");
+  expect(card.textContent).not.toContain("New chat");
+  view.lifecycle.unmount();
+});

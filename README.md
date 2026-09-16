@@ -61,7 +61,7 @@ What you get from that:
 
 | Area | What it does |
 | --- | --- |
-| Projects & sections | Real folders, nesting, manual order by drag and drop, rename, change path |
+| Projects & sections | Real folders, nesting, manual order by drag and drop, rename, change path, folderless groups |
 | Sidebar tree | Replaces BB's chat list with the project → section → chat tree; bold unread, auto-collapse, per-list limits |
 | New chats | Chat-plus button per project or section; the composer gets a project/section picker |
 | Rules | AGENTS.md templates for projects and sections, per-project and per-section overrides, own-file mode, custom rules into files or into BB sessions, a one-shot startup instruction |
@@ -96,6 +96,16 @@ A **project** is a BB project with a folder on a device. A **section** is a subf
 - **Change path** — moves a section to a new folder or re-links it to a folder renamed outside BB (see [Move and delete](#move-and-delete)).
 - **Order** — drag projects and sections up or down on the management page, or use **Move up / Move down** in the row menu. The order is stored in the plugin database and used everywhere.
 - **Name reuse** — creating a section with the name of an archived one on the same project and device offers to restore it with its history instead.
+
+### Groups
+
+A **group** arranges sections in the tree without a folder of its own — for example an *Apps* group holding sections that point to different places.
+
+- **New group** — from any project, section or group **⋯** menu, or from a card. Only a name is needed.
+- **New section** inside a group creates its folder where the group sits: in the nearest real folder above, or in the project root. A project-level group is shared by every device copy, so it can hold sections from different machines.
+- **Move to group…** (section menu, card, or drag a row onto a group on the management page) changes only the place in the tree; the folder, files and chats stay where they are. A section can move between groups that share its parent folder.
+- Groups have no chats and no rules and do not count as a level, so a section inside a group keeps its level 1 or 2 rules. Their default icon differs from sections and can be styled like any section.
+- **Delete group** works on an empty group. Archiving a section also archives the groups inside it and restores them with it.
 
 The folder picker, shared by the project and section dialogs, browses the selected device, creates child folders and can delete an **empty, unregistered** folder after confirmation. It never deletes files recursively.
 
@@ -290,7 +300,7 @@ bb project-folders delete-project <project-id> keep|archive
 bb project-folders sync <thread-id>
 ```
 
-`forget` is a compatibility alias for `archive`.
+`forget` is a compatibility alias for `archive`. Groups are managed from the interface.
 
 ## Requirements, data and limitations
 

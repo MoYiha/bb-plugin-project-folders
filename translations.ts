@@ -315,4 +315,21 @@ export const english = {
   "По проекту": "By project",
   "У каждого уровня свой цвет": "Each level has its own color",
   "Разделы берут цвет своего проекта": "Sections take their project's color",
+  "Группа не пустая: сначала перенесите или заархивируйте её разделы.":
+    "The group is not empty: move or archive its sections first.",
+  "Группа объединяет разделы в дереве и не создаёт папку. Разделы внутри неё создаются в ближайшей папке выше.":
+    "A group arranges sections in the tree and creates no folder. Sections inside it are created in the nearest folder above.",
+  "Корень проекта на выбранном устройстве.":
+    "The project root on the selected device.",
+  "Корень проекта": "Project root",
+  "Меняется только место в дереве: папка, файлы и чаты остаются на месте.":
+    "Only the place in the tree changes: the folder, files and chats stay where they are.",
+  "Название группы": "Group name",
+  "Новая группа": "New group",
+  "Переместить в группу": "Move to group",
+  "Переместить в группу…": "Move to group…",
+  Переместить: "Move",
+  "Подходящих групп нет. Создайте группу рядом с этим разделом.":
+    "No suitable groups. Create a group next to this section.",
+  "Удалить группу": "Delete group",
 } as const;

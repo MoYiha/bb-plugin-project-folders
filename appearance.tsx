@@ -429,7 +429,12 @@ export function rowDecoration(style: { color?: string; fill: Fill }) {
   };
 }
 
-type TreeFolder = { id: string; parentId: string | null; projectId: string };
+type TreeFolder = {
+  id: string;
+  parentId: string | null;
+  projectId: string;
+  kind?: string;
+};
 /** Effective look of a project root or a section for rendering. */
 export function useFolderLook(folders: readonly TreeFolder[]) {
   const { prefs, items } = usePrefs();

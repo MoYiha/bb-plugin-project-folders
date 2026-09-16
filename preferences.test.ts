@@ -88,6 +88,26 @@ describe("preferences", () => {
     expect(look(defaultPrefs, cascading, "d").color).toBe("#ff0000");
   });
 
+  it("skips groups when counting levels and gives them their own icon", () => {
+    const tree = [
+      { id: "g", parentId: null, projectId: "p", kind: "group" },
+      { id: "s", parentId: "g", projectId: "p" },
+      { id: "t", parentId: "s", projectId: "p" },
+    ];
+    const prefs = { ...defaultPrefs, appearance: presetAppearance("levels") };
+    const at = (id: string) =>
+      resolveStyle({
+        prefs,
+        items: {},
+        folders: tree,
+        projectId: "p",
+        folder: tree.find((f) => f.id === id)!,
+      });
+    expect(at("g")).toMatchObject({ level: 1, icon: "icon:FolderLibrary" });
+    expect(at("s")).toMatchObject({ level: 1, color: "violet" });
+    expect(at("t")).toMatchObject({ level: 2, color: "teal" });
+  });
+
   it("colors a whole project in project mode", () => {
     const prefs = { ...defaultPrefs, appearance: presetAppearance("projects") };
     expect(look(prefs, {}, "c").color).toBe(projectColor("p"));

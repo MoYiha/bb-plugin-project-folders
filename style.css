@@ -1593,3 +1593,49 @@
   border-top: 0;
   padding-top: 2px;
 }
+
+/* Groups (0.4.6). */
+.pf-side-row.pf-drop-into {
+  box-shadow: inset 0 0 0 2px var(--foreground);
+  background: var(--accent);
+}
+.pf-reparent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 8px 0 4px;
+}
+.pf-reparent-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pf-reparent-option:hover {
+  background: var(--accent);
+}
+.pf-reparent-option svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pf-menu-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.pf-menu-group svg {
+  width: 14px;
+  height: 14px;
+}

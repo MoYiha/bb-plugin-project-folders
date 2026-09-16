@@ -10,6 +10,7 @@ const savedFolder = z.object({
   parentId: z.string().nullable(),
   name: z.string(),
   path: z.string(),
+  kind: z.enum(["folder", "group"]).optional(),
 });
 export const archiveSchema = z.object({
   id: z.string(),
@@ -24,6 +25,26 @@ export const archiveSchema = z.object({
   error: z.string().nullable(),
 });
 export type Archive = z.infer<typeof archiveSchema>;
+/** Groups have no folder, so they join an archive through their place in the tree. */
+function withNestedGroups(all: Folder[], members: Folder[]): Folder[] {
+  const ids = new Set(members.map((m) => m.id));
+  const out = [...members];
+  for (let added = true; added;) {
+    added = false;
+    for (const g of all)
+      if (
+        g.kind === "group" &&
+        !ids.has(g.id) &&
+        g.parentId &&
+        ids.has(g.parentId)
+      ) {
+        ids.add(g.id);
+        out.push(g);
+        added = true;
+      }
+  }
+  return out;
+}
 export function makeArchives(
   bb: BbPluginApi,
   options: {
@@ -175,14 +196,18 @@ export function makeArchives(
         a = {
           id,
           folder: f,
-          members: options
-            .folders()
-            .filter(
-              (c) =>
-                c.projectId === f.projectId &&
-                c.hostId === f.hostId &&
-                inside(c.path, f.path),
-            ),
+          members: withNestedGroups(
+            options.folders(),
+            options
+              .folders()
+              .filter(
+                (c) =>
+                  c.kind !== "group" &&
+                  c.projectId === f.projectId &&
+                  c.hostId === f.hostId &&
+                  inside(c.path, f.path),
+              ),
+          ),
           rootPath: root.path,
           archivePath: path.join(
             root.path,
@@ -358,8 +383,12 @@ export function makeArchives(
         db.transaction(() => {
           for (const f of a.members)
             db.prepare(
-              "INSERT OR IGNORE INTO folders (id,projectId,hostId,parentId,name,path,sort) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort)",
-            ).run({ ...f, sort: (f as { sort?: number }).sort ?? 0 });
+              "INSERT OR IGNORE INTO folders (id,projectId,hostId,parentId,name,path,sort,kind) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort,@kind)",
+            ).run({
+              ...f,
+              sort: (f as { sort?: number }).sort ?? 0,
+              kind: f.kind ?? "folder",
+            });
         })();
         for (const threadId of a.restoreThreadIds)
           await bb.sdk.threads.unarchive({ threadId });

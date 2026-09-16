@@ -100,6 +100,8 @@ const folderSchema = z.object({
   name: z.string(),
   path: z.string(),
   sort: z.number().optional(),
+  /** A group only arranges the tree: it has no folder, chats or rules. */
+  kind: z.enum(["folder", "group"]).optional(),
 });
 export type Folder = z.infer<typeof folderSchema>;
 const targetSchema = z.object({
@@ -154,6 +156,22 @@ export const rpcContract = defineRpcContract({
         error: z.string().nullable(),
       }),
     ),
+  },
+  group_create: {
+    input: targetSchema.extend({ name: z.string().trim().min(1).max(120) }),
+    output: folderSchema,
+  },
+  group_delete: {
+    input: z.object({ folderId: z.string().min(1) }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  section_reparent: {
+    input: z.object({
+      folderId: z.string().min(1),
+      /** A group or section id, or null for the project root. */
+      parentId: z.string().min(1).nullable(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
   },
   section_move: {
     input: z.object({
@@ -519,6 +537,8 @@ export default async function plugin(bb: BbPluginApi) {
     // Shared UI preferences and per-project/section looks (key p:<project> or f:<folder>).
     `CREATE TABLE preferences (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
     `CREATE TABLE item_styles (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    // Groups arrange sections without a folder of their own.
+    `ALTER TABLE folders ADD COLUMN kind TEXT NOT NULL DEFAULT 'folder'`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -580,6 +600,8 @@ export default async function plugin(bb: BbPluginApi) {
   }
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
+  const isGroup = (f: object | null | undefined) =>
+    !!f && (f as { kind?: string }).kind === "group";
   /** Where custom rules apply: the AGENTS.md files, BB sessions, or both. */
   type RuleTarget = "file" | "session" | "both";
   type FolderRule = {
@@ -615,16 +637,20 @@ export default async function plugin(bb: BbPluginApi) {
   ) =>
     !!rule?.custom?.trim() &&
     (rule.customTarget ?? "file") !== (channel === "file" ? "session" : "file");
-  /** Levels: project root is 0; a section under it is 1, its subsection 2. Rules exist for levels 1–2 only. */
+  /**
+   * Levels: project root is 0; a section under it is 1, its subsection 2.
+   * Groups do not count, so grouping never costs a section its rules.
+   * Rules exist for levels 1–2 only.
+   */
   const folderLevel = (f: Folder) => {
-    let level = 1;
+    let level = isGroup(f) ? 0 : 1;
     let parent = f.parentId
       ? (folders().find((x) => x.id === f.parentId) as Folder | undefined)
       : undefined;
     const visited = new Set<string>();
     while (parent && !visited.has(parent.id)) {
       visited.add(parent.id);
-      level++;
+      if (!isGroup(parent)) level++;
       parent = parent.parentId
         ? (folders().find((x) => x.id === parent!.parentId) as
             Folder | undefined)
@@ -632,7 +658,21 @@ export default async function plugin(bb: BbPluginApi) {
     }
     return level;
   };
-  const rulesAllowed = (f: Folder | null) => f === null || folderLevel(f) <= 2;
+  const rulesAllowed = (f: Folder | null) =>
+    f === null || (!isGroup(f) && folderLevel(f) <= 2);
+  /** The nearest ancestor with a real folder (the group itself excluded); null is the project root. */
+  const folderAnchor = (f: Folder | null): Folder | null => {
+    let cur = f;
+    const visited = new Set<string>();
+    while (cur && isGroup(cur) && !visited.has(cur.id)) {
+      visited.add(cur.id);
+      const parentId: string | null = cur.parentId;
+      cur = parentId
+        ? (folders().find((x) => x.id === parentId) ?? null)
+        : null;
+    }
+    return cur;
+  };
   const ruleTemplate = (f: Folder | null, fallback: string) => {
     if (f === null) return fallback;
     const rule = folderRule(f.id);
@@ -805,7 +845,10 @@ export default async function plugin(bb: BbPluginApi) {
           (order.get(b.projectId) ?? Number.MAX_SAFE_INTEGER),
       );
   }
-  async function target(input: z.infer<typeof targetSchema>): Promise<Folder> {
+  async function target(
+    input: z.infer<typeof targetSchema>,
+    options: { allowGroup?: boolean } = {},
+  ): Promise<Folder> {
     if (moves.busy(input.projectId))
       throw new Error(
         "Project relocation is pending. Finish or retry it before changing the project.",
@@ -835,9 +878,27 @@ export default async function plugin(bb: BbPluginApi) {
       : (await roots()).find((f) => f.projectId === input.projectId);
     if (!f || f.projectId !== input.projectId)
       throw new Error("Section or project source not found.");
-    if (input.hostId && f.hostId !== input.hostId)
+    // A group at the project level belongs to no device: its sections can live on any copy.
+    const freeGroup = isGroup(f) && folderAnchor(f) === null;
+    if (input.hostId && f.hostId !== input.hostId && !freeGroup)
       throw new Error("A nested section must use its parent folder’s device.");
+    if (isGroup(f) && !options.allowGroup)
+      throw new Error(
+        "A group has no folder. Choose a section inside it or the project root.",
+      );
     return f;
+  }
+  /** Where new folders under a tree node go: a group places them in its nearest real folder. */
+  async function folderBase(node: Folder, hostId?: string): Promise<Folder> {
+    if (!isGroup(node)) return node;
+    return (
+      folderAnchor(node) ??
+      (await target({
+        projectId: node.projectId,
+        hostId: hostId ?? node.hostId,
+        folderId: null,
+      }))
+    );
   }
   const changed = () => bb.realtime.publish("changed", {});
   const agentsFile = (f: Folder) => path.join(f.path, "AGENTS.md");
@@ -926,7 +987,8 @@ export default async function plugin(bb: BbPluginApi) {
     await ensureClaudeStub(f);
   }
   async function create(input: z.infer<typeof createSchema>) {
-    const parent = await target(input);
+    const node = await target(input, { allowGroup: true });
+    const parent = await folderBase(node, input.hostId);
     if (archives.moving(parent.hostId, parent.path))
       throw new Error(
         "The section is moving. Try again after the operation finishes.",
@@ -945,6 +1007,7 @@ export default async function plugin(bb: BbPluginApi) {
       parentId: input.folderId,
       name: input.name,
       path: resolveFolderPath(parent.path, input.relativePath),
+      kind: "folder",
       sort:
         (
           db
@@ -979,9 +1042,9 @@ export default async function plugin(bb: BbPluginApi) {
       recursive: true,
     });
     db.prepare(
-      "INSERT INTO folders (id,projectId,hostId,parentId,name,path,sort) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort)",
+      "INSERT INTO folders (id,projectId,hostId,parentId,name,path,sort,kind) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort,@kind)",
     ).run(folder);
-    await seedAgents(folder, input.folderId ? parent : null).catch((e) =>
+    await seedAgents(folder, input.folderId ? node : null).catch((e) =>
       bb.log.warn(`AGENTS.md template for ${folder.path}: ${String(e)}`),
     );
     changed();
@@ -1294,6 +1357,103 @@ export default async function plugin(bb: BbPluginApi) {
       return moves.move(input);
     },
     pending_moves: async () => moves.list().filter((m) => !m.complete),
+    group_create: async (input) => {
+      const parent = await target(input, { allowGroup: true });
+      const id = randomUUID();
+      const parentId = input.folderId;
+      const group: Folder = {
+        id,
+        projectId: parent.projectId,
+        hostId: parent.hostId,
+        parentId,
+        name: input.name,
+        // Not a filesystem path: it never matches a workspace or a section folder.
+        path: `@group/${id}`,
+        kind: "group",
+        sort:
+          (
+            db
+              .prepare(
+                "SELECT COALESCE(MAX(sort), -1) AS m FROM folders WHERE projectId=@projectId AND parentId IS @parentId",
+              )
+              .get({ projectId: parent.projectId, parentId }) as { m: number }
+          ).m + 1,
+      };
+      db.prepare(
+        "INSERT INTO folders (id,projectId,hostId,parentId,name,path,sort,kind) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort,@kind)",
+      ).run(group);
+      changed();
+      return group;
+    },
+    group_delete: ({ folderId }) => {
+      const all = folders();
+      const g = all.find((f) => f.id === folderId);
+      if (!g || !isGroup(g)) throw new Error("Group not found.");
+      if (all.some((f) => f.parentId === g.id))
+        throw new Error(
+          "The group is not empty. Move its sections out or archive them first.",
+        );
+      db.prepare("DELETE FROM folders WHERE id=?").run(g.id);
+      db.prepare("DELETE FROM item_styles WHERE key=?").run(`f:${g.id}`);
+      changed();
+      return { ok: true as const };
+    },
+    section_reparent: ({ folderId, parentId }) => {
+      const all = folders();
+      const f = all.find((x) => x.id === folderId);
+      if (!f) throw new Error("Section not found.");
+      if (moves.busy(f.projectId) || sectionMoves.busyProject(f.projectId))
+        throw new Error("Finish pending moves first.");
+      const parent = parentId ? all.find((x) => x.id === parentId) : null;
+      if (parentId && !parent) throw new Error("Destination not found.");
+      const current = f.parentId
+        ? (all.find((x) => x.id === f.parentId) ?? null)
+        : null;
+      if (parent) {
+        const anyDevice =
+          isGroup(parent) &&
+          folderAnchor(parent) === null &&
+          folderAnchor(current) === null;
+        if (
+          parent.projectId !== f.projectId ||
+          (parent.hostId !== f.hostId && !anyDevice)
+        )
+          throw new Error(
+            "Choose a destination in the same project and device.",
+          );
+        for (
+          let cur: Folder | undefined = parent;
+          cur;
+          cur = cur.parentId
+            ? all.find((x) => x.id === cur!.parentId)
+            : undefined
+        )
+          if (cur.id === f.id)
+            throw new Error("A section cannot go inside itself.");
+      }
+      // Only the place in the tree changes, so the folder containment must stay the same.
+      if (folderAnchor(current)?.id !== folderAnchor(parent ?? null)?.id)
+        throw new Error(
+          "Only the place in the tree changes: choose a group or section within the same parent folder.",
+        );
+      if ((f.parentId ?? null) === (parentId ?? null))
+        return { ok: true as const };
+      const sort =
+        (
+          db
+            .prepare(
+              "SELECT COALESCE(MAX(sort), -1) AS m FROM folders WHERE projectId=@projectId AND parentId IS @parentId",
+            )
+            .get({ projectId: f.projectId, parentId }) as { m: number }
+        ).m + 1;
+      db.prepare("UPDATE folders SET parentId=?, sort=? WHERE id=?").run(
+        parentId,
+        sort,
+        f.id,
+      );
+      changed();
+      return { ok: true as const };
+    },
     section_move: (input) => {
       if (threadMoves.any())
         throw new Error("Finish pending chat moves first.");
@@ -1310,10 +1470,14 @@ export default async function plugin(bb: BbPluginApi) {
         })),
     archive_list: async () => ({ archives: archives.list() }),
     archive_matches: async (input) => {
-      const f = await target(input);
+      const f = await target(input, { allowGroup: true });
       return { archives: archives.matches(f.projectId, f.hostId, input.name) };
     },
     archive: ({ folderId }) => {
+      if (isGroup(folders().find((f) => f.id === folderId)))
+        throw new Error(
+          "A group has no folder to archive. Move or archive its sections, then delete the group.",
+        );
       if (threadMoves.any())
         throw new Error("Finish pending chat moves first.");
       return archives.archive(folderId);
@@ -1648,7 +1812,14 @@ export default async function plugin(bb: BbPluginApi) {
         (p) => p.id === input.projectId,
       );
       if (!project) throw new Error("Project not found.");
-      const parent = input.folderId ? await target(input) : null;
+      const node = input.folderId
+        ? await target(input, { allowGroup: true })
+        : null;
+      // A project-level group offers every device, like the project root.
+      const parent =
+        node && !(isGroup(node) && folderAnchor(node) === null)
+          ? await folderBase(node)
+          : null;
       return {
         locations: hosts.map((h) => {
           const source = project.sources.find(
@@ -1680,7 +1851,10 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
     browse: async (input) => {
-      const f = await target(input);
+      const f = await folderBase(
+        await target(input, { allowGroup: true }),
+        input.hostId,
+      );
       const p = input.relative
         ? resolveFolderPath(f.path, input.relative)
         : f.path;
@@ -1696,7 +1870,7 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
     rename: async (input) => {
-      const f = await target(input);
+      const f = await target(input, { allowGroup: true });
       if (input.folderId)
         db.prepare("UPDATE folders SET name=? WHERE id=?").run(
           input.name,
@@ -1970,7 +2144,7 @@ export default async function plugin(bb: BbPluginApi) {
         });
       }
       for (const f of folders()) {
-        if (folderLevel(f) > 2) continue;
+        if (isGroup(f) || folderLevel(f) > 2) continue;
         if ((await ruleMode(f, false)) === "manual") continue;
         targets.push({
           folder: f,

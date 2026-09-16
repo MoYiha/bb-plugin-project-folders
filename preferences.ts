@@ -239,7 +239,14 @@ export type ResolvedStyle = {
   sort: ChatSort;
   limit: number;
 };
-type TreeFolder = { id: string; parentId: string | null; projectId: string };
+type TreeFolder = {
+  id: string;
+  parentId: string | null;
+  projectId: string;
+  kind?: string;
+};
+/** Groups arrange the tree without a folder; they get their own default icon. */
+export const GROUP_ICON = "icon:FolderLibrary";
 /**
  * Effective look of a project root (folder null) or a section. The nearest
  * value wins: the item itself, then ancestors marked "apply to nested", then
@@ -255,14 +262,18 @@ export function resolveStyle(input: {
   const { prefs, items, folders, projectId, folder } = input;
   const chain: string[] = [];
   const visited = new Set<string>();
+  let sections = 0;
   let cur: TreeFolder | undefined = folder ?? undefined;
   while (cur && !visited.has(cur.id)) {
     visited.add(cur.id);
     chain.push(folderKey(cur.id));
+    if (cur.kind !== "group") sections++;
     const parentId: string | null = cur.parentId;
     cur = parentId ? folders.find((f) => f.id === parentId) : undefined;
   }
-  const level = chain.length;
+  // Groups do not count as levels; a group looks like a section in its place.
+  const group = folder?.kind === "group";
+  const level = group ? sections + 1 : sections;
   chain.push(projectKey(projectId));
   const base = prefs.appearance.levels[levelKey(level)];
   const out: ResolvedStyle = {
@@ -272,6 +283,7 @@ export function resolveStyle(input: {
     sort: prefs.chatList.sort,
     limit: prefs.chatList.limit,
   };
+  if (group) out.icon = GROUP_ICON;
   if (prefs.appearance.colorBy === "project")
     out.color = items[projectKey(projectId)]?.color ?? projectColor(projectId);
   // From the project down to the item: later (nearer) values win.

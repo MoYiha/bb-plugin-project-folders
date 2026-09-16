@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6
+
+- **Groups**: a section without a folder that only arranges the tree. Create one with **New group** in any project, section or group menu or card. Sections created inside a group get their folder in the nearest real folder above; a project-level group can hold sections from every device copy of the project.
+- **Move to group…** in the section menu and card, or drag a row onto a group on the management page: only the place in the tree changes, the folder, files and chats stay put.
+- Groups have no chats or rules and do not count as a level, so grouped sections keep their rules. They get their own default icon, can be renamed and styled, deleted when empty, and are archived and restored together with a section that contains them.
+
 ## 0.4.5
 
 - Rewritten README in English and Russian: why the plugin exists, every feature in detail, and screenshots of the chat list, appearance, AGENTS.md rules, section archive, import & export and language settings.
