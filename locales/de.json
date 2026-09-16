@@ -64,6 +64,8 @@
   "По алфавиту": "Alphabetisch",
   "Сначала новые": "Neueste zuerst",
   "Чатов в каждом разделе": "Chats pro Bereich",
+  "Сворачивать разделы без активности больше 2 часов": "Abschnitte ohne Aktivität seit über 2 Stunden einklappen",
+  "Сворачивать неактивные (> 2 часов)": "Inaktive einklappen (> 2 Stunden)",
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Angeheftete Chats bleiben oben. Einstellungen werden in diesem Browser gespeichert.",
   "Показать все": "Alle anzeigen",
   "Свернуть список": "Weniger anzeigen",
@@ -144,5 +146,12 @@
   "Общие настройки": "Globale Einstellungen",
   "Выберите проект или раздел слева — здесь появятся его настройки.": "Wählen Sie links ein Projekt oder einen Abschnitt — dessen Einstellungen erscheinen hier.",
   "Шаблон проекта и свои правила": "Projektvorlage & eigene Regeln",
-  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Gelten für alle Geräte des Projekts: für neue Abschnitte und über „Auf vorhandene Abschnitte anwenden“."
+  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Gelten für alle Geräte des Projekts: für neue Abschnitte und über „Auf vorhandene Abschnitte anwenden“.",
+  "Изменить путь": "Pfad ändern",
+  "Изменить путь раздела": "Abschnittspfad ändern",
+  "Новый путь раздела": "Neuer Abschnittspfad",
+  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.": "Der Ordner ist bereits am neuen Ort: Der Abschnitt wird daran gebunden, Dateien bleiben unverändert, und der alte Pfad wird ein Link für bestehende Chats.",
+  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.": "Der Abschnittsordner zieht komplett um, einschließlich versteckter Dateien und Chat-Verlauf. Der alte Pfad bleibt ein Link. Laufende Chats zuerst beenden.",
+  "Незавершённые переносы разделов": "Unvollständige Abschnittsumzüge",
+  "Раздел живёт на одном устройстве, меняется только путь.": "Ein Abschnitt lebt auf einem Gerät; hier ändert sich nur der Pfad."
 }

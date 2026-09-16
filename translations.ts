@@ -76,6 +76,9 @@ export const english = {
   "По алфавиту": "Alphabetical",
   "Сначала новые": "Newest first",
   "Чатов в каждом разделе": "Chats per section",
+  "Сворачивать разделы без активности больше 2 часов":
+    "Collapse sections inactive for over 2 hours",
+  "Сворачивать неактивные (> 2 часов)": "Collapse inactive (> 2 hours)",
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.":
     "Pinned chats stay on top. Settings are saved in this browser.",
   "Показать все": "Show all",
@@ -138,6 +141,16 @@ export const english = {
   "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.":
     "Choose a new, nonexistent path on the same disk volume. Finish running chats first.",
   "Незавершённые переносы": "Unfinished moves",
+  "Изменить путь": "Change path",
+  "Изменить путь раздела": "Change section path",
+  "Новый путь раздела": "New section path",
+  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.":
+    "The folder is already at the new place: the section re-links to it, files stay as they are, and the old path becomes a link for existing chats.",
+  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.":
+    "The section folder moves entirely, including hidden files and chat history. The old path stays as a link. Finish running chats first.",
+  "Незавершённые переносы разделов": "Unfinished section moves",
+  "Раздел живёт на одном устройстве, меняется только путь.":
+    "A section lives on one device; only the path changes here.",
   "Новая папка": "New folder",
   "Название папки": "Folder name",
   "Удалить пустую папку": "Delete empty folder",

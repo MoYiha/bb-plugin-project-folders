@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.10
+
+- **Change section path**: sections finally get the move action projects always had. The ⋯ / right-click menu of a section and its card offer **Change path** (the project root keeps **Move**): pick a new, nonexistent folder on the same device and the whole section folder relocates with hidden files and chat history — or pick an existing folder and the section re-links to it, for the "I renamed the directory outside BB" case. Either way the old path stays as a compatibility symlink so existing chats keep working, and nested sections, chat exports and archive manifests are remapped. Workspace paths recorded before a finished move now resolve through completed section moves too, so chat labels, bindings and exports keep pointing at the right section. Running chats and queued work block the move; interrupted moves persist a barrier and can be retried from the new **Unfinished section moves** card. CLI: `bb project-folders move-section <folder-id> <absolute-path>`.
+- **Auto-collapse inactive sections**: sections with no chat activity for more than 2 hours automatically collapse so old chats don't clutter the project tree. Actively running agents, open chats, and manual toggles keep sections expanded, and the feature can be toggled in plugin settings or the section menu.
+
 ## 0.3.9
 
 - The plugin settings gained the same two controls as a project or section: **Where it applies** for the shared custom rules, and a shared **Startup instruction**. A plugin-wide rule addressed to BB sessions now reaches every chat started from BB without touching a single AGENTS.md.

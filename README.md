@@ -87,13 +87,14 @@ Enable the Projects & Sections thread list in BB's sidebar customization if BB d
 - **New chat:** use the chat-plus button in the sidebar tree or on the management page. The composer's project control becomes a project/section tree, so a new chat can be bound to the project root or any nested section before sending.
 - **Rules:** edit `AGENTS.md` in the selected project or section. Conflicting edits are rejected until the file is reopened. New sections can receive a default template automatically (see above).
 - **Rename:** changes the displayed section name without moving its directory.
+- **Change path:** moves a section to a new folder on the same device, or re-links a section whose directory was renamed outside BB (see [Move a section](#move-a-section)).
 - **Language:** English is the default for every new installation. Choose English, Russian, Spanish, French, German, Portuguese, Simplified Chinese, Japanese, Korean, Hindi or Arabic on the management page. The selection is saved in this browser. Arabic uses right-to-left layout. Unsupported language settings fall back to English. Backend diagnostics and generated documentation use English. Project names and file contents are never translated.
 
 The composer integrates a project/section tree into the project control beneath the editor, for chats created on a project or on a section. The selected hierarchy is shown on the control; its tooltip contains the destination path. Use it to choose the project root or a nested section before sending. Submission errors remain visible and preserve your draft.
 
 ## Sort and shorten chat lists
 
-Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **Settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section.
+Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **Settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section. Sections with no chat activity for more than 2 hours are automatically collapsed to keep the tree clean (toggleable in settings and in the section menu).
 
 Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are saved in the current browser and update open plugin views immediately.
 
@@ -136,6 +137,15 @@ Choose **Move** on the project card or in its **⋯** menu. Browse for a destina
 Existing BB environments keep their stored working paths, so the old directory is replaced by a symbolic link to the new location. Keep that link while existing chats use it. BB's central database, attachment storage and files outside the project directory are not relocated. A project source on another device is unchanged.
 
 Relocation currently works on the **same device and disk volume**, to a path that does not exist. Finish running chats and queued work first. Home folders, BB runtime directories, linked Git worktrees and projects with environments outside their source folder cannot be moved this way. Interrupted moves appear on the management page with **Retry**; new messages are blocked until the move is completed.
+
+## Move a section
+
+Choose **Change path** in a section's **⋯** / right-click menu or on its card (CLI: `bb project-folders move-section <folder-id> <absolute-path>`). The section must stay inside its project folder on the same device and may not land inside another section or on an already registered path. Two modes follow what the picker finds:
+
+- **New folder** — the section directory relocates entirely: files, dotfiles, working rules, nested sections, chat exports and archive manifests; the plugin's records follow it.
+- **Existing folder** — the section re-links to a directory that already holds its files. This is the repair path for a folder that was renamed or moved outside BB: the recorded path is re-pointed, no files are touched.
+
+Either way the old path becomes a symbolic link so existing chats keep working; keep it while they do. Workspace paths recorded before a completed move resolve through it, so chat labels, bindings and history exports keep pointing at the right section. Running chats and queued work must finish first; interrupted moves persist a barrier and are retried from the same destination via the **Unfinished section moves** card or the same CLI call.
 
 ## Commands
 

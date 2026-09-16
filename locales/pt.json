@@ -64,6 +64,8 @@
   "По алфавиту": "Ordem alfabética",
   "Сначала новые": "Mais recentes primeiro",
   "Чатов в каждом разделе": "Conversas por seção",
+  "Сворачивать разделы без активности больше 2 часов": "Recolher seções sem atividade por mais de 2 horas",
+  "Сворачивать неактивные (> 2 часов)": "Recolher inativas (> 2 horas)",
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Conversas fixadas ficam no topo. As configurações são salvas neste navegador.",
   "Показать все": "Mostrar todas",
   "Свернуть список": "Mostrar menos",
@@ -144,5 +146,12 @@
   "Общие настройки": "Configurações globais",
   "Выберите проект или раздел слева — здесь появятся его настройки.": "Escolha um projeto ou uma seção à esquerda — as configurações dela aparecerão aqui.",
   "Шаблон проекта и свои правила": "Modelo do projeto e regras próprias",
-  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Comuns a todas as máquinas do projeto: aplicam-se a novas seções e pelo botão «Aplicar às seções existentes»."
+  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Comuns a todas as máquinas do projeto: aplicam-se a novas seções e pelo botão «Aplicar às seções existentes».",
+  "Изменить путь": "Alterar caminho",
+  "Изменить путь раздела": "Alterar caminho da seção",
+  "Новый путь раздела": "Novo caminho da seção",
+  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.": "A pasta já está no novo local: a seção será vinculada a ela, os arquivos permanecem como estão e o caminho antigo vira um link para os chats existentes.",
+  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.": "A pasta da seção será movida inteira, incluindo arquivos ocultos e o histórico de chats. O caminho antigo permanecerá como link. Conclua os chats em execução primeiro.",
+  "Незавершённые переносы разделов": "Mudanças de seção inacabadas",
+  "Раздел живёт на одном устройстве, меняется только путь.": "A seção vive em um único dispositivo; aqui muda apenas o caminho."
 }

@@ -29,4 +29,12 @@ export const moveHostContract = defineRpcContract({
       moved: z.boolean(),
     }),
   },
+  link: {
+    input: moveInput,
+    output: z.object({
+      source: z.string(),
+      destination: z.string(),
+      moved: z.boolean(),
+    }),
+  },
 });

@@ -1,6 +1,11 @@
 import { FolderBrowser } from "./folder-browser";
 import { ThreadSectionLabel } from "./thread-section-label";
-import { MoveDialog, PendingMoves } from "./move-dialog";
+import {
+  MoveDialog,
+  PendingMoves,
+  PendingSectionMoves,
+  SectionMoveDialog,
+} from "./move-dialog";
 import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
 import {
   AgentsRulesEditor,
@@ -9,7 +14,12 @@ import {
   RuleFields,
   type RuleDraft,
 } from "./agents-apply";
-import { sortChats } from "./chat-list";
+import {
+  sortChats,
+  isSectionCollapsed,
+  parseCollapseState,
+  type CollapseRecord,
+} from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import {
   useCallback,
@@ -1501,6 +1511,7 @@ function FolderHeading({
   onMove,
   onRules,
   onRename,
+  onRelocate,
   onRemove,
   onArchive,
 }: {
@@ -1520,6 +1531,7 @@ function FolderHeading({
   onMove: () => void;
   onRules: () => void;
   onRename: () => void;
+  onRelocate: () => void;
   onRemove: () => void;
   onArchive: () => void;
 }) {
@@ -1595,6 +1607,12 @@ function FolderHeading({
             <Icon name="Edit" />
             {t("Переименовать")}
           </DropdownMenuItem>
+          {!root && (
+            <DropdownMenuItem onSelect={onRelocate}>
+              <Icon name="FolderExport" />
+              {t("Изменить путь")}
+            </DropdownMenuItem>
+          )}
           {root && (
             <>
               <DropdownMenuSeparator />
@@ -1631,6 +1649,7 @@ function Tree(props: PluginThreadListProps) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
+  const [movingSection, setMovingSection] = useState<Folder | null>(null);
   const [movingChat, setMovingChat] = useState<PluginSidebarThread | null>(
     null,
   );
@@ -1674,7 +1693,14 @@ function Tree(props: PluginThreadListProps) {
         hostId: folder.hostId,
       });
       setMovingChat(null);
-      setClosed((old) => ({ ...old, [folder.id]: false }));
+      setCollapseRecords((old) => {
+        const next = {
+          ...old,
+          [folder.id]: { collapsed: false, at: Date.now() },
+        };
+        localStorage.setItem("project-folders:collapsed", JSON.stringify(next));
+        return next;
+      });
       refresh();
     } catch (error) {
       const message = String(error);
@@ -1691,18 +1717,48 @@ function Tree(props: PluginThreadListProps) {
     }
   };
 
-  const [closed, setClosed] = useState<Record<string, boolean>>(() => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [collapseRecords, setCollapseRecords] = useState<
+    Record<string, CollapseRecord>
+  >(() => {
     try {
-      return JSON.parse(
-        localStorage.getItem("project-folders:collapsed") || "{}",
+      return parseCollapseState(
+        localStorage.getItem("project-folders:collapsed"),
       );
     } catch {
       return {};
     }
   });
-  const toggle = (id: string) =>
-    setClosed((old) => {
-      const next = { ...old, [id]: !old[id] };
+
+  const isClosed = (f: Folder, root: boolean) =>
+    isSectionCollapsed({
+      folderId: f.id,
+      projectId: f.projectId,
+      root,
+      folders: data.folders,
+      bindings: data.bindings,
+      threads,
+      record: collapseRecords[f.id],
+      activeThreadId: props.activeThreadId,
+      autoCollapseInactive: listSettings.autoCollapseInactive,
+    });
+
+  const isProjectClosed = (pId: string) => {
+    const record = collapseRecords[pId];
+    return !!record?.collapsed;
+  };
+
+  const toggle = (id: string, currentlyClosed: boolean) =>
+    setCollapseRecords((old) => {
+      const next = {
+        ...old,
+        [id]: { collapsed: !currentlyClosed, at: Date.now() },
+      };
       localStorage.setItem("project-folders:collapsed", JSON.stringify(next));
       return next;
     });
@@ -1768,15 +1824,16 @@ function Tree(props: PluginThreadListProps) {
           ? !data.bindings[t.environment?.id ?? ""]
           : data.bindings[t.environment?.id ?? ""] === f.id),
     );
+    const folderClosed = isClosed(f, root);
     return (
       <div key={f.id} className={root ? "pf-project" : "pf-folder"}>
         <FolderHeading
           folder={f}
           root={root}
-          closed={!!closed[f.id]}
+          closed={folderClosed}
           highlighted={dropTarget === f.id}
           rulesAllowed={root || level <= 2}
-          onToggle={() => toggle(f.id)}
+          onToggle={() => toggle(f.id, folderClosed)}
           onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
             if (!moveBusy && canMove(draggedChat, f)) {
@@ -1830,6 +1887,7 @@ function Tree(props: PluginThreadListProps) {
           onRename={() =>
             setModal({ action: "rename", target, folder: f, level })
           }
+          onRelocate={() => setMovingSection(f)}
           onRemove={() =>
             setModal({ action: "remove", target, folder: f, level })
           }
@@ -1837,7 +1895,7 @@ function Tree(props: PluginThreadListProps) {
             setModal({ action: "forget", target, folder: f, level })
           }
         />
-        {!closed[f.id] && (
+        {!folderClosed && (
           <div className="pf-children">
             {children.map((c) => node(c, false, level + 1))}
             {rows(ts, f.id)}
@@ -1865,34 +1923,45 @@ function Tree(props: PluginThreadListProps) {
       {visibleRoots.map((f) => node(f, true))}
       {projects
         .filter((p) => !data.roots.some((r) => r.projectId === p.id))
-        .map((p) => (
-          <div className="pf-project" key={p.id}>
-            <div className="pf-heading">
-              <button className="pf-label" onClick={() => toggle(p.id)}>
-                <Icon name={closed[p.id] ? "ChevronRight" : "ChevronDown"} />
-                <span>{p.isPersonal ? t("Без проекта") : p.name}</span>
-              </button>
-              <button
-                className="pf-icon"
-                aria-label={t("Новый чат без проекта")}
-                onClick={() => {
-                  actions.openNewThread({ projectId: p.id, focusPrompt: true });
-                  props.onNavigate();
-                }}
-              >
-                <Icon name="MessageCirclePlus" />
-              </button>
-            </div>
-            {!closed[p.id] && (
-              <div className="pf-children">
-                {rows(
-                  threads.filter((t) => t.projectId === p.id),
-                  p.id,
-                )}
+        .map((p) => {
+          const projectClosed = isProjectClosed(p.id);
+          return (
+            <div className="pf-project" key={p.id}>
+              <div className="pf-heading">
+                <button
+                  className="pf-label"
+                  onClick={() => toggle(p.id, projectClosed)}
+                >
+                  <Icon
+                    name={projectClosed ? "ChevronRight" : "ChevronDown"}
+                  />
+                  <span>{p.isPersonal ? t("Без проекта") : p.name}</span>
+                </button>
+                <button
+                  className="pf-icon"
+                  aria-label={t("Новый чат без проекта")}
+                  onClick={() => {
+                    actions.openNewThread({
+                      projectId: p.id,
+                      focusPrompt: true,
+                    });
+                    props.onNavigate();
+                  }}
+                >
+                  <Icon name="MessageCirclePlus" />
+                </button>
               </div>
-            )}
-          </div>
-        ))}
+              {!projectClosed && (
+                <div className="pf-children">
+                  {rows(
+                    threads.filter((t) => t.projectId === p.id),
+                    p.id,
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       <button
         className="pf-manage"
         onClick={() => nav.toPluginPanel("folders")}
@@ -2030,6 +2099,11 @@ function Tree(props: PluginThreadListProps) {
         onClose={() => setMovingProject(null)}
         onMoved={refresh}
       />
+      <SectionMoveDialog
+        folder={movingSection}
+        onClose={() => setMovingSection(null)}
+        onMoved={refresh}
+      />
       <ProjectDialog
         defaultHostId={data.roots[0]?.hostId}
         open={newProject}
@@ -2162,6 +2236,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [modal, setModal] = useState<Modal | null>(null);
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
+  const [movingSection, setMovingSection] = useState<Folder | null>(null);
   const [copyRoot, setCopyRoot] = useState<Folder | null>(null);
   /** Device preselected in the working-copies dialog, when it opens from a free tab. */
   const [copyHost, setCopyHost] = useState<string | null>(null);
@@ -2476,6 +2551,12 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 <Icon name="Edit" />
                 {t("Переименовать")}
               </DropdownMenuItem>
+              {!root && (
+                <DropdownMenuItem onSelect={() => setMovingSection(f)}>
+                  <Icon name="FolderExport" />
+                  {t("Изменить путь")}
+                </DropdownMenuItem>
+              )}
               {root && (
                 <DropdownMenuItem onSelect={() => setMovingProject(f)}>
                   <Icon name="Folder" />
@@ -2954,6 +3035,17 @@ function Panel({ subPath }: PluginNavPanelProps) {
           <Icon name="Edit" />
           {t("Переименовать")}
         </Button>
+        {!selRoot && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="pf-ghost-muted"
+            onClick={() => setMovingSection(sel)}
+          >
+            <Icon name="FolderExport" />
+            {t("Изменить путь")}
+          </Button>
+        )}
         {selRoot && (
           <Button
             size="sm"
@@ -3195,6 +3287,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
             </section>
           )}
           <PendingMoves />
+          <PendingSectionMoves />
           <ArchiveList />
           {[error, ...data.errors].filter(Boolean).map((e, i) => (
             <p className="text-destructive" role="alert" key={i}>
@@ -3206,6 +3299,11 @@ function Panel({ subPath }: PluginNavPanelProps) {
       <MoveDialog
         folder={movingProject}
         onClose={() => setMovingProject(null)}
+        onMoved={refresh}
+      />
+      <SectionMoveDialog
+        folder={movingSection}
+        onClose={() => setMovingSection(null)}
         onMoved={refresh}
       />
       <ProjectDialog

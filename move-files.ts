@@ -90,3 +90,29 @@ export async function moveDirectory(input: {
   }
   return { ...plan, moved: true };
 }
+
+/** Re-link a section whose files already sit at the destination: the old
+ * path becomes a compatibility symlink so existing chats keep working. */
+export async function linkDirectory(input: {
+  source: string;
+  destination: string;
+}) {
+  const source = path.resolve(input.source),
+    destination = path.resolve(input.destination);
+  if (
+    !path.isAbsolute(input.source) ||
+    !path.isAbsolute(input.destination) ||
+    /[\x00-\x1f]/.test(source + destination)
+  )
+    throw new Error("Choose absolute folder paths.");
+  if (within(destination, source) || within(source, destination))
+    throw new Error("Source and destination must not contain each other.");
+  if (await stat(source)) throw new Error("The original path already exists.");
+  const dst = await stat(destination);
+  if (!dst?.isDirectory() || dst.isSymbolicLink())
+    throw new Error("The destination must be an existing real directory.");
+  if ((await realpath(destination)) !== destination)
+    throw new Error("Choose a destination without symbolic-link parents.");
+  await symlink(destination, source, "dir");
+  return { source, destination, moved: true };
+}

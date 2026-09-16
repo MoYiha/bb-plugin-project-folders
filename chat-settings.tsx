@@ -4,6 +4,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "./components/ui/dropdown-menu";
 import { Icon } from "./components/ui/icon";
 import { useSyncExternalStore } from "react";
@@ -76,6 +78,15 @@ export function ChatSettings() {
           }}
         />
       </label>
+      <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+        <input
+          type="checkbox"
+          className="rounded border"
+          checked={settings.autoCollapseInactive}
+          onChange={(e) => update({ autoCollapseInactive: e.target.checked })}
+        />
+        <span>{t("Сворачивать разделы без активности больше 2 часов")}</span>
+      </label>
       <p className="text-xs text-muted-foreground">
         {t("Закреплённые чаты сверху. Настройки сохраняются в этом браузере.")}
       </p>
@@ -108,6 +119,15 @@ export function ChatSortMenu() {
             {t("Сначала новые")}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={settings.autoCollapseInactive}
+          onCheckedChange={(checked) =>
+            update({ autoCollapseInactive: Boolean(checked) })
+          }
+        >
+          {t("Сворачивать неактивные (> 2 часов)")}
+        </DropdownMenuCheckboxItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

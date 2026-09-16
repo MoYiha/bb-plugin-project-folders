@@ -64,6 +64,8 @@
   "По алфавиту": "Ordre alphabétique",
   "Сначала новые": "Plus récentes",
   "Чатов в каждом разделе": "Discussions par section",
+  "Сворачивать разделы без активности больше 2 часов": "Réduire les sections inactives depuis plus de 2 heures",
+  "Сворачивать неактивные (> 2 часов)": "Réduire les inactives (> 2 heures)",
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Les discussions épinglées restent en haut. Les réglages sont enregistrés dans ce navigateur.",
   "Показать все": "Tout afficher",
   "Свернуть список": "Réduire la liste",
@@ -144,5 +146,12 @@
   "Общие настройки": "Réglages globaux",
   "Выберите проект или раздел слева — здесь появятся его настройки.": "Choisissez un projet ou une section à gauche — ses réglages apparaîtront ici.",
   "Шаблон проекта и свои правила": "Modèle du projet et règles personnalisées",
-  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Communs à toutes les machines du projet : appliqués aux nouvelles sections et via « Appliquer aux sections existantes »."
+  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Communs à toutes les machines du projet : appliqués aux nouvelles sections et via « Appliquer aux sections existantes ».",
+  "Изменить путь": "Changer le chemin",
+  "Изменить путь раздела": "Changer le chemin de la section",
+  "Новый путь раздела": "Nouveau chemin de la section",
+  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.": "Le dossier est déjà à son nouvel emplacement : la section s’y rattache, les fichiers restent en l’état et l’ancien chemin devient un lien pour les chats existants.",
+  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.": "Le dossier de la section se déplace entièrement, fichiers cachés et historique des chats compris. L’ancien chemin reste un lien. Terminez d’abord les chats actifs.",
+  "Незавершённые переносы разделов": "Déplacements de sections inachevés",
+  "Раздел живёт на одном устройстве, меняется только путь.": "La section vit sur un seul appareil ; seul le chemin change ici."
 }

@@ -64,6 +64,8 @@
   "По алфавиту": "Alfabético",
   "Сначала новые": "Más nuevos primero",
   "Чатов в каждом разделе": "Chats por sección",
+  "Сворачивать разделы без активности больше 2 часов": "Colapsar secciones sin actividad durante más de 2 horas",
+  "Сворачивать неактивные (> 2 часов)": "Colapsar inactivas (> 2 horas)",
   "Закреплённые чаты сверху. Настройки сохраняются в этом браузере.": "Los chats fijados van primero. Los ajustes se guardan en este navegador.",
   "Показать все": "Mostrar todos",
   "Свернуть список": "Mostrar menos",
@@ -144,5 +146,12 @@
   "Общие настройки": "Ajustes globales",
   "Выберите проект или раздел слева — здесь появятся его настройки.": "Elige un proyecto o una sección a la izquierda — sus ajustes aparecerán aquí.",
   "Шаблон проекта и свои правила": "Plantilla del proyecto y reglas propias",
-  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Comunes a todas las máquinas del proyecto: se aplican a las secciones nuevas y con el botón «Aplicar a las secciones existentes»."
+  "Общие для всех машин проекта: применяются к новым разделам и по кнопке «Применить к существующим разделам».": "Comunes a todas las máquinas del proyecto: se aplican a las secciones nuevas y con el botón «Aplicar a las secciones existentes».",
+  "Изменить путь": "Cambiar ruta",
+  "Изменить путь раздела": "Cambiar ruta de la sección",
+  "Новый путь раздела": "Nueva ruta de la sección",
+  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.": "La carpeta ya está en el nuevo lugar: la sección se enlaza a ella, los archivos quedan como están y la ruta antigua se convierte en un enlace para los chats existentes.",
+  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.": "La carpeta de la sección se moverá entera, con archivos ocultos e historial de chats. La ruta antigua quedará como enlace. Termina los chats activos primero.",
+  "Незавершённые переносы разделов": "Cambios de sección sin terminar",
+  "Раздел живёт на одном устройстве, меняется только путь.": "La sección vive en un solo dispositivo; aquí solo cambia la ruta."
 }

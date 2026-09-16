@@ -13,7 +13,10 @@ beforeAll(async () => {
     }) as unknown as MediaQueryList;
   app = await loadPluginApp(() => import("./app"));
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 const thread: PluginSidebarThread = {
   id: "t1",
   projectId: "p1",
@@ -222,5 +225,45 @@ it("selects a destination before explicitly moving from the menu", async () => {
       view.inspection.rpcCalls.some((c) => c.method === "thread_move"),
     ).toBe(true),
   );
+  view.lifecycle.unmount();
+});
+it("auto-collapses section when chats have been inactive for over 2 hours and expands on toggle", async () => {
+  const oldThread: PluginSidebarThread = {
+    ...thread,
+    id: "old-t1",
+    title: "Inactive chat",
+    updatedAt: Date.now() - 3 * 60 * 60 * 1000,
+    latestAttentionAt: Date.now() - 3 * 60 * 60 * 1000,
+    createdAt: Date.now() - 3 * 60 * 60 * 1000,
+    environment: {
+      id: "env-sec",
+      name: null,
+      branchName: null,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [oldThread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder],
+          roots: [root],
+          bindings: { "env-sec": folder.id },
+          errors: [],
+        }),
+      },
+    },
+  );
+
+  expect(await view.findByText("Section")).toBeTruthy();
+  expect(view.queryByText("Inactive chat")).toBeNull();
+
+  fireEvent.click(view.getByText("Section"));
+  expect(await view.findByText("Inactive chat")).toBeTruthy();
+
   view.lifecycle.unmount();
 });

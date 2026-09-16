@@ -219,6 +219,273 @@ export function MoveDialog({
     </Dialog>
   );
 }
+export function SectionMoveDialog({
+  folder,
+  onClose,
+  onMoved,
+}: {
+  folder: Folder | null;
+  onClose: () => void;
+  onMoved: () => void;
+}) {
+  const rpc = useRpc<typeof rpcContract>();
+  const [destination, setDestination] = useState("");
+  /** true when the picked folder already exists: the section re-links to it. */
+  const [adopt, setAdopt] = useState(false);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [machine, setMachine] = useState<{
+    name: string;
+    connected: boolean;
+  } | null>(null);
+  const [listing, setListing] = useState<{
+    path: string;
+    parent: string | null;
+    directories: { name: string; path: string }[];
+  } | null>(null);
+  useEffect(() => {
+    setDestination("");
+    setAdopt(false);
+    setError("");
+    setListing(null);
+    setMachine(null);
+    let live = true;
+    if (folder)
+      rpc.call("machines").then(
+        (r) =>
+          live &&
+          setMachine(
+            (() => {
+              const m = r.machines.find((m) => m.id === folder.hostId);
+              return m ? { name: m.name, connected: m.connected } : null;
+            })(),
+          ),
+        () => {},
+      );
+    return () => {
+      live = false;
+    };
+  }, [folder, rpc]);
+  async function browse(path?: string) {
+    if (!folder) return;
+    setBusy(true);
+    setError("");
+    try {
+      setListing(
+        // An explicit undefined path is not a valid RPC value: omit the key.
+        await rpc.call("project_browse", {
+          hostId: folder.hostId,
+          ...(path ? { path } : {}),
+        }),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function move() {
+    if (!folder) return;
+    setBusy(true);
+    setError("");
+    try {
+      await rpc.call("section_move", { folderId: folder.id, destination });
+      onMoved();
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Dialog
+      open={!!folder}
+      onOpenChange={(v) => {
+        if (!v && !busy) onClose();
+      }}
+    >
+      <DialogContent className="pf-dialog" dir={direction()}>
+        <DialogHeader>
+          <DialogTitle>{t("Изменить путь раздела")}</DialogTitle>
+          <DialogDescription>{folder?.name}</DialogDescription>
+        </DialogHeader>
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+        <p className="pf-folder-path">{folder?.path}</p>
+        <label className="pf-field">
+          {t("Устройство")}
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2 w-full justify-between"
+            disabled
+          >
+            <span className="flex items-center gap-2">
+              <Icon name={machine?.connected ? "Zap" : "Monitor"} />
+              {machine ? machine.name : t("Загрузка устройств…")}
+            </span>
+            <Icon name="ChevronDown" />
+          </Button>
+        </label>
+        <p className="text-sm text-muted-foreground mb-3">
+          {t("Раздел живёт на одном устройстве, меняется только путь.")}
+        </p>
+        {listing ? (
+          <>
+            <p className="pf-folder-path">{listing.path}</p>
+            <div className="pf-folder-picker">
+              {listing.parent && (
+                <button
+                  disabled={busy}
+                  onClick={() => void browse(listing.parent!)}
+                >
+                  <Icon name="ChevronLeft" />
+                  {t("На уровень выше")}
+                </button>
+              )}
+              {listing.directories.map((d) => (
+                <button
+                  disabled={busy}
+                  key={d.path}
+                  onClick={() => void browse(d.path)}
+                >
+                  <Icon name="Folder" />
+                  {d.name}
+                </button>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => setListing(null)}
+              >
+                {t("Назад")}
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  const name = folder!.path.split("/").filter(Boolean).at(-1)!;
+                  setDestination(listing.path.replace(/\/$/, "") + "/" + name);
+                  setAdopt(listing.directories.some((d) => d.name === name));
+                  setListing(null);
+                }}
+              >
+                {t("Выбрать папку")}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void move();
+            }}
+          >
+            <label className="pf-field">
+              {t("Новый путь раздела")}
+              <div className="pf-path-control">
+                <Input
+                  value={destination}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    setAdopt(false);
+                  }}
+                  required
+                  disabled={busy}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void browse()}
+                  aria-label={t("Выбрать папку")}
+                >
+                  <Icon name="Folder" />
+                </Button>
+              </div>
+            </label>
+            {adopt ? (
+              <p className="text-sm text-muted-foreground mb-3">
+                {t(
+                  "Папка уже на новом месте: раздел привяжется к ней, файлы останутся как есть, а старый путь станет ссылкой для существующих чатов.",
+                )}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-3">
+                {t(
+                  "Папка раздела переедет целиком, со скрытыми файлами и историей чатов. Старый путь останется ссылкой. Работающие чаты нужно завершить.",
+                )}
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={onClose}
+              >
+                {t("Отмена")}
+              </Button>
+              <Button disabled={busy || !destination}>
+                {busy ? t("Выполняю…") : t("Изменить путь")}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+export function PendingSectionMoves() {
+  const rpc = useRpc<typeof rpcContract>();
+  const [items, setItems] = useState<
+    { folderId: string; destination: string; error: string | null }[]
+  >([]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const refresh = useCallback(() => {
+    rpc
+      .call("pending_section_moves")
+      .then(setItems, (e) => setError(String(e)));
+  }, [rpc]);
+  useEffect(refresh, [refresh]);
+  useRealtime("changed", refresh);
+  if (!items.length && !error) return null;
+  return (
+    <section className="pf-card">
+      <h2>{t("Незавершённые переносы разделов")}</h2>
+      {error && <p role="alert">{error}</p>}
+      {items.map((m) => (
+        <div key={m.folderId}>
+          <p className="pf-folder-path">{m.destination}</p>
+          {m.error && <p className="text-destructive text-sm">{m.error}</p>}
+          <Button
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                await rpc.call("section_move", m);
+                refresh();
+              } catch (e) {
+                setError(String(e));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {t("Повторить")}
+          </Button>
+        </div>
+      ))}
+    </section>
+  );
+}
 export function PendingMoves() {
   const rpc = useRpc<typeof rpcContract>();
   const [items, setItems] = useState<

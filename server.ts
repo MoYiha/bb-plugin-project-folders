@@ -1,6 +1,8 @@
 import { moveHostContract } from "./move-contract";
 import { makeThreadMoves } from "./thread-move";
 import { makeProjectMoves } from "./project-move";
+import { makeSectionMoves } from "./section-move";
+import { within } from "./move-files";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import {
@@ -141,6 +143,23 @@ export const rpcContract = defineRpcContract({
       z.object({
         projectId: z.string(),
         hostId: z.string(),
+        destination: z.string(),
+        error: z.string().nullable(),
+      }),
+    ),
+  },
+  section_move: {
+    input: z.object({
+      folderId: z.string().min(1),
+      destination: z.string().min(1),
+    }),
+    output: z.object({ destination: z.string(), complete: z.boolean() }),
+  },
+  pending_section_moves: {
+    input: z.null(),
+    output: z.array(
+      z.object({
+        folderId: z.string(),
         destination: z.string(),
         error: z.string().nullable(),
       }),
@@ -461,6 +480,8 @@ export default async function plugin(bb: BbPluginApi) {
     // One-shot text appended to the first message of a new chat here.
     `ALTER TABLE folder_rules ADD COLUMN startup TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE project_rules ADD COLUMN startup TEXT NOT NULL DEFAULT ''`,
+    // Section relocations: one persisted barrier per folder for retry after a failure.
+    `CREATE TABLE section_moves (folderId TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
@@ -601,9 +622,25 @@ export default async function plugin(bb: BbPluginApi) {
   /** The section a workspace path belongs to, resolved without any IO. */
   const folderAt = (hostId: string, workspace: string | null) => {
     if (!workspace) return null;
-    const p = moves.canonical(hostId, workspace);
+    const p = canonicalPath(hostId, workspace);
     return folders().find((f) => f.hostId === hostId && f.path === p) ?? null;
   };
+  /**
+   * Workspace paths recorded before a finished relocation follow it to the
+   * new tree: project moves first, then completed section moves. Only called
+   * after the factory has finished, so the forward references are safe.
+   */
+  function canonicalPath(hostId: string, p: string): string {
+    let result = moves.canonical(hostId, p);
+    for (let i = 0; i < 100; i++) {
+      const m = sectionMoves
+        .list()
+        .find((m) => m.complete && within(result, m.source));
+      if (!m) return result;
+      result = m.destination + result.slice(m.source.length);
+    }
+    throw new Error("Too many section relocation links.");
+  }
   /**
    * What the folder uses: its own untouched file ("manual"), the shared
    * templates ("inherit") or its own ones ("custom"). Without a saved choice a
@@ -873,9 +910,9 @@ export default async function plugin(bb: BbPluginApi) {
         (f) =>
           f.projectId === t.projectId &&
           f.hostId === env.hostId &&
-          f.path === moves.canonical(env.hostId, env.path ?? ""),
+          f.path === canonicalPath(env.hostId, env.path ?? ""),
       ) ??
-      (root?.path === moves.canonical(env.hostId, env.path ?? "")
+      (root?.path === canonicalPath(env.hostId, env.path ?? "")
         ? root
         : null);
     if (!f)
@@ -1021,7 +1058,7 @@ export default async function plugin(bb: BbPluginApi) {
     Promise.allSettled([...syncing.values()]),
   );
   const archives = makeArchives(bb, {
-    canonical: moves.canonical,
+    canonical: canonicalPath,
     projectMoving: moves.busy,
     folders,
     root: (projectId, hostId) => target({ projectId, hostId, folderId: null }),
@@ -1048,6 +1085,15 @@ export default async function plugin(bb: BbPluginApi) {
       if (data.projectId === projectId)
         db.prepare("DELETE FROM project_moves WHERE id=?").run(row.id);
     }
+    for (const row of db
+      .prepare("SELECT folderId,data FROM section_moves")
+      .all() as { folderId: string; data: string }[]) {
+      const data = JSON.parse(row.data) as { projectId?: string };
+      if (data.projectId === projectId)
+        db.prepare("DELETE FROM section_moves WHERE folderId=?").run(
+          row.folderId,
+        );
+    }
   };
   const projectDeleteDeps = {
     folders,
@@ -1063,7 +1109,7 @@ export default async function plugin(bb: BbPluginApi) {
   };
   const threadMoves = makeThreadMoves(bb, {
     target,
-    canonical: moves.canonical,
+    canonical: canonicalPath,
     allowed: (threadId, folder) => {
       if (
         moves.busy(folder.projectId) ||
@@ -1074,6 +1120,19 @@ export default async function plugin(bb: BbPluginApi) {
     },
     pendingExports: () => Promise.allSettled([...syncing.values()]),
     changed,
+  });
+  const sectionMoves = makeSectionMoves(bb, {
+    folders,
+    changed,
+    pendingExports: () => Promise.allSettled([...syncing.values()]),
+    pendingArchives: (projectId) =>
+      archives
+        .list()
+        .some(
+          (a) => a.folder.projectId === projectId && a.state !== "archived",
+        ),
+    busyProjectMoves: moves.busy,
+    canonical: canonicalPath,
   });
   bb.experimental_hooks.on("message.dispatch", (ctx) => {
     if (threadMoves.blocked(ctx.thread.id))
@@ -1094,6 +1153,7 @@ export default async function plugin(bb: BbPluginApi) {
         : null);
     return threadMoves.blocked(ctx.thread.id) ||
       moves.busy(ctx.project.id) ||
+      sectionMoves.busyProject(ctx.project.id) ||
       archives.blocked(ctx.thread.id) ||
       (requestedPath && ctx.host && archives.moving(ctx.host.id, requestedPath))
       ? {
@@ -1136,9 +1196,25 @@ export default async function plugin(bb: BbPluginApi) {
     project_move: (input) => {
       if (threadMoves.any())
         throw new Error("Finish pending chat moves first.");
+      if (sectionMoves.busyProject(input.projectId))
+        throw new Error("Finish pending section moves first.");
       return moves.move(input);
     },
     pending_moves: async () => moves.list().filter((m) => !m.complete),
+    section_move: (input) => {
+      if (threadMoves.any())
+        throw new Error("Finish pending chat moves first.");
+      return sectionMoves.move(input);
+    },
+    pending_section_moves: async () =>
+      sectionMoves
+        .list()
+        .filter((m) => !m.complete)
+        .map((m) => ({
+          folderId: m.folderId,
+          destination: m.destination,
+          error: m.error,
+        })),
     archive_list: async () => ({ archives: archives.list() }),
     archive_matches: async (input) => {
       const f = await target(input);
@@ -1164,7 +1240,7 @@ export default async function plugin(bb: BbPluginApi) {
           (f) =>
             f.hostId === e.hostId &&
             f.projectId === e.projectId &&
-            f.path === moves.canonical(e.hostId, e.path ?? ""),
+            f.path === canonicalPath(e.hostId, e.path ?? ""),
         );
         if (f) bindings[e.id] = f.id;
       }
@@ -1870,7 +1946,7 @@ export default async function plugin(bb: BbPluginApi) {
         });
         if (
           e.hostId !== f.hostId ||
-          moves.canonical(e.hostId, e.path ?? "") !== f.path
+          canonicalPath(e.hostId, e.path ?? "") !== f.path
         )
           throw new Error(
             "The selected environment does not match the section folder.",
@@ -1992,6 +2068,11 @@ export default async function plugin(bb: BbPluginApi) {
           "bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>",
       },
       {
+        name: "move-section",
+        summary: "Move a section to a new path, or re-link a renamed folder",
+        usage: "bb project-folders move-section <folder-id> <absolute-path>",
+      },
+      {
         name: "archives",
         summary: "List section archives",
         usage: "bb project-folders archives",
@@ -2058,6 +2139,15 @@ export default async function plugin(bb: BbPluginApi) {
             });
           value = await threadMoves.move(input);
           await sync(input.threadId);
+        } else if (args[0] === "move-section") {
+          value = await handlers.section_move(
+            z
+              .object({
+                folderId: z.string().min(1),
+                destination: z.string().min(1),
+              })
+              .parse({ folderId: args[1], destination: args[2] }),
+          );
         } else if (args[0] === "list")
           value = { folders: folders(), roots: await roots() };
         else if (args[0] === "create")
@@ -2108,7 +2198,7 @@ export default async function plugin(bb: BbPluginApi) {
           return {
             exitCode: 0,
             stdout:
-              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | delete-project <project-id> keep|archive",
+              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | move-section <folder-id> <absolute-path> | delete-project <project-id> keep|archive",
           };
         return { exitCode: 0, stdout: JSON.stringify(value, null, 2) };
       } catch (e) {
