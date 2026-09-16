@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+
+- Fix appearance choices snapping back right after a click: loading saved preferences dropped optional level fields such as the color, so every preset or color change was saved but then replaced by a colorless copy. Colors now survive the save and reload round trip.
+
 ## 0.4.2
 
 - **Language section** in the settings menu, on both the management page and the BB settings page. The interface is English by default; the choice is stored per browser.

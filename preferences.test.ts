@@ -46,6 +46,23 @@ describe("preferences", () => {
     expect(parsePrefs("garbage")).toEqual(defaultPrefs);
   });
 
+  it("keeps every preset intact through a save and load round trip", () => {
+    for (const preset of ["standard", "mono", "levels", "projects"] as const) {
+      const prefs = { ...defaultPrefs, appearance: presetAppearance(preset) };
+      expect(parsePrefs(JSON.parse(JSON.stringify(prefs)))).toEqual(prefs);
+    }
+    const custom = parsePrefs({
+      appearance: {
+        levels: { level2: { icon: "emoji:🚀", color: "#12ab34" } },
+      },
+    });
+    expect(custom.appearance.levels.level2).toEqual({
+      icon: "emoji:🚀",
+      color: "#12ab34",
+      fill: "none",
+    });
+  });
+
   it("uses level defaults, with level 3 covering deeper sections", () => {
     const prefs = { ...defaultPrefs, appearance: presetAppearance("levels") };
     expect(look(prefs).color).toBe("blue");

@@ -46,10 +46,10 @@ const iconValue = z
   .string()
   .max(64)
   .regex(/^(icon:[A-Za-z0-9]{1,48}|emoji:.{1,16})$/u);
+/** A plain pattern: RPC schemas travel as JSON Schema, where refinements are lost. */
 const colorValue = z
   .string()
-  .regex(/^(#[0-9a-fA-F]{6}|[a-z]{3,8})$/)
-  .refine((v) => v.startsWith("#") || COLOR_TOKENS.includes(v as ColorToken));
+  .regex(new RegExp(`^(#[0-9a-fA-F]{6}|${COLOR_TOKENS.join("|")})$`));
 export const styleSchema = z.object({
   icon: iconValue.optional(),
   color: colorValue.optional(),
@@ -151,7 +151,8 @@ const merge = <T extends object>(base: T, patch: unknown): T => {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) return base;
   const out = { ...base } as Record<string, unknown>;
   for (const [k, v] of Object.entries(patch)) {
-    if (!(k in out)) continue;
+    // Unknown keys are kept here and stripped by the schema; optional fields
+    // such as a level color have no default to merge into.
     const cur = out[k];
     out[k] =
       cur && typeof cur === "object" && !Array.isArray(cur)
@@ -167,6 +168,7 @@ export function parsePrefs(value: unknown): Prefs {
   if (full.success) return full.data;
   const out = structuredClone(defaultPrefs) as Record<string, any>;
   for (const [group, fields] of Object.entries(merged)) {
+    if (!(group in out) || !fields || typeof fields !== "object") continue;
     for (const [field, v] of Object.entries(fields as object)) {
       const candidate = structuredClone(out);
       candidate[group][field] = v;
