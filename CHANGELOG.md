@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- The plugin interface keeps the language chosen in the plugin: its pages, tree, dialogs and menus carry `data-bb-ru-skip`, so BB-wide DOM translators such as the Russifier plugin no longer turn part of an English interface into Russian.
+
 ## 0.4.3
 
 - Fix appearance choices snapping back right after a click: loading saved preferences dropped optional level fields such as the color, so every preset or color change was saved but then replaced by a colorless copy. Colors now survive the save and reload round trip.

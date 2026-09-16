@@ -1968,6 +1968,7 @@ function Tree(props: PluginThreadListProps) {
         "pf pf-tree" + (prefs.view.density === "compact" ? " pf-compact" : "")
       }
       style={{ "--pf-indent": `${prefs.view.indent}px` } as React.CSSProperties}
+      data-bb-ru-skip=""
       dir={direction()}
     >
       <Button
@@ -3348,7 +3349,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
       <p className="p-4">{error || t("Загрузка…")}</p>
     );
   return (
-    <div className="pf pf-panel" dir={direction()}>
+    <div className="pf pf-panel" dir={direction()} data-bb-ru-skip="">
       <div className="pf-header">
         <h1>{t("Проекты и разделы")}</h1>
         <div className="pf-header-side">
@@ -3450,7 +3451,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
 function SettingsSection() {
   useLanguage();
   return (
-    <div className="pf" dir={direction()}>
+    <div className="pf" dir={direction()} data-bb-ru-skip="">
       <PluginSettings archive={<ArchiveList bare />} />
     </div>
   );
