@@ -984,7 +984,11 @@
 .pf .pf-glyph.pf-glyph-badge {
   width: 20px;
   height: 20px;
-  background: color-mix(in oklch, var(--pf-c, var(--foreground)) 18%, transparent);
+  background: color-mix(
+    in oklch,
+    var(--pf-c, var(--foreground)) 18%,
+    transparent
+  );
 }
 .pf .pf-glyph.pf-glyph-badge svg {
   width: 13px;
@@ -1006,7 +1010,11 @@
   box-shadow: inset -3px 0 0 var(--pf-c, var(--border));
 }
 .pf .pf-row-row {
-  background: color-mix(in oklch, var(--pf-c, var(--foreground)) 10%, transparent);
+  background: color-mix(
+    in oklch,
+    var(--pf-c, var(--foreground)) 10%,
+    transparent
+  );
   border-radius: 6px;
 }
 .pf-tree .pf-children {
@@ -1027,26 +1035,9 @@
   padding-bottom: 4px;
 }
 
-.pf-settings .pf-tabs {
-  flex-wrap: wrap;
-}
-.pf-settings-panel {
-  margin-top: 12px;
-}
-.pf-agents-rule-flat {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-.pf-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .pf-appearance-grid {
   display: grid;
   gap: 16px;
-  margin-top: 14px;
 }
 @media (min-width: 760px) {
   .pf-appearance-grid {
@@ -1215,4 +1206,318 @@
   border: 1px dashed var(--border);
   border-radius: 8px;
   margin-bottom: 10px;
+}
+
+/* Settings navigation and sections (0.4.1). */
+.pf-side-heading {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  padding: 8px 8px 4px;
+}
+.pf-side nav + .pf-side-heading {
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.pf-snav {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pf-snav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  text-align: start;
+  font-weight: 500;
+  color: var(--foreground);
+  background: transparent;
+  cursor: pointer;
+}
+.pf-snav-item svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+.pf-snav-item:hover {
+  background: var(--accent);
+}
+.pf-snav-item.pf-selected {
+  background: var(--accent);
+  font-weight: 650;
+}
+.pf-snav-item.pf-selected svg {
+  color: var(--foreground);
+}
+.pf-settings-rail {
+  display: grid;
+  gap: 24px;
+}
+@media (min-width: 720px) {
+  .pf-settings-rail {
+    grid-template-columns: 190px minmax(0, 1fr);
+    align-items: start;
+  }
+  .pf-settings-rail > nav {
+    position: sticky;
+    top: 12px;
+  }
+}
+@media (max-width: 719px) {
+  .pf-snav-rail {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
+  }
+  .pf-snav-rail .pf-snav-item {
+    white-space: nowrap;
+    width: auto;
+    border: 1px solid var(--border);
+  }
+}
+.pf-spane {
+  min-width: 0;
+}
+.pf-spane-header {
+  margin-bottom: 14px;
+}
+.pf-spane-header h2 {
+  font-size: 18px;
+  font-weight: 650;
+  margin: 0;
+}
+.pf-spane-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.pf-sgroup {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+.pf-sgroup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pf-sgroup-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+.pf-sgroup-hint {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.pf-sgroup-body:not(:empty) {
+  margin-top: 10px;
+}
+.pf-srow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.pf-sgroup-body > .pf-srow:first-child {
+  border-top: 0;
+  padding-top: 2px;
+}
+.pf-srow-text {
+  min-width: 0;
+}
+.pf-srow-text label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.pf-srow-text p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted-foreground);
+}
+.pf-srow-control {
+  flex: none;
+}
+.pf-srow-disabled .pf-srow-text {
+  opacity: 0.5;
+}
+.pf-sinput {
+  min-width: 180px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  padding: 0 8px;
+  font-size: 13px;
+}
+.pf-sinput-number {
+  min-width: 0;
+  width: 90px;
+}
+.pf-sinput:disabled {
+  opacity: 0.5;
+}
+.pf-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.pf-switch span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--background);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+.pf-switch-on {
+  background: var(--foreground);
+}
+.pf-switch-on span {
+  transform: translateX(16px);
+}
+.pf-switch:focus-visible,
+.pf-snav-item:focus-visible,
+.pf-preset:focus-visible,
+.pf-choice:focus-visible {
+  outline: 2px solid var(--ring, var(--foreground));
+  outline-offset: 2px;
+}
+.pf-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.pf-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: start;
+  cursor: pointer;
+  background: transparent;
+}
+.pf-preset:hover {
+  background: var(--accent);
+}
+.pf-preset.pf-selected {
+  border-color: var(--foreground);
+  box-shadow: inset 0 0 0 1px var(--foreground);
+}
+.pf-preset-sample {
+  display: block;
+  pointer-events: none;
+}
+.pf-preset-sample .pf-preview-row {
+  min-height: 24px;
+  padding: 2px 4px;
+}
+.pf-preview-bar {
+  display: inline-block;
+  height: 6px;
+  width: 56px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+}
+.pf-preset-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-preset-name svg {
+  width: 14px;
+  height: 14px;
+}
+.pf-choice-grid {
+  display: grid;
+  gap: 8px;
+}
+@media (min-width: 640px) {
+  .pf-choice-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.pf-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: start;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+}
+.pf-choice:hover {
+  background: var(--accent);
+}
+.pf-choice.pf-selected {
+  border-color: var(--foreground);
+}
+.pf-choice-dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--muted-foreground);
+}
+.pf-choice.pf-selected .pf-choice-dot {
+  border: 4px solid var(--foreground);
+}
+.pf-level-tabs {
+  margin-bottom: 12px;
+}
+.pf-level-tabs .pf-glyph {
+  width: 16px;
+  height: 16px;
+}
+.pf-level-tabs .pf-glyph svg {
+  width: 13px;
+  height: 13px;
+}
+.pf-preview-slot {
+  border-radius: 7px;
+}
+.pf-preview-slot.pf-selected {
+  background: var(--accent);
+}
+.pf-archive-bare .pf-archive-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.pf-archive-bare .pf-archive-item:first-of-type {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
 }

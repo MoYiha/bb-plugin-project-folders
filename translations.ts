@@ -270,4 +270,40 @@ export const english = {
   Цвет: "Color",
   Экспортировать: "Export",
   Эмодзи: "Emoji",
+  "1 уровень": "Level 1",
+  "2 уровень": "Level 2",
+  "3 уровень и глубже": "Level 3 and deeper",
+  "Вид дерева": "Tree view",
+  "Выберите уровень и настройте его иконку, цвет и заливку.":
+    "Pick a level and set its icon, color and fill.",
+  "Готовые стили": "Ready-made styles",
+  "Заархивированные разделы с историей чатов.":
+    "Archived sections with their chat history.",
+  "Закреплённые чаты всегда сверху. Для отдельного раздела порядок и число чатов меняются в его «Оформлении».":
+    "Pinned chats always stay on top. A single section can change its order and chat count in its Appearance.",
+  "Иконки, цвета и заливка проектов и разделов.":
+    "Icons, colors and fills of projects and sections.",
+  Импорт: "Import",
+  "Как это работает": "How it works",
+  "Меняют оформление всех уровней сразу; дальше его можно донастроить.":
+    "Change every level at once; fine-tune afterwards.",
+  "Настройки общие для всех устройств.":
+    "Settings are shared across all devices.",
+  "Настройки плагина": "Plugin settings",
+  "Остальные открываются кнопкой «Показать все».":
+    "The rest open with Show all.",
+  "Отдельное оформление": "Individual looks",
+  "Перенос настроек и оформления через файл.":
+    "Move settings and appearance with a file.",
+  "Порядок чатов": "Chat order",
+  "Порядок чатов, сворачивание разделов и вид дерева.":
+    "Chat order, section collapsing and tree view.",
+  "Правила по умолчанию": "Default rules",
+  "Раздел открыт, пока в нём работает агент или открыт чат. Свёрнутый вручную раздел остаётся свёрнутым.":
+    "A section stays open while an agent works in it or a chat is open. A section collapsed by hand stays collapsed.",
+  "Сворачивание разделов": "Section collapsing",
+  Уровни: "Levels",
+  "Шаблоны и свои правила для новых проектов и разделов.":
+    "Templates and custom rules for new projects and sections.",
+  Экспорт: "Export",
 } as const;

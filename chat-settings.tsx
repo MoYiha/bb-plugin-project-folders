@@ -11,6 +11,7 @@ import { Icon } from "./components/ui/icon";
 import { t } from "./i18n";
 import { usePrefs } from "./prefs-store";
 import type { Prefs } from "./preferences";
+import { SettingRow, SettingsGroup, Switch } from "./settings-ui";
 
 type ChatList = Prefs["chatList"];
 /** Chat list settings, shared by every device through the plugin server. */
@@ -26,50 +27,51 @@ export function useChatSettings() {
   ] as const;
 }
 
-function NumberField({
-  label,
+function NumberInput({
+  id,
   value,
   min,
   max,
   step = 1,
   integer = true,
+  disabled,
   onCommit,
 }: {
-  label: string;
+  id: string;
   value: number;
   min: number;
   max: number;
   step?: number;
   integer?: boolean;
+  disabled?: boolean;
   onCommit: (value: number) => void;
 }) {
   return (
-    <label className="block text-sm">
-      {label}
-      <input
-        className="block w-full border rounded-md bg-background p-2 mt-1"
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        defaultValue={value}
-        key={value}
-        onBlur={(e) => {
-          const next = Number(e.target.value);
-          if (
-            Number.isFinite(next) &&
-            (!integer || Number.isInteger(next)) &&
-            next >= min &&
-            next <= max
-          ) {
-            if (next !== value) onCommit(next);
-          } else e.target.value = String(value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-        }}
-      />
-    </label>
+    <input
+      id={id}
+      className="pf-sinput pf-sinput-number"
+      type="number"
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      defaultValue={value}
+      key={value}
+      onBlur={(e) => {
+        const next = Number(e.target.value);
+        if (
+          Number.isFinite(next) &&
+          (!integer || Number.isInteger(next)) &&
+          next >= min &&
+          next <= max
+        ) {
+          if (next !== value) onCommit(next);
+        } else e.target.value = String(value);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+    />
   );
 }
 
@@ -86,11 +88,16 @@ export function ChatSettings() {
     );
   return (
     <>
-      <div className="pf-chat-settings">
-        <label className="block text-sm">
-          {t("Сортировка чатов")}
+      <SettingsGroup
+        title={t("Порядок чатов")}
+        hint={t(
+          "Закреплённые чаты всегда сверху. Для отдельного раздела порядок и число чатов меняются в его «Оформлении».",
+        )}
+      >
+        <SettingRow label={t("Сортировка чатов")} htmlFor="pf-set-sort">
           <select
-            className="block w-full border rounded-md bg-background p-2 mt-1"
+            id="pf-set-sort"
+            className="pf-sinput"
             value={settings.sort}
             onChange={(e) =>
               update({ sort: e.target.value as ChatList["sort"] })
@@ -100,27 +107,63 @@ export function ChatSettings() {
             <option value="title">{t("По алфавиту")}</option>
             <option value="created">{t("Сначала новые")}</option>
           </select>
-        </label>
-        <NumberField
+        </SettingRow>
+        <SettingRow
           label={t("Чатов в каждом разделе")}
-          value={settings.limit}
-          min={1}
-          max={100}
-          onCommit={(limit) => update({ limit })}
-        />
-        <NumberField
+          hint={t("Остальные открываются кнопкой «Показать все».")}
+          htmlFor="pf-set-limit"
+        >
+          <NumberInput
+            id="pf-set-limit"
+            value={settings.limit}
+            min={1}
+            max={100}
+            onCommit={(limit) => update({ limit })}
+          />
+        </SettingRow>
+      </SettingsGroup>
+      <SettingsGroup title={t("Сворачивание разделов")}>
+        <SettingRow
+          label={t("Сворачивать неактивные разделы автоматически")}
+          hint={t(
+            "Раздел открыт, пока в нём работает агент или открыт чат. Свёрнутый вручную раздел остаётся свёрнутым.",
+          )}
+          htmlFor="pf-set-collapse"
+        >
+          <Switch
+            id="pf-set-collapse"
+            label={t("Сворачивать неактивные разделы автоматически")}
+            checked={settings.autoCollapseInactive}
+            onChange={(autoCollapseInactive) =>
+              update({ autoCollapseInactive })
+            }
+          />
+        </SettingRow>
+        <SettingRow
           label={t("Сворачивать разделы без активности, часов")}
-          value={settings.inactiveHours}
-          min={0.25}
-          max={720}
-          step={0.25}
-          integer={false}
-          onCommit={(inactiveHours) => update({ inactiveHours })}
-        />
-        <label className="block text-sm">
-          {t("Плотность списка")}
+          htmlFor="pf-set-hours"
+          disabled={!settings.autoCollapseInactive}
+        >
+          <NumberInput
+            id="pf-set-hours"
+            value={settings.inactiveHours}
+            min={0.25}
+            max={720}
+            step={0.25}
+            integer={false}
+            disabled={!settings.autoCollapseInactive}
+            onCommit={(inactiveHours) => update({ inactiveHours })}
+          />
+        </SettingRow>
+      </SettingsGroup>
+      <SettingsGroup
+        title={t("Вид дерева")}
+        hint={t("Настройки общие для всех устройств.")}
+      >
+        <SettingRow label={t("Плотность списка")} htmlFor="pf-set-density">
           <select
-            className="block w-full border rounded-md bg-background p-2 mt-1"
+            id="pf-set-density"
+            className="pf-sinput"
             value={prefs.view.density}
             onChange={(e) =>
               view({ density: e.target.value as Prefs["view"]["density"] })
@@ -129,38 +172,31 @@ export function ChatSettings() {
             <option value="comfortable">{t("Обычная")}</option>
             <option value="compact">{t("Компактная")}</option>
           </select>
-        </label>
-        <NumberField
+        </SettingRow>
+        <SettingRow
           label={t("Отступ вложенных разделов, px")}
-          value={prefs.view.indent}
-          min={0}
-          max={32}
-          onCommit={(indent) => view({ indent })}
-        />
-      </div>
-      <label className="flex items-center gap-2 text-sm cursor-pointer mt-3">
-        <input
-          type="checkbox"
-          className="rounded border"
-          checked={settings.autoCollapseInactive}
-          onChange={(e) => update({ autoCollapseInactive: e.target.checked })}
-        />
-        <span>{t("Сворачивать неактивные разделы автоматически")}</span>
-      </label>
-      <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
-        <input
-          type="checkbox"
-          className="rounded border"
-          checked={settings.boldUnread}
-          onChange={(e) => update({ boldUnread: e.target.checked })}
-        />
-        <span>{t("Выделять жирным разделы с непрочитанными чатами")}</span>
-      </label>
-      <p className="text-xs text-muted-foreground mt-2">
-        {t(
-          "Закреплённые чаты сверху. Настройки общие для всех устройств; сортировку и число чатов можно изменить для отдельного раздела в его «Оформлении».",
-        )}
-      </p>
+          htmlFor="pf-set-indent"
+        >
+          <NumberInput
+            id="pf-set-indent"
+            value={prefs.view.indent}
+            min={0}
+            max={32}
+            onCommit={(indent) => view({ indent })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t("Выделять жирным разделы с непрочитанными чатами")}
+          htmlFor="pf-set-bold"
+        >
+          <Switch
+            id="pf-set-bold"
+            label={t("Выделять жирным разделы с непрочитанными чатами")}
+            checked={settings.boldUnread}
+            onChange={(boldUnread) => update({ boldUnread })}
+          />
+        </SettingRow>
+      </SettingsGroup>
     </>
   );
 }

@@ -132,6 +132,7 @@ import {
   DialogTitle,
 } from "./components/ui/dialog";
 import { usePrefs } from "./prefs-store";
+import { SettingRow, SettingsGroup, Switch } from "./settings-ui";
 import {
   COLOR_TOKENS,
   FILLS,
@@ -675,7 +676,7 @@ function PreviewRow({
       style={{ ...row.style, marginInlineStart: depth * 14 }}
     >
       <Glyph {...look} />
-      <span>{name}</span>
+      {name ? <span>{name}</span> : <span className="pf-preview-bar" />}
     </div>
   );
 }
@@ -695,8 +696,12 @@ const presetTitle = (preset: Preset) =>
     projects: t("По проектам"),
   })[preset];
 
+const sameLook = (a: unknown, b: unknown) =>
+  JSON.stringify(a) === JSON.stringify(b);
+
 export function AppearanceSettings() {
   const { prefs, items, savePrefs } = usePrefs();
+  const [level, setLevel] = useState<LevelKey>("project");
   const [error, setError] = useState("");
   const save = (appearance: typeof prefs.appearance) =>
     savePrefs({ ...prefs, appearance }).then(
@@ -708,112 +713,165 @@ export function AppearanceSettings() {
     { id: "s2", parentId: "s1", projectId: "sample" },
     { id: "s3", parentId: "s2", projectId: "sample" },
   ];
-  const sample = (folder: (typeof sampleFolders)[number] | null) =>
-    resolveStyle({
-      prefs,
-      items: {},
-      folders: sampleFolders,
-      projectId: "sample",
-      folder,
-    });
+  const sampleFor = (appearance: typeof prefs.appearance) => {
+    const p = { ...prefs, appearance };
+    return [null, ...sampleFolders].map((folder) =>
+      resolveStyle({
+        prefs: p,
+        items: {},
+        folders: sampleFolders,
+        projectId: "sample",
+        folder,
+      }),
+    );
+  };
+  const current = sampleFor(prefs.appearance);
+  const names = [
+    t("Проект"),
+    t("Раздел"),
+    t("Подраздел"),
+    t("Раздел 3 уровня"),
+  ];
   const custom = Object.keys(items).filter((k) => {
-    const { sort, limit, ...look } = items[k]!;
+    const { sort, limit, cascade, ...look } = items[k]!;
     return !isEmptyItem(look);
   }).length;
+  const levelShort: Record<LevelKey, string> = {
+    project: t("Проекты"),
+    level1: t("1 уровень"),
+    level2: t("2 уровень"),
+    level3: t("3 уровень и глубже"),
+  };
   return (
     <div className="pf-appearance">
-      <div className="pf-presets">
-        {PRESETS.map((p) => (
-          <Button
-            key={p}
-            size="sm"
-            variant="outline"
-            onClick={() => void save(presetAppearance(p))}
-          >
-            {presetTitle(p)}
-          </Button>
-        ))}
-      </div>
-      <label className="block text-sm mt-3">
-        {t("Цвет определяется")}
-        <select
-          className="block w-full border rounded-md bg-background p-2 mt-1"
-          value={prefs.appearance.colorBy}
-          onChange={(e) =>
-            void save({
-              ...prefs.appearance,
-              colorBy: e.target.value as "level" | "project",
-            })
-          }
-        >
-          <option value="level">
-            {t("Уровнем: у каждого уровня свой цвет")}
-          </option>
-          <option value="project">
-            {t("Проектом: разделы получают цвет своего проекта")}
-          </option>
-        </select>
-      </label>
-      <div className="pf-appearance-grid">
-        <div>
-          {LEVELS.map((level) => (
-            <section key={level} className="pf-level">
-              <h4>{levelTitle(level)}</h4>
-              <StyleFields
-                inherit={false}
-                value={prefs.appearance.levels[level]}
-                effective={{
-                  icon: prefs.appearance.levels[level].icon ?? "icon:Folder",
-                  color: prefs.appearance.levels[level].color,
-                  fill: prefs.appearance.levels[level].fill ?? "none",
-                }}
-                onChange={(next) =>
-                  void save({
-                    ...prefs.appearance,
-                    levels: { ...prefs.appearance.levels, [level]: next },
-                  })
-                }
-              />
-              {prefs.appearance.colorBy === "project" &&
-                level !== "project" && (
-                  <p className="pf-agents-hint">
-                    {t("Цвет берётся у проекта; здесь он не применяется.")}
-                  </p>
-                )}
-            </section>
+      <SettingsGroup
+        title={t("Готовые стили")}
+        hint={t(
+          "Меняют оформление всех уровней сразу; дальше его можно донастроить.",
+        )}
+      >
+        <div className="pf-preset-grid">
+          {PRESETS.map((p) => {
+            const look = presetAppearance(p);
+            const active = sameLook(look, prefs.appearance);
+            return (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={active}
+                className={"pf-preset" + (active ? " pf-selected" : "")}
+                onClick={() => void save(look)}
+              >
+                <span className="pf-preset-sample" aria-hidden="true">
+                  {sampleFor(look)
+                    .slice(0, 3)
+                    .map((s, i) => (
+                      <PreviewRow key={i} name="" look={s} depth={i} />
+                    ))}
+                </span>
+                <span className="pf-preset-name">
+                  {active && <Icon name="Check" />}
+                  {presetTitle(p)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </SettingsGroup>
+      <SettingsGroup title={t("Цвет определяется")}>
+        <div className="pf-choice-grid" role="radiogroup">
+          {(
+            [
+              ["level", t("Уровнем: у каждого уровня свой цвет")],
+              ["project", t("Проектом: разделы получают цвет своего проекта")],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={prefs.appearance.colorBy === value}
+              className={
+                "pf-choice" +
+                (prefs.appearance.colorBy === value ? " pf-selected" : "")
+              }
+              onClick={() => void save({ ...prefs.appearance, colorBy: value })}
+            >
+              <span className="pf-choice-dot" />
+              {label}
+            </button>
           ))}
         </div>
-        <aside className="pf-preview" aria-label={t("Предпросмотр")}>
-          <div className="pf-preview-title">{t("Предпросмотр")}</div>
-          <PreviewRow name={t("Проект")} look={sample(null)} depth={0} />
-          <PreviewRow
-            name={t("Раздел")}
-            look={sample(sampleFolders[0]!)}
-            depth={1}
-          />
-          <PreviewRow
-            name={t("Подраздел")}
-            look={sample(sampleFolders[1]!)}
-            depth={2}
-          />
-          <PreviewRow
-            name={t("Раздел 3 уровня")}
-            look={sample(sampleFolders[2]!)}
-            depth={3}
-          />
-        </aside>
-      </div>
-      <p className="pf-agents-hint mt-3">
-        {t(
+      </SettingsGroup>
+      <SettingsGroup
+        title={t("Уровни")}
+        hint={t("Выберите уровень и настройте его иконку, цвет и заливку.")}
+      >
+        <div className="pf-tabs pf-level-tabs" role="tablist">
+          {LEVELS.map((l) => (
+            <button
+              key={l}
+              type="button"
+              role="tab"
+              aria-selected={level === l}
+              className={"pf-tab" + (level === l ? " pf-selected" : "")}
+              onClick={() => setLevel(l)}
+            >
+              <Glyph {...current[LEVELS.indexOf(l)]!} />
+              {levelShort[l]}
+            </button>
+          ))}
+        </div>
+        <div className="pf-appearance-grid">
+          <div role="tabpanel" aria-label={levelTitle(level)}>
+            <StyleFields
+              key={level}
+              inherit={false}
+              value={prefs.appearance.levels[level]}
+              effective={{
+                icon: prefs.appearance.levels[level].icon ?? "icon:Folder",
+                color: prefs.appearance.levels[level].color,
+                fill: prefs.appearance.levels[level].fill ?? "none",
+              }}
+              onChange={(next) =>
+                void save({
+                  ...prefs.appearance,
+                  levels: { ...prefs.appearance.levels, [level]: next },
+                })
+              }
+            />
+            {prefs.appearance.colorBy === "project" && level !== "project" && (
+              <p className="pf-sgroup-hint mt-2">
+                {t("Цвет берётся у проекта; здесь он не применяется.")}
+              </p>
+            )}
+          </div>
+          <aside className="pf-preview" aria-label={t("Предпросмотр")}>
+            <div className="pf-preview-title">{t("Предпросмотр")}</div>
+            {current.map((s, i) => (
+              <div
+                key={i}
+                className={
+                  "pf-preview-slot" +
+                  (LEVELS.indexOf(level) === i ? " pf-selected" : "")
+                }
+              >
+                <PreviewRow name={names[i]!} look={s} depth={i} />
+              </div>
+            ))}
+          </aside>
+        </div>
+      </SettingsGroup>
+      <SettingsGroup
+        title={t("Отдельное оформление")}
+        hint={t(
           "Любой проект или раздел можно оформить отдельно: пункт «Оформление» в его меню ⋯.",
         )}
-        {custom > 0 && (
-          <>
-            {" "}
-            {t("Оформлено отдельно")}: {custom}.{" "}
-            <button
-              type="button"
-              className="pf-link-button"
+        actions={
+          custom > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => {
                 if (
                   !confirm(
@@ -832,10 +890,14 @@ export function AppearanceSettings() {
               }}
             >
               {t("Сбросить все")}
-            </button>
-          </>
-        )}
-      </p>
+            </Button>
+          ) : undefined
+        }
+      >
+        <p className="text-sm">
+          {t("Оформлено отдельно")}: {custom}
+        </p>
+      </SettingsGroup>
       {error && (
         <p role="alert" className="text-destructive">
           {error}
@@ -863,25 +925,49 @@ export function TransferSettings() {
     URL.revokeObjectURL(url);
   };
   return (
-    <div className="pf-transfer">
-      <p className="pf-agents-hint">
-        {t(
+    <>
+      <SettingsGroup
+        title={t("Экспорт")}
+        hint={t(
           "Файл содержит настройки списка, оформление уровней и оформление отдельных проектов и разделов. Правила AGENTS.md в него не входят.",
         )}
-      </p>
-      <div className="pf-presets">
-        <Button size="sm" variant="outline" onClick={exportJson}>
-          <Icon name="Download" />
-          {t("Экспортировать")}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => fileRef.current?.click()}
+        actions={
+          <Button size="sm" variant="outline" onClick={exportJson}>
+            <Icon name="Download" />
+            {t("Экспортировать")}
+          </Button>
+        }
+      >
+        {null}
+      </SettingsGroup>
+      <SettingsGroup
+        title={t("Импорт")}
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Icon name="FolderExport" />
+            {t("Импортировать…")}
+          </Button>
+        }
+      >
+        <SettingRow
+          label={t(
+            "При импорте заменить и оформление отдельных проектов и разделов",
+          )}
+          htmlFor="pf-set-import-items"
         >
-          <Icon name="FolderExport" />
-          {t("Импортировать…")}
-        </Button>
+          <Switch
+            id="pf-set-import-items"
+            label={t(
+              "При импорте заменить и оформление отдельных проектов и разделов",
+            )}
+            checked={withItems}
+            onChange={setWithItems}
+          />
+        </SettingRow>
         <input
           ref={fileRef}
           type="file"
@@ -900,19 +986,13 @@ export function TransferSettings() {
             }
           }}
         />
-      </div>
-      <label className="flex items-center gap-2 text-sm cursor-pointer mt-3">
-        <input
-          type="checkbox"
-          checked={withItems}
-          onChange={(e) => setWithItems(e.target.checked)}
-        />
-        <span>
-          {t("При импорте заменить и оформление отдельных проектов и разделов")}
-        </span>
-      </label>
-      {message && <p className="text-sm mt-2">{message}</p>}
-    </div>
+        {message && (
+          <p className="text-sm" role="status">
+            {message}
+          </p>
+        )}
+      </SettingsGroup>
+    </>
   );
 }
 

@@ -1,62 +1,134 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { t } from "./i18n";
+import { Icon } from "./components/ui/icon";
 import { ChatSettings } from "./chat-settings";
 import { AppearanceSettings, TransferSettings } from "./appearance";
 import { AgentsMarkersHint, AgentsRulesEditor } from "./agents-apply";
+import { SettingsGroup } from "./settings-ui";
 
-const TABS = ["list", "appearance", "rules", "transfer"] as const;
-type Tab = (typeof TABS)[number];
-/**
- * The one settings screen of the plugin: rendered both on the management
- * page and on the plugin page of BB settings, so the two never drift apart.
- */
-export function PluginSettings({ idPrefix }: { idPrefix: string }) {
-  const [tab, setTab] = useState<Tab>("list");
-  const label: Record<Tab, string> = {
-    list: t("Список чатов"),
-    appearance: t("Оформление"),
-    rules: t("Правила AGENTS.md"),
-    transfer: t("Импорт и экспорт"),
-  };
+export const SETTINGS_SECTIONS = [
+  "list",
+  "appearance",
+  "rules",
+  "archive",
+  "transfer",
+] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+export const isSettingsSection = (v: string): v is SettingsSection =>
+  (SETTINGS_SECTIONS as readonly string[]).includes(v);
+
+const meta = (section: SettingsSection) =>
+  ({
+    list: {
+      icon: "ListTodo",
+      title: t("Список чатов"),
+      hint: t("Порядок чатов, сворачивание разделов и вид дерева."),
+    },
+    appearance: {
+      icon: "Palette",
+      title: t("Оформление"),
+      hint: t("Иконки, цвета и заливка проектов и разделов."),
+    },
+    rules: {
+      icon: "FileText",
+      title: t("Правила AGENTS.md"),
+      hint: t("Шаблоны и свои правила для новых проектов и разделов."),
+    },
+    archive: {
+      icon: "Archive",
+      title: t("Архив разделов"),
+      hint: t("Заархивированные разделы с историей чатов."),
+    },
+    transfer: {
+      icon: "Download",
+      title: t("Импорт и экспорт"),
+      hint: t("Перенос настроек и оформления через файл."),
+    },
+  })[section];
+
+/** The list of settings sections; the host decides where it sits. */
+export function SettingsNav({
+  value,
+  onChange,
+  variant,
+}: {
+  value: SettingsSection | null;
+  onChange: (section: SettingsSection) => void;
+  variant: "rail" | "side";
+}) {
   return (
-    <div className="pf-settings">
-      <div className="pf-tabs" role="tablist" aria-label={t("Общие настройки")}>
-        {TABS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`${idPrefix}-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`${idPrefix}-panel`}
-            className={"pf-tab" + (tab === id ? " pf-selected" : "")}
-            onClick={() => setTab(id)}
+    <ul className={`pf-snav pf-snav-${variant}`} role="list">
+      {SETTINGS_SECTIONS.map((id) => {
+        const m = meta(id);
+        return (
+          <li key={id}>
+            <button
+              type="button"
+              className={"pf-snav-item" + (value === id ? " pf-selected" : "")}
+              aria-current={value === id ? "page" : undefined}
+              onClick={() => onChange(id)}
+            >
+              <Icon name={m.icon} />
+              <span>{m.title}</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** One settings section with its heading. */
+export function SettingsPane({
+  section,
+  archive,
+}: {
+  section: SettingsSection;
+  /** The archive list lives in the app bundle; the host passes it in. */
+  archive: ReactNode;
+}) {
+  const m = meta(section);
+  return (
+    <section className="pf-spane" aria-labelledby={`pf-spane-${section}`}>
+      <header className="pf-spane-header">
+        <h2 id={`pf-spane-${section}`}>{m.title}</h2>
+        <p>{m.hint}</p>
+      </header>
+      {section === "list" && <ChatSettings />}
+      {section === "appearance" && <AppearanceSettings />}
+      {section === "rules" && (
+        <>
+          <SettingsGroup
+            title={t("Как это работает")}
+            hint={t(
+              "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.",
+            )}
           >
-            {label[id]}
-          </button>
-        ))}
-      </div>
-      <div
-        role="tabpanel"
-        id={`${idPrefix}-panel`}
-        aria-labelledby={`${idPrefix}-tab-${tab}`}
-        className="pf-settings-panel"
-      >
-        {tab === "list" && <ChatSettings />}
-        {tab === "appearance" && <AppearanceSettings />}
-        {tab === "rules" && (
-          <div className="pf-agents-rule pf-agents-rule-flat">
-            <p className="pf-agents-hint">
-              {t(
-                "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.",
-              )}
-            </p>
             <AgentsMarkersHint />
+          </SettingsGroup>
+          <SettingsGroup title={t("Правила по умолчанию")}>
             <AgentsRulesEditor />
-          </div>
-        )}
-        {tab === "transfer" && <TransferSettings />}
-      </div>
+          </SettingsGroup>
+        </>
+      )}
+      {section === "archive" && archive}
+      {section === "transfer" && <TransferSettings />}
+    </section>
+  );
+}
+
+/**
+ * Stand-alone settings with their own section rail, for the plugin page in
+ * BB settings. The management page places `SettingsNav` in its tree sidebar.
+ */
+export function PluginSettings({ archive }: { archive: ReactNode }) {
+  const [section, setSection] = useState<SettingsSection>("list");
+  return (
+    <div className="pf-settings-rail">
+      <nav aria-label={t("Настройки плагина")}>
+        <SettingsNav value={section} onChange={setSection} variant="rail" />
+      </nav>
+      <SettingsPane section={section} archive={archive} />
     </div>
   );
 }

@@ -532,3 +532,27 @@ it("saves custom rules for BB sessions and a startup instruction", async () => {
   });
   view.lifecycle.unmount();
 });
+
+it("lists the plugin settings sections in the tree sidebar and opens them", async () => {
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: { ...rpc, prefs_get: () => Promise.reject(new Error("offline")) },
+    },
+  );
+  await view.findByText("Project");
+  const side = view.baseElement.querySelector(".pf-side")!;
+  expect(side.textContent).toContain("Chat list");
+  expect(side.textContent).toContain("Appearance");
+  fireEvent.click(view.getByRole("button", { name: "Section archive" }));
+  await view.findByText("Archive is empty");
+  view.getByText("Section").click();
+  await view.findByText("/work/Section");
+  expect(
+    view
+      .getByRole("button", { name: "Section archive" })
+      .getAttribute("aria-current"),
+  ).toBeNull();
+  view.lifecycle.unmount();
+});

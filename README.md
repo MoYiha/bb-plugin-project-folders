@@ -100,7 +100,7 @@ Each project or section shows up to **10 chats** initially. Set any limit from 1
 
 ## One settings screen, your own look
 
-The management page and the plugin page in BB settings show the same settings in four tabs: **Chat list** (sorting, limit, auto-collapse threshold, bold unread sections, density, indent), **Appearance**, **AGENTS.md rules** and **Import & export**.
+The management page and the plugin page in BB settings show the same settings sections: **Chat list** (sorting, limit, auto-collapse threshold, bold unread sections, density, indent), **Appearance**, **AGENTS.md rules**, **Section archive** and **Import & export**. On the management page they are listed under **Settings** in the tree sidebar above the projects; in BB settings they have their own side rail.
 
 **Appearance** sets an icon, a color and a fill for projects and for sections of levels 1, 2 and 3+. Icons come from a curated Hugeicons set with search, or any emoji. Colors are twelve theme-friendly swatches or a custom color; fills are none, an icon badge, a left stripe or a row background. Presets apply a whole look in one click: **Standard**, **Monochrome**, **By level** and **By project** — in the last one every section takes the color of its project. Any project or section can get its own look from **⋯ → Appearance**, optionally applied to all nested sections without their own. **Import & export** saves the whole setup to a JSON file.
 

@@ -7,7 +7,13 @@ import {
   SectionMoveDialog,
 } from "./move-dialog";
 import { ChatSortMenu } from "./chat-settings";
-import { PluginSettings } from "./plugin-settings";
+import {
+  PluginSettings,
+  SettingsNav,
+  SettingsPane,
+  isSettingsSection,
+  type SettingsSection,
+} from "./plugin-settings";
 import {
   AppearanceDialog,
   Glyph,
@@ -2182,7 +2188,7 @@ function Tree(props: PluginThreadListProps) {
     </div>
   );
 }
-function ArchiveList() {
+function ArchiveList({ bare = false }: { bare?: boolean }) {
   const rpc = useRpc<typeof rpcContract>();
   const [items, setItems] = useState<Archive[]>([]);
   const [error, setError] = useState("");
@@ -2209,9 +2215,10 @@ function ArchiveList() {
       setBusy(null);
     }
   };
+  const Wrapper = bare ? "div" : "section";
   return (
-    <section className="pf-card">
-      <h2>{t("Архив разделов")}</h2>
+    <Wrapper className={bare ? "pf-archive-bare" : "pf-card"}>
+      {!bare && <h2>{t("Архив разделов")}</h2>}
       {error && (
         <p role="alert" className="text-destructive">
           {error}
@@ -2247,7 +2254,7 @@ function ArchiveList() {
           </Button>
         </div>
       ))}
-    </section>
+    </Wrapper>
   );
 }
 function Panel({ subPath }: PluginNavPanelProps) {
@@ -2320,6 +2327,8 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [cardSaving, setCardSaving] = useState(false);
   const [cardRuleError, setCardRuleError] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  /** Settings section shown while no project or section is selected. */
+  const [settingsView, setSettingsView] = useState<SettingsSection>("list");
   const [sideClosed, setSideClosed] = useState<Record<string, boolean>>({});
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [dragInfo, setDragInfo] = useState<{
@@ -2356,6 +2365,13 @@ function Panel({ subPath }: PluginNavPanelProps) {
       (r) => r.projectId === projectId && folderId === `root:${r.hostId}`,
     );
   const rootSelected = folderId?.startsWith("root:") ?? false;
+  // `settings/<section>` opens a plugin settings section.
+  useEffect(() => {
+    if (action !== "settings" || !projectId || !isSettingsSection(projectId))
+      return;
+    setSelectedKey(null);
+    setSettingsView(projectId);
+  }, [action, projectId]);
   // `select/<project>/<folder-or-root:host>` opens management with the row selected.
   useEffect(() => {
     if (action !== "select" || !projectId) return;
@@ -3351,6 +3367,18 @@ function Panel({ subPath }: PluginNavPanelProps) {
       </p>
       <div className="pf-layout">
         <aside className="pf-side" aria-label={t("Проекты и разделы")}>
+          <nav aria-label={t("Настройки плагина")}>
+            <div className="pf-side-heading">{t("Настройки")}</div>
+            <SettingsNav
+              variant="side"
+              value={sel ? null : settingsView}
+              onChange={(section) => {
+                setSelectedKey(null);
+                setSettingsView(section);
+              }}
+            />
+          </nav>
+          <div className="pf-side-heading">{t("Проекты")}</div>
           {error && (
             <p role="alert" className="text-destructive">
               {error}
@@ -3364,23 +3392,15 @@ function Panel({ subPath }: PluginNavPanelProps) {
           )}
         </aside>
         <main className="pf-main">
-          {details}
-          {!sel && (
-            <section className="pf-card">
-              <h2>{t("Общие настройки")}</h2>
-              {!selectedKey && (
-                <p className="pf-agents-hint">
-                  {t(
-                    "Выберите проект или раздел слева — здесь появятся его настройки.",
-                  )}
-                </p>
-              )}
-              <PluginSettings idPrefix="pf-panel-settings" />
-            </section>
-          )}
           <PendingMoves />
           <PendingSectionMoves />
-          <ArchiveList />
+          {details}
+          {!sel && (
+            <SettingsPane
+              section={settingsView}
+              archive={<ArchiveList bare />}
+            />
+          )}
           {[error, ...data.errors].filter(Boolean).map((e, i) => (
             <p className="text-destructive" role="alert" key={i}>
               {e}
@@ -3431,7 +3451,7 @@ function SettingsSection() {
   useLanguage();
   return (
     <div className="pf" dir={direction()}>
-      <PluginSettings idPrefix="pf-bb-settings" />
+      <PluginSettings archive={<ArchiveList bare />} />
     </div>
   );
 }
@@ -3456,10 +3476,7 @@ export default definePluginApp((app) => {
   });
   app.slots.settingsSection({
     id: "settings",
-    title: t("Общие настройки"),
-    description: t(
-      "Те же настройки, что на странице «Проекты и разделы»: список чатов, оформление, правила AGENTS.md, импорт и экспорт.",
-    ),
     component: SettingsSection,
   });
+
 });

@@ -12,9 +12,10 @@ const root = {
     { type: "local_path", hostId: "h1", path: "/work", isDefault: true },
   ],
 };
-async function setup() {
+async function setup(settings?: Record<string, string | boolean>) {
   const writes: Record<string, unknown>[] = [];
   const h = createFakePluginHost({
+    ...(settings ? { settings } : {}),
     pluginId: "project-folders",
     agentSkillIds: ["project-folders"],
     sdk: {
@@ -41,6 +42,25 @@ async function setup() {
   });
   await plugin(h.bb);
   return { ...h, writes };
+}
+const agentsFields = {
+  agents_auto_create: "autoCreate",
+  agents_template: "template",
+  agents_project_template: "projectTemplate",
+  agents_custom: "custom",
+  agents_custom_target: "customTarget",
+  agents_startup: "startup",
+} as const;
+/** Shared rules live in the plugin database and change through the settings RPC. */
+async function setAgents(
+  h: Awaited<ReturnType<typeof setup>>,
+  patch: Partial<Record<keyof typeof agentsFields, string | boolean>>,
+) {
+  const call = h.harness.behavior.callRpc;
+  const config = (await call("agents_config", null)) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(patch))
+    config[agentsFields[key as keyof typeof agentsFields]] = value;
+  await call("agents_config_save", config);
 }
 describe("project folder boundaries", () => {
   it("accepts nested relative paths and rejects escapes or reserved directories", () => {
@@ -325,6 +345,24 @@ const agentsWrites = (h: Awaited<ReturnType<typeof setup>>) =>
   h.writes.filter((w) => String(w.path).endsWith("AGENTS.md"));
 
 describe("shared preferences", () => {
+  it("migrates the old declarative rules once and stops registering them", async () => {
+    const h = await setup({
+      agents_template: "Старый шаблон",
+      agents_auto_create: false,
+    });
+    try {
+      const config = (await h.harness.behavior.callRpc(
+        "agents_config",
+        null,
+      )) as { template: string; autoCreate: boolean; projectTemplate: string };
+      expect(config.autoCreate).toBe(false);
+      expect(config.template).toBe("Старый шаблон");
+      expect(config.projectTemplate).toContain("# Project rules");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
   it("stores preferences and per-item looks for every device", async () => {
     const h = await setup();
     try {
@@ -376,7 +414,7 @@ describe("AGENTS.md template", () => {
   it("seeds a new section with the managed template block", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Тише едешь." });
+      await setAgents(h, { agents_template: "Тише едешь." });
       await createSection(h, "Alpha");
       const agents = agentsWrites(h);
       expect(agents).toHaveLength(1);
@@ -411,7 +449,7 @@ describe("AGENTS.md template", () => {
   it("skips the write when the block is already up to date or disabled", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Одна строка" });
+      await setAgents(h, { agents_template: "Одна строка" });
       const block =
         "<!-- bb-project-folders:agents:start -->\nОдна строка\n<!-- bb-project-folders:agents:end -->\n";
       h.harness.inspection.sdk.stub("files.read", async () => ({
@@ -420,8 +458,8 @@ describe("AGENTS.md template", () => {
       }));
       await createSection(h, "Gamma");
       expect(agentsWrites(h)).toHaveLength(0);
-      await h.harness.behavior.setSettings({ agents_auto_create: false });
-      await h.harness.behavior.setSettings({ agents_template: "Другая" });
+      await setAgents(h, { agents_auto_create: false });
+      await setAgents(h, { agents_template: "Другая" });
       await createSection(h, "Delta");
       expect(agentsWrites(h)).toHaveLength(0);
     } finally {
@@ -432,7 +470,7 @@ describe("AGENTS.md template", () => {
   it("applies the template to existing sections on demand", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Шаблон v2" });
+      await setAgents(h, { agents_template: "Шаблон v2" });
       h.harness.inspection.sdk.stub("files.read", async () => ({
         content:
           "# Свои правила\n\n<!-- bb-project-folders:agents:start -->\nШаблон v1\n<!-- bb-project-folders:agents:end -->\n",
@@ -623,7 +661,7 @@ describe("AGENTS.md template", () => {
   it("leaves hand-written AGENTS.md files out of the apply run", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Шаблон v2" });
+      await setAgents(h, { agents_template: "Шаблон v2" });
       // No plugin markers: the file was written by hand, so it is left alone.
       h.harness.inspection.sdk.stub("files.read", async () => ({
         content: "# Свои правила\n",
@@ -678,7 +716,7 @@ describe("AGENTS.md template", () => {
   it("seeds subsections from a custom section template and stops at level three", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Общий шаблон" });
+      await setAgents(h, { agents_template: "Общий шаблон" });
       const l1 = (await createSection(h, "L1")) as { id: string };
       await h.harness.behavior.callRpc("rules_settings_save", {
         projectId: "p1",
@@ -821,7 +859,7 @@ describe("AGENTS.md template", () => {
   it("writes saved custom rules into AGENTS.md and CLAUDE.md bottoms, and inherits shared ones", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({
+      await setAgents(h, {
         agents_custom: "Глобальное индивидуальное правило",
       });
       await createSection(h, "Eta");
@@ -833,7 +871,7 @@ describe("AGENTS.md template", () => {
         ).content,
       );
       expect(seeded).toContain("Глобальное индивидуальное правило");
-      await h.harness.behavior.setSettings({ agents_custom: "" });
+      await setAgents(h, { agents_custom: "" });
       await h.harness.behavior.callRpc("rules_settings_save", {
         projectId: "p1",
         folderId: null,
@@ -977,7 +1015,7 @@ describe("AGENTS.md template", () => {
   it("lets a project override both templates for its own subtree", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({
+      await setAgents(h, {
         agents_template: "Общий шаблон разделов",
         agents_project_template: "Общий шаблон проектов",
       });
@@ -1034,7 +1072,7 @@ describe("AGENTS.md template", () => {
   it("inherits individual custom rules into the managed block", async () => {
     const h = await setup();
     try {
-      await h.harness.behavior.setSettings({ agents_template: "Общий шаблон" });
+      await setAgents(h, { agents_template: "Общий шаблон" });
       await h.harness.behavior.callRpc("rules_settings_save", {
         projectId: "p1",
         folderId: null,

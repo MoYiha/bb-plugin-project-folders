@@ -23,7 +23,7 @@ const agentsConfig = () => ({
   custom: "",
 });
 const openRules = async (view: ReturnType<typeof renderSlot>) =>
-  fireEvent.click(await view.findByRole("tab", { name: "AGENTS.md rules" }));
+  fireEvent.click(await view.findByRole("button", { name: "AGENTS.md rules" }));
 
 it("exposes the shared settings with the AGENTS.md rules and managed markers", async () => {
   expect(app.settingsSections).toHaveLength(1);
@@ -35,8 +35,9 @@ it("exposes the shared settings with the AGENTS.md rules and managed markers", a
       rpc: { agents_config: agentsConfig },
     },
   );
-  expect(await view.findByRole("tab", { name: "Chat list" })).toBeTruthy();
-  expect(view.getByRole("tab", { name: "Appearance" })).toBeTruthy();
+  expect(await view.findByRole("button", { name: "Chat list" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Appearance" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Section archive" })).toBeTruthy();
   await openRules(view);
   expect(
     await view.findByText(/Projects get the project template/),

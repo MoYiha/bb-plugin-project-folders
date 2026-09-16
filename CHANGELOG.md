@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- **Settings navigation instead of tabs**: on the management page the tree sidebar gains a **Settings** list above the projects — Chat list, Appearance, AGENTS.md rules, Section archive, Import & export; picking one opens it in the main pane, picking a project opens its card. The plugin page in BB settings shows the same sections with its own side rail. `settings/<section>` deep-links to a section.
+- **No more raw configuration block**: the AGENTS.md rules moved from declarative plugin settings into the plugin database, so BB no longer renders the long template fields above the plugin's settings. Existing values are migrated once on load. `bb plugin config project-folders` no longer lists these fields; use the settings screen.
+- Every section is split into titled groups with explanations: chat order, section collapsing and tree view; ready-made styles as visual cards, color mode as radio cards, one level at a time with a live preview highlighting it; export and import as separate blocks. On/off options are switches.
+
 ## 0.4.0
 
 - **One settings screen**: the management page and the plugin page in BB settings now render the same settings in four tabs — Chat list, Appearance, AGENTS.md rules, Import & export. Chat list settings moved from the browser to the BB server, so every device shows the same values; the old browser values are migrated on first load.

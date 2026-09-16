@@ -443,7 +443,8 @@ export function resolveFolderPath(root: string, relative: string) {
   return result;
 }
 export default async function plugin(bb: BbPluginApi) {
-  const settings = bb.settings.define({
+  /** Pre-0.4.1 declarative fields: read once to migrate, then no longer registered. */
+  const legacyDescriptors = {
     agents_auto_create: {
       type: "boolean",
       label: "Автосоздание AGENTS.md",
@@ -493,12 +494,7 @@ export default async function plugin(bb: BbPluginApi) {
       experimental_schema: z.string().max(4000),
       default: "",
     },
-  });
-  // The agent hook is synchronous, so the shared values are kept in memory.
-  let shared = await settings.get();
-  settings.onChange((next) => {
-    shared = next;
-  });
+  } as const;
   const db = bb.storage.database();
   bb.storage.migrate(db, [
     `CREATE TABLE folders (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, hostId TEXT NOT NULL, parentId TEXT, name TEXT NOT NULL, path TEXT NOT NULL, UNIQUE(projectId,hostId,path))`,
@@ -524,6 +520,64 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE preferences (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
     `CREATE TABLE item_styles (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
+  type AgentsSettings = {
+    agents_auto_create: boolean;
+    agents_project_template: string;
+    agents_template: string;
+    agents_custom: string;
+    agents_custom_target: RuleTarget;
+    agents_startup: string;
+  };
+  const agentsDefaults: AgentsSettings = {
+    agents_auto_create: true,
+    agents_project_template: defaultProjectTemplate,
+    agents_template: defaultAgentsTemplate,
+    agents_custom: "",
+    agents_custom_target: "file",
+    agents_startup: "",
+  };
+  const agentsSchema = z.object({
+    agents_auto_create: z.boolean(),
+    agents_project_template: z.string().max(20000),
+    agents_template: z.string().max(20000),
+    agents_custom: z.string().max(20000),
+    agents_custom_target: z.enum(["file", "session", "both"]),
+    agents_startup: z.string().max(4000),
+  });
+  const parseAgents = (value: unknown): AgentsSettings => {
+    const out = { ...agentsDefaults } as Record<string, unknown>;
+    if (value && typeof value === "object")
+      for (const [k, v] of Object.entries(value)) {
+        const field = agentsSchema.shape[k as keyof typeof agentsSchema.shape];
+        if (field?.safeParse(v).success) out[k] = v;
+      }
+    return out as AgentsSettings;
+  };
+  const saveAgents = (value: AgentsSettings) =>
+    db
+      .prepare(
+        "INSERT INTO preferences (key, data) VALUES ('agents', ?) ON CONFLICT(key) DO UPDATE SET data=excluded.data",
+      )
+      .run(JSON.stringify(value));
+  const agentsRow = db
+    .prepare("SELECT data FROM preferences WHERE key='agents'")
+    .get() as { data: string } | undefined;
+  // The agent hook is synchronous, so the shared values are kept in memory.
+  let shared: AgentsSettings;
+  if (agentsRow) shared = parseAgents(safeJson(agentsRow.data));
+  else {
+    // Rules used to be declarative plugin settings, which BB renders as a raw
+    // block above the plugin's own settings screen. Copy them once; from the
+    // next load the fields are no longer registered and the block disappears.
+    let legacy: unknown = null;
+    try {
+      legacy = await bb.settings.define(legacyDescriptors).get();
+    } catch (e) {
+      bb.log.warn(`Legacy settings migration: ${String(e)}`);
+    }
+    shared = parseAgents(legacy);
+    saveAgents(shared);
+  }
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
   /** Where custom rules apply: the AGENTS.md files, BB sessions, or both. */
@@ -825,8 +879,7 @@ export default async function plugin(bb: BbPluginApi) {
       throw new Error("AGENTS.md changed. Reopen the rules before saving.");
   }
   async function seedAgents(folder: Folder, parent: Folder | null) {
-    const { agents_auto_create, agents_template, agents_custom } =
-      await settings.get();
+    const { agents_auto_create, agents_template, agents_custom } = shared;
     // A new section under the root is level 1; its subsections are level 2. Deeper levels get no rules.
     if (!agents_auto_create) return;
     if (parent !== null && folderLevel(parent) >= 2) return;
@@ -857,7 +910,7 @@ export default async function plugin(bb: BbPluginApi) {
   }
   async function seedProjectAgents(f: Folder) {
     const { agents_auto_create, agents_project_template, agents_custom } =
-      await settings.get();
+      shared;
     if (!agents_auto_create) return;
     // An existing AGENTS.md belongs to the user: adopt the project untouched.
     if ((await readAgents(f)) !== null) {
@@ -1672,7 +1725,7 @@ export default async function plugin(bb: BbPluginApi) {
       const p = path.join(f.path, "AGENTS.md");
       const folderOverride = input.folderId ? folderRule(f.id) : undefined;
       const projectOverride = projectRule(f.projectId);
-      const s = await settings.get();
+      const s = shared;
       let content: string | null = null;
       try {
         content = (
@@ -1822,7 +1875,7 @@ export default async function plugin(bb: BbPluginApi) {
       return { ok: true as const };
     },
     agents_config: async () => {
-      const s = await settings.get();
+      const s = shared;
       return {
         autoCreate: s.agents_auto_create,
         customTarget: s.agents_custom_target as RuleTarget,
@@ -1833,7 +1886,7 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
     agents_config_save: async (input) => {
-      const s = await settings.experimental_set({
+      const s = parseAgents({
         agents_auto_create: input.autoCreate,
         agents_template: input.template,
         agents_project_template: input.projectTemplate,
@@ -1841,7 +1894,7 @@ export default async function plugin(bb: BbPluginApi) {
         agents_custom_target: input.customTarget,
         agents_startup: input.startup,
       });
-      // The sync agent hook reads this copy; do not wait for the change event.
+      saveAgents(s);
       shared = s;
       return {
         autoCreate: s.agents_auto_create,
@@ -1901,7 +1954,7 @@ export default async function plugin(bb: BbPluginApi) {
       return { ok: true as const };
     },
     agents_apply: async () => {
-      const s = await settings.get();
+      const s = shared;
       const targets: { folder: Folder; template: string; custom: string }[] =
         [];
       // Folders kept on their own file are never stamped, here or on create.
