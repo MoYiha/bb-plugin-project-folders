@@ -8,89 +8,160 @@ import {
   DropdownMenuCheckboxItem,
 } from "./components/ui/dropdown-menu";
 import { Icon } from "./components/ui/icon";
-import { useSyncExternalStore } from "react";
 import { t } from "./i18n";
-import { parseSettings, type ChatListSettings } from "./chat-list";
-const key = "project-folders:chat-list";
-function read() {
-  try {
-    return localStorage.getItem(key) || "";
-  } catch {
-    return "";
-  }
-}
-function subscribe(listener: () => void) {
-  window.addEventListener("storage", listener);
-  window.addEventListener(key, listener);
-  return () => {
-    window.removeEventListener("storage", listener);
-    window.removeEventListener(key, listener);
-  };
-}
+import { usePrefs } from "./prefs-store";
+import type { Prefs } from "./preferences";
+
+type ChatList = Prefs["chatList"];
+/** Chat list settings, shared by every device through the plugin server. */
 export function useChatSettings() {
-  const raw = useSyncExternalStore(subscribe, read, () => "");
+  const { prefs, savePrefs } = usePrefs();
   return [
-    parseSettings(raw),
-    (patch: Partial<ChatListSettings>) => {
-      localStorage.setItem(
-        key,
-        JSON.stringify({ ...parseSettings(read()), ...patch }),
-      );
-      window.dispatchEvent(new Event(key));
-    },
+    prefs.chatList,
+    (patch: Partial<ChatList>) =>
+      void savePrefs({
+        ...prefs,
+        chatList: { ...prefs.chatList, ...patch },
+      }).catch(() => undefined),
   ] as const;
 }
-export function ChatSettings() {
-  const [settings, update] = useChatSettings();
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  integer = true,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  integer?: boolean;
+  onCommit: (value: number) => void;
+}) {
   return (
-    <div className="pf-chat-settings">
-      <label className="block text-sm">
-        {t("Сортировка чатов")}
-        <select
-          className="block w-full border rounded-md bg-background p-2 mt-1"
-          value={settings.sort}
-          onChange={(e) =>
-            update({ sort: e.target.value as ChatListSettings["sort"] })
-          }
-        >
-          <option value="activity">{t("По активности")}</option>
-          <option value="title">{t("По алфавиту")}</option>
-          <option value="created">{t("Сначала новые")}</option>
-        </select>
-      </label>
-      <label className="block text-sm">
-        {t("Чатов в каждом разделе")}
-        <input
-          className="block w-full border rounded-md bg-background p-2 mt-1"
-          type="number"
+    <label className="block text-sm">
+      {label}
+      <input
+        className="block w-full border rounded-md bg-background p-2 mt-1"
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={value}
+        key={value}
+        onBlur={(e) => {
+          const next = Number(e.target.value);
+          if (
+            Number.isFinite(next) &&
+            (!integer || Number.isInteger(next)) &&
+            next >= min &&
+            next <= max
+          ) {
+            if (next !== value) onCommit(next);
+          } else e.target.value = String(value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+      />
+    </label>
+  );
+}
+
+export function ChatSettings() {
+  const { prefs, savePrefs } = usePrefs();
+  const settings = prefs.chatList;
+  const update = (patch: Partial<ChatList>) =>
+    void savePrefs({ ...prefs, chatList: { ...settings, ...patch } }).catch(
+      () => undefined,
+    );
+  const view = (patch: Partial<Prefs["view"]>) =>
+    void savePrefs({ ...prefs, view: { ...prefs.view, ...patch } }).catch(
+      () => undefined,
+    );
+  return (
+    <>
+      <div className="pf-chat-settings">
+        <label className="block text-sm">
+          {t("Сортировка чатов")}
+          <select
+            className="block w-full border rounded-md bg-background p-2 mt-1"
+            value={settings.sort}
+            onChange={(e) =>
+              update({ sort: e.target.value as ChatList["sort"] })
+            }
+          >
+            <option value="activity">{t("По активности")}</option>
+            <option value="title">{t("По алфавиту")}</option>
+            <option value="created">{t("Сначала новые")}</option>
+          </select>
+        </label>
+        <NumberField
+          label={t("Чатов в каждом разделе")}
+          value={settings.limit}
           min={1}
           max={100}
-          defaultValue={settings.limit}
-          key={settings.limit}
-          onBlur={(e) => {
-            const limit = Number(e.target.value);
-            if (Number.isInteger(limit) && limit >= 1 && limit <= 100)
-              update({ limit });
-            else e.target.value = String(settings.limit);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-          }}
+          onCommit={(limit) => update({ limit })}
         />
-      </label>
-      <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+        <NumberField
+          label={t("Сворачивать разделы без активности, часов")}
+          value={settings.inactiveHours}
+          min={0.25}
+          max={720}
+          step={0.25}
+          integer={false}
+          onCommit={(inactiveHours) => update({ inactiveHours })}
+        />
+        <label className="block text-sm">
+          {t("Плотность списка")}
+          <select
+            className="block w-full border rounded-md bg-background p-2 mt-1"
+            value={prefs.view.density}
+            onChange={(e) =>
+              view({ density: e.target.value as Prefs["view"]["density"] })
+            }
+          >
+            <option value="comfortable">{t("Обычная")}</option>
+            <option value="compact">{t("Компактная")}</option>
+          </select>
+        </label>
+        <NumberField
+          label={t("Отступ вложенных разделов, px")}
+          value={prefs.view.indent}
+          min={0}
+          max={32}
+          onCommit={(indent) => view({ indent })}
+        />
+      </div>
+      <label className="flex items-center gap-2 text-sm cursor-pointer mt-3">
         <input
           type="checkbox"
           className="rounded border"
           checked={settings.autoCollapseInactive}
           onChange={(e) => update({ autoCollapseInactive: e.target.checked })}
         />
-        <span>{t("Сворачивать разделы без активности больше 2 часов")}</span>
+        <span>{t("Сворачивать неактивные разделы автоматически")}</span>
       </label>
-      <p className="text-xs text-muted-foreground">
-        {t("Закреплённые чаты сверху. Настройки сохраняются в этом браузере.")}
+      <label className="flex items-center gap-2 text-sm cursor-pointer mt-2">
+        <input
+          type="checkbox"
+          className="rounded border"
+          checked={settings.boldUnread}
+          onChange={(e) => update({ boldUnread: e.target.checked })}
+        />
+        <span>{t("Выделять жирным разделы с непрочитанными чатами")}</span>
+      </label>
+      <p className="text-xs text-muted-foreground mt-2">
+        {t(
+          "Закреплённые чаты сверху. Настройки общие для всех устройств; сортировку и число чатов можно изменить для отдельного раздела в его «Оформлении».",
+        )}
       </p>
-    </div>
+    </>
   );
 }
 
@@ -105,9 +176,7 @@ export function ChatSortMenu() {
       <DropdownMenuSubContent>
         <DropdownMenuRadioGroup
           value={settings.sort}
-          onValueChange={(sort) =>
-            update({ sort: sort as ChatListSettings["sort"] })
-          }
+          onValueChange={(sort) => update({ sort: sort as ChatList["sort"] })}
         >
           <DropdownMenuRadioItem value="activity">
             {t("По активности")}
@@ -126,7 +195,7 @@ export function ChatSortMenu() {
             update({ autoCollapseInactive: Boolean(checked) })
           }
         >
-          {t("Сворачивать неактивные (> 2 часов)")}
+          {t("Сворачивать неактивные разделы автоматически")}
         </DropdownMenuCheckboxItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>

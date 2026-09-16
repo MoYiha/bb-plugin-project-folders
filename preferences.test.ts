@@ -1,0 +1,98 @@
+import { describe, it, expect } from "vitest";
+import {
+  defaultPrefs,
+  exportPayload,
+  parseImport,
+  parseItemStyles,
+  parsePrefs,
+  presetAppearance,
+  projectColor,
+  resolveStyle,
+} from "./preferences";
+import { firstEmoji } from "./appearance";
+
+const folders = [
+  { id: "a", parentId: null, projectId: "p" },
+  { id: "b", parentId: "a", projectId: "p" },
+  { id: "c", parentId: "b", projectId: "p" },
+  { id: "d", parentId: "c", projectId: "p" },
+];
+const look = (prefs = defaultPrefs, items = {}, id: string | null = null) =>
+  resolveStyle({
+    prefs,
+    items,
+    folders,
+    projectId: "p",
+    folder: id ? folders.find((f) => f.id === id)! : null,
+  });
+
+describe("preferences", () => {
+  it("keeps valid fields and drops invalid ones one by one", () => {
+    const prefs = parsePrefs({
+      chatList: { sort: "title", limit: 500, inactiveHours: 6 },
+      view: { density: "compact" },
+      appearance: {
+        levels: { level1: { icon: "icon:Rocket", color: "nope", fill: "row" } },
+      },
+    });
+    expect(prefs.chatList.sort).toBe("title");
+    expect(prefs.chatList.limit).toBe(10);
+    expect(prefs.chatList.inactiveHours).toBe(6);
+    expect(prefs.view.density).toBe("compact");
+    expect(prefs.appearance.levels.level1).toEqual({
+      icon: "icon:Rocket",
+      fill: "row",
+    });
+    expect(parsePrefs("garbage")).toEqual(defaultPrefs);
+  });
+
+  it("uses level defaults, with level 3 covering deeper sections", () => {
+    const prefs = { ...defaultPrefs, appearance: presetAppearance("levels") };
+    expect(look(prefs).color).toBe("blue");
+    expect(look(prefs, {}, "a")).toMatchObject({ color: "violet", level: 1 });
+    expect(look(prefs, {}, "b").color).toBe("teal");
+    expect(look(prefs, {}, "d")).toMatchObject({ color: "amber", level: 4 });
+  });
+
+  it("applies an ancestor look to nested sections only when it cascades", () => {
+    const items = { "f:a": { icon: "emoji:🚀", color: "#ff0000" } };
+    expect(look(defaultPrefs, items, "a").icon).toBe("emoji:🚀");
+    expect(look(defaultPrefs, items, "b").icon).toBe("icon:Folder");
+    const cascading = {
+      "f:a": { icon: "emoji:🚀", color: "#ff0000", cascade: true, limit: 3 },
+      "f:c": { color: "green" },
+    };
+    expect(look(defaultPrefs, cascading, "b")).toMatchObject({
+      icon: "emoji:🚀",
+      color: "#ff0000",
+      limit: 3,
+    });
+    expect(look(defaultPrefs, cascading, "c").color).toBe("green");
+    expect(look(defaultPrefs, cascading, "d").color).toBe("#ff0000");
+  });
+
+  it("colors a whole project in project mode", () => {
+    const prefs = { ...defaultPrefs, appearance: presetAppearance("projects") };
+    expect(look(prefs, {}, "c").color).toBe(projectColor("p"));
+    expect(look(prefs, { "p:p": { color: "pink" } }, "c").color).toBe("pink");
+  });
+
+  it("round-trips an export and rejects foreign files", () => {
+    const items = parseItemStyles({
+      "f:a": { icon: "icon:Code" },
+      "x:bad": { icon: "icon:Code" },
+      "f:empty": {},
+    });
+    expect(Object.keys(items)).toEqual(["f:a"]);
+    const text = JSON.stringify(exportPayload(defaultPrefs, items));
+    expect(parseImport(text)).toEqual({ prefs: defaultPrefs, items });
+    expect(() => parseImport("{}")).toThrow();
+  });
+
+  it("accepts only emoji as custom glyphs", () => {
+    expect(firstEmoji("🚀 launch")).toBe("🚀");
+    expect(firstEmoji("👨‍👩‍👧")).toBe("👨‍👩‍👧");
+    expect(firstEmoji("abc")).toBeNull();
+    expect(firstEmoji("")).toBeNull();
+  });
+});

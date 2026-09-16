@@ -21,6 +21,13 @@ import {
   applyCustomBlock,
   readManagedBlock,
 } from "./agents-template";
+import {
+  itemStyleSchema,
+  parseItemStyles,
+  parsePrefs,
+  prefsSchema,
+  type ItemStyles,
+} from "./preferences";
 
 const defaultAgentsTemplate = `# Section rules
 
@@ -382,7 +389,38 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: z.string() }),
     output: z.object({ path: z.string() }),
   },
+  prefs_get: {
+    input: z.null(),
+    output: z.object({
+      prefs: prefsSchema,
+      items: z.record(z.string(), itemStyleSchema),
+      /** False until preferences were saved once; the app migrates browser values then. */
+      stored: z.boolean(),
+    }),
+  },
+  prefs_save: {
+    input: z.object({
+      prefs: prefsSchema,
+      /** Replaces every per-item look when present (import, reset). */
+      items: z.record(z.string(), itemStyleSchema).optional(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  item_style_save: {
+    input: z.object({
+      key: z.string().regex(/^[pf]:.{1,200}$/),
+      style: itemStyleSchema.nullable(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
 });
+const safeJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
 const withinTree = (p: string, r: string) =>
   p === r || p.startsWith(r.endsWith(path.sep) ? r : r + path.sep);
 export function resolveFolderPath(root: string, relative: string) {
@@ -482,6 +520,9 @@ export default async function plugin(bb: BbPluginApi) {
     `ALTER TABLE project_rules ADD COLUMN startup TEXT NOT NULL DEFAULT ''`,
     // Section relocations: one persisted barrier per folder for retry after a failure.
     `CREATE TABLE section_moves (folderId TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    // Shared UI preferences and per-project/section looks (key p:<project> or f:<folder>).
+    `CREATE TABLE preferences (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    `CREATE TABLE item_styles (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   const folders = () =>
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
@@ -912,9 +953,7 @@ export default async function plugin(bb: BbPluginApi) {
           f.hostId === env.hostId &&
           f.path === canonicalPath(env.hostId, env.path ?? ""),
       ) ??
-      (root?.path === canonicalPath(env.hostId, env.path ?? "")
-        ? root
-        : null);
+      (root?.path === canonicalPath(env.hostId, env.path ?? "") ? root : null);
     if (!f)
       throw new Error("The chat working folder is not registered in the tree.");
     return { t, f };
@@ -1070,6 +1109,7 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare("DELETE FROM folders WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM project_order WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM project_rules WHERE projectId=?").run(projectId);
+    db.prepare("DELETE FROM item_styles WHERE key=?").run(`p:${projectId}`);
     db.prepare(
       "DELETE FROM folder_rules WHERE folderId NOT IN (SELECT id FROM folders)",
     ).run();
@@ -2016,6 +2056,52 @@ export default async function plugin(bb: BbPluginApi) {
       return { id: t.id };
     },
     sync: ({ threadId }) => sync(threadId),
+    prefs_get: () => {
+      const row = db
+        .prepare("SELECT data FROM preferences WHERE key='ui'")
+        .get() as { data: string } | undefined;
+      const items: ItemStyles = {};
+      for (const r of db.prepare("SELECT key, data FROM item_styles").all() as {
+        key: string;
+        data: string;
+      }[]) {
+        try {
+          items[r.key] = JSON.parse(r.data);
+        } catch {}
+      }
+      return {
+        prefs: parsePrefs(row ? safeJson(row.data) : null),
+        items: parseItemStyles(items),
+        stored: !!row,
+      };
+    },
+    prefs_save: ({ prefs, items }) => {
+      db.transaction(() => {
+        db.prepare(
+          "INSERT INTO preferences (key, data) VALUES ('ui', ?) ON CONFLICT(key) DO UPDATE SET data=excluded.data",
+        ).run(JSON.stringify(prefs));
+        if (items) {
+          db.prepare("DELETE FROM item_styles").run();
+          for (const [key, style] of Object.entries(parseItemStyles(items)))
+            db.prepare("INSERT INTO item_styles (key, data) VALUES (?, ?)").run(
+              key,
+              JSON.stringify(style),
+            );
+        }
+      })();
+      bb.realtime.publish("prefs", {});
+      return { ok: true as const };
+    },
+    item_style_save: ({ key, style }) => {
+      const clean = style ? parseItemStyles({ [key]: style })[key] : undefined;
+      if (clean)
+        db.prepare(
+          "INSERT INTO item_styles (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data=excluded.data",
+        ).run(key, JSON.stringify(clean));
+      else db.prepare("DELETE FROM item_styles WHERE key=?").run(key);
+      bb.realtime.publish("prefs", {});
+      return { ok: true as const };
+    },
   };
   bb.rpc.register(rpcContract, handlers);
   bb.agents.configure((ctx) => {

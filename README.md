@@ -94,9 +94,15 @@ The composer integrates a project/section tree into the project control beneath 
 
 ## Sort and shorten chat lists
 
-Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **Settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section. Sections with no chat activity for more than 2 hours are automatically collapsed to keep the tree clean (toggleable in settings and in the section menu).
+Open the project or section **⋯ → Chat sorting** menu to change the order. The display limit is available under **Settings** on the management page. Sort chats by recent activity (default), name, or creation time. Pinned chats remain first; activity uses BB's update and attention timestamps, so a new message or attention event can move a chat up within its project or section. Sections with no chat activity for a while (2 hours by default, adjustable) are automatically collapsed to keep the tree clean (toggleable in settings and in the section menu).
 
-Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are saved in the current browser and update open plugin views immediately.
+Each project or section shows up to **10 chats** initially. Set any limit from 1 to 100. **Show all** expands only that list; **Show fewer** restores the limit. The same limit applies separately to project-root chats, each nested section and chats without a project. Settings are stored on the BB server, so every device shows the same values, and open plugin views update immediately. A section can override the sort order and the limit in its **Appearance** dialog.
+
+## One settings screen, your own look
+
+The management page and the plugin page in BB settings show the same settings in four tabs: **Chat list** (sorting, limit, auto-collapse threshold, bold unread sections, density, indent), **Appearance**, **AGENTS.md rules** and **Import & export**.
+
+**Appearance** sets an icon, a color and a fill for projects and for sections of levels 1, 2 and 3+. Icons come from a curated Hugeicons set with search, or any emoji. Colors are twelve theme-friendly swatches or a custom color; fills are none, an icon badge, a left stripe or a row background. Presets apply a whole look in one click: **Standard**, **Monochrome**, **By level** and **By project** — in the last one every section takes the color of its project. Any project or section can get its own look from **⋯ → Appearance**, optionally applied to all nested sections without their own. **Import & export** saves the whole setup to a JSON file.
 
 ## Files and chat history
 

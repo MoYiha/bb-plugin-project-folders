@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- **One settings screen**: the management page and the plugin page in BB settings now render the same settings in four tabs — Chat list, Appearance, AGENTS.md rules, Import & export. Chat list settings moved from the browser to the BB server, so every device shows the same values; the old browser values are migrated on first load.
+- **Appearance**: icon, color and fill per level (projects, sections of levels 1, 2 and 3+). A curated Hugeicons set with search or any emoji; twelve theme-friendly colors or a custom one; no fill, icon badge, left stripe or row background. Presets: Standard, Monochrome, By level, By project (sections take their project's color). Live preview.
+- **Per project and section look**: ⋯ → Appearance sets its own icon, color and fill, optionally cascading to nested sections, plus its own chat sort order and limit.
+- **More list settings**: adjustable auto-collapse threshold in hours, bold unread sections on/off, compact density and nested indent.
+- **Import & export** of all preferences and looks as JSON.
+
 ## 0.3.12
 
 - **Manual folder collapse**: manual collapse now takes immediate precedence even if a chat inside is active or an agent is working in the background. You can start a task in a chat and collapse the section while the agent runs.

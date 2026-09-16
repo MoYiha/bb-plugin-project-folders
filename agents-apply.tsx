@@ -386,7 +386,8 @@ export function RuleFields({
   );
 }
 
-export function AgentsTemplateSection() {
+/** How the managed block is written: shown above the shared rules editor. */
+export function AgentsMarkersHint() {
   return (
     <div className="pf-agents-section">
       <p className="pf-agents-hint">
@@ -399,7 +400,6 @@ export function AgentsTemplateSection() {
         {"\n···\n"}
         {AGENTS_BLOCK_END}
       </pre>
-      <AgentsApply />
     </div>
   );
 }

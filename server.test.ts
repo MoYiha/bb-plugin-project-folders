@@ -324,6 +324,46 @@ describe("project folder boundaries", () => {
 const agentsWrites = (h: Awaited<ReturnType<typeof setup>>) =>
   h.writes.filter((w) => String(w.path).endsWith("AGENTS.md"));
 
+describe("shared preferences", () => {
+  it("stores preferences and per-item looks for every device", async () => {
+    const h = await setup();
+    try {
+      const call = h.harness.behavior.callRpc;
+      const first = (await call("prefs_get", null)) as { stored: boolean };
+      expect(first.stored).toBe(false);
+      const prefs = (first as unknown as { prefs: Record<string, any> }).prefs;
+      prefs.chatList.limit = 25;
+      prefs.appearance.levels.project = { icon: "emoji:🚀", color: "blue" };
+      await call("prefs_save", { prefs });
+      await call("item_style_save", {
+        key: "f:x",
+        style: { color: "#00ff00", cascade: true },
+      });
+      await call("item_style_save", {
+        key: "p:p1",
+        style: { icon: "icon:Code" },
+      });
+      await call("item_style_save", { key: "p:p1", style: null });
+      const next = (await call("prefs_get", null)) as {
+        stored: boolean;
+        prefs: Record<string, any>;
+        items: Record<string, unknown>;
+      };
+      expect(next.stored).toBe(true);
+      expect(next.prefs.chatList.limit).toBe(25);
+      expect(next.prefs.appearance.levels.project.icon).toBe("emoji:🚀");
+      expect(next.items).toEqual({
+        "f:x": { color: "#00ff00", cascade: true },
+      });
+      await call("prefs_save", { prefs, items: {} });
+      expect(
+        ((await call("prefs_get", null)) as { items: object }).items,
+      ).toEqual({});
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});
 describe("AGENTS.md template", () => {
   const createSection = (h: Awaited<ReturnType<typeof setup>>, name: string) =>
     h.harness.behavior.callRpc("create", {

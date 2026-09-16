@@ -6,14 +6,15 @@ import {
   PendingSectionMoves,
   SectionMoveDialog,
 } from "./move-dialog";
-import { ChatSettings, ChatSortMenu, useChatSettings } from "./chat-settings";
+import { ChatSortMenu } from "./chat-settings";
+import { PluginSettings } from "./plugin-settings";
 import {
-  AgentsRulesEditor,
-  AgentsTemplateSection,
-  Help,
-  RuleFields,
-  type RuleDraft,
-} from "./agents-apply";
+  AppearanceDialog,
+  Glyph,
+  rowDecoration,
+  useFolderLook,
+} from "./appearance";
+import { Help, RuleFields, type RuleDraft } from "./agents-apply";
 import {
   sortChats,
   isSectionCollapsed,
@@ -1502,6 +1503,8 @@ function FolderHeading({
   unread = false,
   highlighted,
   rulesAllowed,
+  look,
+  onAppearance,
   onToggle,
   onNewChat,
   onDragOver,
@@ -1523,6 +1526,12 @@ function FolderHeading({
   unread?: boolean;
   highlighted: boolean;
   rulesAllowed: boolean;
+  look: {
+    icon: string;
+    color?: string;
+    fill: "none" | "badge" | "stripe" | "row";
+  };
+  onAppearance: () => void;
   onToggle: () => void;
   onNewChat: () => void;
   onDragOver: DragEventHandler<HTMLDivElement>;
@@ -1539,9 +1548,13 @@ function FolderHeading({
   onArchive: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const row = rowDecoration(look);
   return (
     <div
-      className={"pf-heading" + (highlighted ? " pf-drop-target" : "")}
+      className={
+        "pf-heading" + row.className + (highlighted ? " pf-drop-target" : "")
+      }
+      style={row.style}
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1560,7 +1573,7 @@ function FolderHeading({
           name={closed ? "ChevronRight" : "ChevronDown"}
           className="pf-chevron"
         />
-        <Icon name="Folder" />
+        <Glyph {...look} />
         <span>{folder.name}</span>
       </button>
       <button
@@ -1594,6 +1607,10 @@ function FolderHeading({
           <DropdownMenuItem onSelect={onConfigure}>
             <Icon name="SlidersHorizontal" />
             {t("Настройка")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onAppearance}>
+            <Icon name="Palette" />
+            {t("Оформление")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <ChatSortMenu />
@@ -1645,9 +1662,15 @@ function FolderHeading({
 }
 function Tree(props: PluginThreadListProps) {
   const language = useLanguage();
-  const [listSettings] = useChatSettings();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const { rpc, data, error, refresh } = useTree();
+  const { prefs, look } = useFolderLook(data.folders);
+  const listSettings = prefs.chatList;
+  const [styling, setStyling] = useState<{
+    projectId: string;
+    folder: Folder | null;
+    name: string;
+  } | null>(null);
   const { threads, projects, status } = experimental_useSidebarThreads();
   const environmentKey = threads.map((t) => t.environment?.id ?? "").join("|");
   useEffect(refresh, [environmentKey, refresh]);
@@ -1753,6 +1776,7 @@ function Tree(props: PluginThreadListProps) {
       record: collapseRecords[f.id],
       activeThreadId: props.activeThreadId,
       autoCollapseInactive: listSettings.autoCollapseInactive,
+      thresholdMs: listSettings.inactiveHours * 60 * 60 * 1000,
     });
 
   const isProjectClosed = (pId: string) => {
@@ -1779,11 +1803,14 @@ function Tree(props: PluginThreadListProps) {
   const visibleRoots = data.roots.filter(
     (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
   );
-  const rows = (ts: readonly PluginSidebarThread[], group: string) => {
-    const sorted = sortChats(ts, listSettings.sort, language);
-    const shown = expanded[group]
-      ? sorted
-      : sorted.slice(0, listSettings.limit);
+  const rows = (
+    ts: readonly PluginSidebarThread[],
+    group: string,
+    sort = listSettings.sort,
+    limit = listSettings.limit,
+  ) => {
+    const sorted = sortChats(ts, sort, language);
+    const shown = expanded[group] ? sorted : sorted.slice(0, limit);
     return (
       <>
         {shown.map((thread) => (
@@ -1802,7 +1829,7 @@ function Tree(props: PluginThreadListProps) {
             }}
           />
         ))}
-        {sorted.length > listSettings.limit && (
+        {sorted.length > limit && (
           <button
             className="pf-show-more"
             aria-expanded={!!expanded[group]}
@@ -1840,15 +1867,24 @@ function Tree(props: PluginThreadListProps) {
       bindings: data.bindings,
       threads,
     });
+    const folderLook = look(f.projectId, root ? null : f);
     return (
       <div key={f.id} className={root ? "pf-project" : "pf-folder"}>
         <FolderHeading
           folder={f}
           root={root}
           closed={folderClosed}
-          unread={folderUnread}
+          unread={folderUnread && listSettings.boldUnread}
           highlighted={dropTarget === f.id}
           rulesAllowed={root || level <= 2}
+          look={folderLook}
+          onAppearance={() =>
+            setStyling({
+              projectId: f.projectId,
+              folder: root ? null : f,
+              name: f.name,
+            })
+          }
           onToggle={() => toggle(f.id, folderClosed)}
           onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
@@ -1914,14 +1950,20 @@ function Tree(props: PluginThreadListProps) {
         {!folderClosed && (
           <div className="pf-children">
             {children.map((c) => node(c, false, level + 1))}
-            {rows(ts, f.id)}
+            {rows(ts, f.id, folderLook.sort, folderLook.limit)}
           </div>
         )}
       </div>
     );
   };
   return (
-    <div className="pf pf-tree" dir={direction()}>
+    <div
+      className={
+        "pf pf-tree" + (prefs.view.density === "compact" ? " pf-compact" : "")
+      }
+      style={{ "--pf-indent": `${prefs.view.indent}px` } as React.CSSProperties}
+      dir={direction()}
+    >
       <Button
         variant="ghost"
         className="mb-2 w-full justify-start"
@@ -1951,9 +1993,7 @@ function Tree(props: PluginThreadListProps) {
                   className={"pf-label" + (projectUnread ? " pf-unread" : "")}
                   onClick={() => toggle(p.id, projectClosed)}
                 >
-                  <Icon
-                    name={projectClosed ? "ChevronRight" : "ChevronDown"}
-                  />
+                  <Icon name={projectClosed ? "ChevronRight" : "ChevronDown"} />
                   <span>{p.isPersonal ? t("Без проекта") : p.name}</span>
                 </button>
                 <button
@@ -2134,6 +2174,11 @@ function Tree(props: PluginThreadListProps) {
         onClose={() => setModal(null)}
         onCreated={refresh}
       />
+      <AppearanceDialog
+        target={styling}
+        folders={data.folders}
+        onClose={() => setStyling(null)}
+      />
     </div>
   );
 }
@@ -2257,6 +2302,12 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
   const [movingSection, setMovingSection] = useState<Folder | null>(null);
   const [copyRoot, setCopyRoot] = useState<Folder | null>(null);
+  const { look } = useFolderLook(data.folders);
+  const [styling, setStyling] = useState<{
+    projectId: string;
+    folder: Folder | null;
+    name: string;
+  } | null>(null);
   /** Device preselected in the working-copies dialog, when it opens from a free tab. */
   const [copyHost, setCopyHost] = useState<string | null>(null);
   /** Device tab in the project card; null = the selected root's own device. */
@@ -2438,14 +2489,18 @@ function Panel({ subPath }: PluginNavPanelProps) {
       if (other) reorder(scope, key, other);
     };
     const dropHere = dropKey?.key === key ? dropKey.pos : null;
+    const folderLook = look(f.projectId, root ? null : f);
+    const row = rowDecoration(folderLook);
     return (
       <div key={key} className={root ? "pf-side-project" : undefined}>
         <div
           className={
             "pf-side-row" +
+            row.className +
             (selectedKey === key ? " pf-selected" : "") +
             (dropHere ? ` pf-drop-${dropHere}` : "")
           }
+          style={row.style}
           draggable
           onDragStart={(event) => {
             event.dataTransfer.setData("text/plain", key);
@@ -2498,7 +2553,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
             title={f.path}
             onClick={() => setSelectedKey(key)}
           >
-            <Icon name="Folder" />
+            <Glyph {...folderLook} />
             <span>{f.name}</span>
           </button>
           <DropdownMenu
@@ -2538,6 +2593,18 @@ function Panel({ subPath }: PluginNavPanelProps) {
               <DropdownMenuItem onSelect={() => setSelectedKey(key)}>
                 <Icon name="SlidersHorizontal" />
                 {t("Настройка")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  setStyling({
+                    projectId: f.projectId,
+                    folder: root ? null : f,
+                    name: f.name,
+                  })
+                }
+              >
+                <Icon name="Palette" />
+                {t("Оформление")}
               </DropdownMenuItem>
               {root && (
                 <DropdownMenuItem onSelect={() => setNewProject(true)}>
@@ -3054,6 +3121,21 @@ function Panel({ subPath }: PluginNavPanelProps) {
           <Icon name="Edit" />
           {t("Переименовать")}
         </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="pf-ghost-muted"
+          onClick={() =>
+            setStyling({
+              projectId: sel.projectId,
+              folder: selRoot ? null : sel,
+              name: sel.name,
+            })
+          }
+        >
+          <Icon name="Palette" />
+          {t("Оформление")}
+        </Button>
         {!selRoot && (
           <Button
             size="sm"
@@ -3293,16 +3375,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
                   )}
                 </p>
               )}
-              <ChatSettings />
-              <div className="pf-agents-rule">
-                <h3>{t("Правила AGENTS.md по умолчанию")}</h3>
-                <p className="pf-agents-hint">
-                  {t(
-                    "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.",
-                  )}
-                </p>
-                <AgentsRulesEditor />
-              </div>
+              <PluginSettings idPrefix="pf-panel-settings" />
             </section>
           )}
           <PendingMoves />
@@ -3336,6 +3409,11 @@ function Panel({ subPath }: PluginNavPanelProps) {
         onClose={() => setModal(null)}
         onCreated={refresh}
       />
+      <AppearanceDialog
+        target={styling}
+        folders={data.folders}
+        onClose={() => setStyling(null)}
+      />
       <CopiesDialog
         root={copyRoot}
         presetHost={copyHost}
@@ -3346,6 +3424,14 @@ function Panel({ subPath }: PluginNavPanelProps) {
         onClose={() => setCopyRoot(null)}
         onChanged={refresh}
       />
+    </div>
+  );
+}
+function SettingsSection() {
+  useLanguage();
+  return (
+    <div className="pf" dir={direction()}>
+      <PluginSettings idPrefix="pf-bb-settings" />
     </div>
   );
 }
@@ -3369,11 +3455,11 @@ export default definePluginApp((app) => {
     component: Panel,
   });
   app.slots.settingsSection({
-    id: "agents-template",
-    title: t("Правила AGENTS.md по умолчанию"),
+    id: "settings",
+    title: t("Общие настройки"),
     description: t(
-      "Текст, который вписывается в конец AGENTS.md новых разделов; шаблон меняется в настройках плагина.",
+      "Те же настройки, что на странице «Проекты и разделы»: список чатов, оформление, правила AGENTS.md, импорт и экспорт.",
     ),
-    component: AgentsTemplateSection,
+    component: SettingsSection,
   });
 });

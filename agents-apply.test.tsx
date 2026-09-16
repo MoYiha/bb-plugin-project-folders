@@ -14,10 +14,30 @@ beforeAll(async () => {
 });
 afterEach(cleanup);
 
-it("exposes the default AGENTS.md rules section with the managed markers", async () => {
+const agentsConfig = () => ({
+  autoCreate: true,
+  customTarget: "file",
+  startup: "",
+  template: "",
+  projectTemplate: "",
+  custom: "",
+});
+const openRules = async (view: ReturnType<typeof renderSlot>) =>
+  fireEvent.click(await view.findByRole("tab", { name: "AGENTS.md rules" }));
+
+it("exposes the shared settings with the AGENTS.md rules and managed markers", async () => {
   expect(app.settingsSections).toHaveLength(1);
-  expect(app.settingsSections[0]!.id).toBe("agents-template");
-  const view = renderSlot(app.settingsSections[0]!, {}, { rpc: {} });
+  expect(app.settingsSections[0]!.id).toBe("settings");
+  const view = renderSlot(
+    app.settingsSections[0]!,
+    {},
+    {
+      rpc: { agents_config: agentsConfig },
+    },
+  );
+  expect(await view.findByRole("tab", { name: "Chat list" })).toBeTruthy();
+  expect(view.getByRole("tab", { name: "Appearance" })).toBeTruthy();
+  await openRules(view);
   expect(
     await view.findByText(/Projects get the project template/),
   ).toBeTruthy();
@@ -29,14 +49,20 @@ it("exposes the default AGENTS.md rules section with the managed markers", async
 
 it("applies the template through rpc and reports the outcome", async () => {
   let calls = 0;
-  const view = renderSlot(app.settingsSections[0]!, {}, {
-    rpc: {
-      agents_apply: () => {
-        calls++;
-        return { updated: 2, unchanged: 1, failed: 0, error: null };
+  const view = renderSlot(
+    app.settingsSections[0]!,
+    {},
+    {
+      rpc: {
+        agents_config: agentsConfig,
+        agents_apply: () => {
+          calls++;
+          return { updated: 2, unchanged: 1, failed: 0, error: null };
+        },
       },
     },
-  });
+  );
+  await openRules(view);
   fireEvent.click(
     await view.findByRole("button", { name: /Apply to existing sections/ }),
   );
@@ -49,13 +75,19 @@ it("applies the template through rpc and reports the outcome", async () => {
 });
 
 it("shows rpc failures instead of a fake success", async () => {
-  const view = renderSlot(app.settingsSections[0]!, {}, {
-    rpc: {
-      agents_apply: () => {
-        throw new Error("the device is offline");
+  const view = renderSlot(
+    app.settingsSections[0]!,
+    {},
+    {
+      rpc: {
+        agents_config: agentsConfig,
+        agents_apply: () => {
+          throw new Error("the device is offline");
+        },
       },
     },
-  });
+  );
+  await openRules(view);
   fireEvent.click(
     await view.findByRole("button", { name: /Apply to existing sections/ }),
   );
