@@ -34,6 +34,8 @@ export function makeSectionMoves(
     pendingArchives: (projectId: string) => boolean;
     busyProjectMoves: (projectId: string) => boolean;
     canonical: (hostId: string, p: string) => string;
+    /** A section outside its tree parent may also move outside the project folder. */
+    detached?: (folder: Folder) => Promise<boolean>;
   },
 ) {
   const db = bb.storage.database();
@@ -120,12 +122,13 @@ export function makeSectionMoves(
           );
       }
       const projects = await bb.sdk.projects.list();
+      const free = (await deps.detached?.(folder)) ?? false;
       for (const p of projects)
         for (const s of p.sources) {
           if (s.type !== "local_path" || s.hostId !== folder.hostId) continue;
           if (p.id === folder.projectId) {
             if (
-              !within(destination, s.path) ||
+              (!free && !within(destination, s.path)) ||
               within(s.path, destination)
             )
               throw new Error(

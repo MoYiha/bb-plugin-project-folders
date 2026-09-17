@@ -1628,3 +1628,195 @@ describe("repointing a copy to a new path", () => {
     }
   });
 });
+
+describe("sections on another device inside a group", () => {
+  type F = {
+    id: string;
+    parentId: string | null;
+    path: string;
+    hostId: string;
+  };
+  async function clientTree() {
+    const { h } = await twoDeviceSetup();
+    const call = h.harness.behavior.callRpc;
+    await call("copy_add", {
+      projectId: "p1",
+      hostId: "h2",
+      path: "/home/u/clients",
+    });
+    const client = (await call("create", {
+      projectId: "p1",
+      folderId: null,
+      hostId: "h1",
+      name: "client.com",
+      relativePath: "client.com",
+    })) as F;
+    const dev = (await call("group_create", {
+      projectId: "p1",
+      folderId: client.id,
+      name: "Development",
+    })) as F;
+    return { h, call, client, dev };
+  }
+
+  it("offers every device with a project folder and creates the section there", async () => {
+    const { h, call, dev } = await clientTree();
+    try {
+      const { locations } = (await call("locations", {
+        projectId: "p1",
+        folderId: dev.id,
+      })) as {
+        locations: {
+          hostId: string;
+          path: string | null;
+          available: boolean;
+        }[];
+      };
+      expect(locations).toEqual([
+        expect.objectContaining({
+          hostId: "h1",
+          path: "/work/client.com",
+          available: true,
+        }),
+        expect.objectContaining({
+          hostId: "h2",
+          path: "/home/u/clients",
+          available: true,
+        }),
+      ]);
+      const site = (await call("create", {
+        projectId: "p1",
+        folderId: dev.id,
+        hostId: "h2",
+        name: "Sites",
+        relativePath: "client.com",
+      })) as F;
+      expect(site).toMatchObject({
+        hostId: "h2",
+        parentId: dev.id,
+        path: "/home/u/clients/client.com",
+      });
+      // An absolute path inside the device folder is the same as a relative one.
+      const docs = (await call("create", {
+        projectId: "p1",
+        folderId: dev.id,
+        hostId: "h2",
+        name: "Docs",
+        relativePath: "/home/u/clients/docs",
+      })) as F;
+      expect(docs.path).toBe("/home/u/clients/docs");
+      // A section still keeps its own children on its device.
+      const client = (await call("list", null)) as { folders: F[] };
+      const mac = client.folders.find((f) => f.path === "/work/client.com")!;
+      await expect(
+        call("create", {
+          projectId: "p1",
+          folderId: mac.id,
+          hostId: "h2",
+          name: "Nope",
+          relativePath: "nope",
+        }),
+      ).rejects.toThrow(/parent folder’s device/);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("points a section at any folder on the device and keeps its files on archive", async () => {
+    const { h, call, client, dev } = await clientTree();
+    try {
+      const site = (await call("create", {
+        projectId: "p1",
+        folderId: dev.id,
+        hostId: "h2",
+        name: "Sites",
+        relativePath: "/home/u/sites/client_com/",
+      })) as F;
+      expect(site).toMatchObject({
+        hostId: "h2",
+        path: "/home/u/sites/client_com",
+      });
+      expect(
+        h.writes.some(
+          (w) =>
+            w.hostId === "h2" &&
+            w.path === "/home/u/sites/client_com" &&
+            !("rootPath" in w),
+        ),
+      ).toBe(true);
+      for (const [relativePath, error] of [
+        ["/", /disk root/],
+        ["/home/u/sites/client_com/admin", /inside another section/],
+        ["/home/u/sites", /inside another section/],
+        ["/home/u", /overlaps the project folder/],
+        ["/home/u/sites/.git", /reserved/],
+      ] as const)
+        await expect(
+          call("create", {
+            projectId: "p1",
+            folderId: dev.id,
+            hostId: "h2",
+            name: "Bad",
+            relativePath,
+          }),
+        ).rejects.toThrow(error);
+
+      // The Mac section cannot be archived while the server section hangs below it.
+      h.harness.inspection.sdk.stub("threads.list", async () => []);
+      h.harness.inspection.sdk.stub("environments.list", async () => []);
+      const moves: unknown[] = [];
+      h.harness.inspection.sdk.stub("files.move", async (args) => {
+        moves.push(args);
+        return {} as never;
+      });
+      h.harness.inspection.sdk.stub("hosts.pathsExist", async (args) => ({
+        existence: Object.fromEntries(
+          (args as { paths: string[] }).paths.map((p) => [
+            p,
+            !p.includes(".bb/archive"),
+          ]),
+        ),
+      }));
+      await expect(call("archive", { folderId: client.id })).rejects.toThrow(
+        /another device or outside its folder/,
+      );
+
+      // The server section can move to any group of the project.
+      const other = (await call("group_create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Servers",
+      })) as F;
+      await call("section_reparent", { folderId: site.id, parentId: other.id });
+      let list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.find((f) => f.id === site.id)?.parentId).toBe(
+        other.id,
+      );
+
+      const archived = (await call("archive", { folderId: site.id })) as {
+        id: string;
+        external?: boolean;
+        archivePath: string;
+      };
+      expect(archived.external).toBe(true);
+      expect(archived.archivePath).toBe("/home/u/sites/client_com");
+      expect(moves).toHaveLength(0);
+      list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.some((f) => f.id === site.id)).toBe(false);
+
+      h.harness.inspection.sdk.stub("hosts.pathsExist", async (args) => ({
+        existence: Object.fromEntries(
+          (args as { paths: string[] }).paths.map((p) => [p, true]),
+        ),
+      }));
+      await call("restore", { id: archived.id });
+      expect(moves).toHaveLength(0);
+      list = (await call("list", null)) as { folders: F[] };
+      expect(list.folders.find((f) => f.id === site.id)?.path).toBe(
+        "/home/u/sites/client_com",
+      );
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});

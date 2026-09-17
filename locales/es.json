@@ -261,5 +261,8 @@
   "Переместить в группу…": "Mover a un grupo…",
   "Переместить": "Mover",
   "Подходящих групп нет. Создайте группу рядом с этим разделом.": "No hay grupos adecuados. Crea un grupo junto a esta sección.",
-  "Удалить группу": "Eliminar grupo"
+  "Удалить группу": "Eliminar grupo",
+  "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Las secciones de un grupo pueden crearse en cualquier dispositivo donde el proyecto tenga una carpeta.",
+  "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "También puedes elegir una carpeta fuera del proyecto, como la carpeta de un sitio web en un servidor.",
+  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Si la carpeta de la sección está fuera de la carpeta del proyecto, sus archivos se quedan en su sitio: solo se archivan los chats y el registro de la sección."
 }

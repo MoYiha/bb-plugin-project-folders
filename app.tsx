@@ -110,10 +110,51 @@ function anchorOf(folders: readonly Folder[], f: Folder | null | undefined) {
   }
   return cur ?? null;
 }
+/**
+ * A section whose folder is outside its tree parent: on another device or
+ * elsewhere on the disk. It can sit anywhere in its project's tree.
+ */
+function isDetached(
+  folders: readonly Folder[],
+  roots: readonly Folder[],
+  f: Folder,
+) {
+  if (isGroupFolder(f)) return false;
+  const parent = f.parentId ? folders.find((x) => x.id === f.parentId) : null;
+  const base =
+    anchorOf(folders, parent) ??
+    roots.find((r) => r.projectId === f.projectId && r.hostId === f.hostId);
+  return (
+    !base ||
+    base.hostId !== f.hostId ||
+    !(
+      f.path === base.path ||
+      f.path.startsWith(base.path.replace(/\/$/, "") + "/")
+    )
+  );
+}
+/** The device of a section when it differs from its place in the tree, else null. */
+function foreignHost(
+  folders: readonly Folder[],
+  roots: readonly Folder[],
+  f: Folder,
+) {
+  if (isGroupFolder(f)) return null;
+  const parent = f.parentId ? folders.find((x) => x.id === f.parentId) : null;
+  const host =
+    anchorOf(folders, parent)?.hostId ??
+    roots.find((r) => r.projectId === f.projectId)?.hostId;
+  return host && host !== f.hostId ? f.hostId : null;
+}
 /** Where a section or group can go by changing only its place in the tree. */
-function reparentTargets(folders: readonly Folder[], f: Folder) {
+function reparentTargets(
+  folders: readonly Folder[],
+  f: Folder,
+  roots: readonly Folder[],
+) {
   const parent = f.parentId ? folders.find((x) => x.id === f.parentId) : null;
   const anchor = anchorOf(folders, parent);
+  const free = isDetached(folders, roots, f);
   const inside = (node: Folder) => {
     const visited = new Set<string>();
     for (
@@ -145,25 +186,30 @@ function reparentTargets(folders: readonly Folder[], f: Folder) {
   };
   const groups = folders.filter(
     (g) =>
-      isGroupFolder(g) &&
       g.projectId === f.projectId &&
-      (anchor ? g.hostId === f.hostId : true) &&
-      anchorOf(folders, g)?.id === anchor?.id &&
-      !inside(g),
+      !inside(g) &&
+      (free ||
+        (isGroupFolder(g) &&
+          (anchor ? g.hostId === f.hostId : true) &&
+          anchorOf(folders, g)?.id === anchor?.id)),
   );
   return [
-    { id: anchor?.id ?? null, label: anchor ? label(anchor) : null },
+    free
+      ? { id: null, label: null }
+      : { id: anchor?.id ?? null, label: anchor ? label(anchor) : null },
     ...groups.map((g) => ({ id: g.id as string | null, label: label(g) })),
   ].filter((x) => x.id !== (f.parentId ?? null));
 }
 function MoveToGroupDialog({
   folder,
   folders,
+  roots,
   onClose,
   onMoved,
 }: {
   folder: Folder | null;
   folders: readonly Folder[];
+  roots: readonly Folder[];
   onClose: () => void;
   onMoved: () => void;
 }) {
@@ -176,7 +222,7 @@ function MoveToGroupDialog({
     setError("");
   }, [folder?.id]);
   if (!folder) return null;
-  const targets = reparentTargets(folders, folder);
+  const targets = reparentTargets(folders, folder, roots);
   const save = async () => {
     if (choice === undefined) return;
     setBusy(true);
@@ -306,8 +352,13 @@ function FolderDialog({
   const [name, setName] = useState("");
   const [relative, setRelative] = useState("");
   const [picked, setPicked] = useState(false);
+  /** The absolute folder open in the picker; null while the form is shown. */
   const [browse, setBrowse] = useState<string | null>(null);
-  const [dirs, setDirs] = useState<{ name: string; relative: string }[]>([]);
+  const [listing, setListing] = useState<{
+    path: string;
+    parent: string | null;
+    directories: { name: string; path: string }[];
+  } | null>(null);
   const [content, setContent] = useState("");
   const [claude, setClaude] = useState<string | null>(null);
   const [sha, setSha] = useState<string | null>(null);
@@ -406,13 +457,15 @@ function FolderDialog({
     );
   }, [modal]);
   useEffect(() => {
-    if (browse === null || !modal) return;
+    if (browse === null || !modal || !hostId) return;
     let live = true;
     setLoading(true);
-    rpc.call("browse", { ...modal.target, hostId, relative: browse }).then(
+    setListing(null);
+    rpc.call("project_browse", { hostId, path: browse }).then(
       (r) => {
         if (live) {
-          setDirs(r.directories);
+          setListing(r);
+          setError("");
           setLoading(false);
         }
       },
@@ -427,6 +480,14 @@ function FolderDialog({
       live = false;
     };
   }, [browse, modal, rpc, hostId]);
+  const base = (folderPath ?? "").replace(/\/$/, "");
+  /** A picked folder inside the parent is kept relative; any other is absolute. */
+  const pickedPath = (p: string) =>
+    p.startsWith(base + "/") ? p.slice(base.length + 1) : p;
+  const sectionPath =
+    picked && relative.startsWith("/")
+      ? relative
+      : base + "/" + (picked ? relative : name);
   const save = async (allowFresh = false) => {
     if (!modal) return;
     setBusy(true);
@@ -589,44 +650,22 @@ function FolderDialog({
             <FolderBrowser
               key={hostId + browse}
               hostId={hostId}
-              path={
-                (folderPath ?? "").replace(/\/$/, "") +
-                (browse ? "/" + browse : "")
-              }
+              path={listing?.path ?? browse}
               parent={
-                browse
-                  ? (folderPath ?? "").replace(/\/$/, "") +
-                    "/" +
-                    browse.split("/").slice(0, -1).join("/")
-                  : null
+                listing
+                  ? listing.parent
+                  : browse.replace(/\/[^/]*\/?$/, "") ||
+                    (browse === "/" ? null : "/")
               }
-              directories={dirs.map((d) => ({
-                name: d.name,
-                path: (folderPath ?? "").replace(/\/$/, "") + "/" + d.relative,
-              }))}
+              directories={listing?.directories ?? []}
               loading={loading || busy}
-              navigate={(p) =>
-                setBrowse(
-                  p
-                    .slice((folderPath ?? "").replace(/\/$/, "").length)
-                    .replace(/^\//, ""),
-                )
-              }
+              navigate={setBrowse}
               refresh={() => {
-                if (modal) {
-                  setLoading(true);
-                  void rpc
-                    .call("browse", {
-                      ...modal.target,
-                      hostId,
-                      relative: browse,
-                    })
-                    .then(
-                      (r) => setDirs(r.directories),
-                      (e) => setError(String(e)),
-                    )
-                    .finally(() => setLoading(false));
-                }
+                setLoading(true);
+                void rpc
+                  .call("project_browse", { hostId, path: browse })
+                  .then(setListing, (e) => setError(String(e)))
+                  .finally(() => setLoading(false));
               }}
               onBusyChange={setBusy}
             />
@@ -639,11 +678,12 @@ function FolderDialog({
                 {t("Назад")}
               </Button>
               <Button
-                disabled={busy || !browse || loading}
+                disabled={busy || loading || !listing || listing.path === base}
                 onClick={() => {
-                  setRelative(browse);
+                  if (!listing) return;
+                  setRelative(pickedPath(listing.path));
                   setPicked(true);
-                  if (!name) setName(browse.split("/").at(-1) || "");
+                  if (!name) setName(listing.path.split("/").at(-1) || "");
                   setBrowse(null);
                 }}
               >
@@ -691,6 +731,9 @@ function FolderDialog({
               <p className="text-sm text-muted-foreground mb-3">
                 {t(
                   "Группа объединяет разделы в дереве и не создаёт папку. Разделы внутри неё создаются в ближайшей папке выше.",
+                )}{" "}
+                {t(
+                  "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.",
                 )}
               </p>
             )}
@@ -722,14 +765,18 @@ function FolderDialog({
                   <div className="pf-path-control">
                     <Input
                       readOnly
-                      value={folderPath + "/" + (picked ? relative : name)}
+                      value={sectionPath}
                       aria-label={t("Папка раздела")}
                     />
                     <Button
                       type="button"
                       variant="outline"
                       aria-label={t("Выбрать папку")}
-                      onClick={() => setBrowse("")}
+                      disabled={!selectedLocation?.path}
+                      onClick={() => {
+                        setListing(null);
+                        setBrowse(base);
+                      }}
                     >
                       <Icon name="Folder" />
                     </Button>
@@ -738,6 +785,9 @@ function FolderDialog({
                 <p className="text-sm text-muted-foreground mb-4">
                   {t(
                     "Новая папка создастся по названию раздела. Кнопка папки позволяет выбрать существующую.",
+                  )}{" "}
+                  {t(
+                    "Папку можно выбрать и вне проекта, например папку сайта на сервере.",
                   )}
                 </p>
                 {picked && (
@@ -825,6 +875,9 @@ function FolderDialog({
               <p className="text-sm mb-4">
                 {t(
                   "Папка вместе с вложенными разделами, правилами и историей переместится в скрытый архив проекта .bb/archive/sections/. Чаты будут архивированы. Всё можно восстановить на странице «Проекты и разделы».",
+                )}{" "}
+                {t(
+                  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.",
                 )}
               </p>
             )}
@@ -1701,6 +1754,7 @@ function FolderHeading({
   rulesAllowed,
   look,
   group = false,
+  device,
   onAppearance,
   onNewGroup,
   onMoveToGroup,
@@ -1732,6 +1786,8 @@ function FolderHeading({
     fill: "none" | "badge" | "stripe" | "row";
   };
   group?: boolean;
+  /** Shown next to the name when the section lives on another device. */
+  device?: string;
   onAppearance: () => void;
   onNewGroup: () => void;
   onMoveToGroup?: () => void;
@@ -1779,6 +1835,7 @@ function FolderHeading({
         />
         <Glyph {...look} />
         <span>{folder.name}</span>
+        {device && <span className="pf-host-badge">{device}</span>}
       </button>
       {!group && (
         <button
@@ -2124,11 +2181,17 @@ function Tree(props: PluginThreadListProps) {
           rulesAllowed={root || (!group && level <= 2)}
           look={folderLook}
           group={group}
+          device={(() => {
+            const host = root ? null : foreignHost(data.folders, data.roots, f);
+            return host
+              ? (data.machines.find((m) => m.id === host)?.name ?? host)
+              : undefined;
+          })()}
           onNewGroup={() =>
             setModal({ action: "group", target, folder: f, level })
           }
           onMoveToGroup={
-            !root && reparentTargets(data.folders, f).length
+            !root && reparentTargets(data.folders, f, data.roots).length
               ? () => setRegrouping(f)
               : undefined
           }
@@ -2438,6 +2501,7 @@ function Tree(props: PluginThreadListProps) {
       <MoveToGroupDialog
         folder={regrouping}
         folders={data.folders}
+        roots={data.roots}
         onClose={() => setRegrouping(null)}
         onMoved={refresh}
       />
@@ -2704,8 +2768,12 @@ function Panel({ subPath }: PluginNavPanelProps) {
         .filter(
           (c) =>
             c.projectId === r.projectId &&
-            // Project-level groups are shared by every copy; their sections still belong to one device.
-            (c.hostId === hostId || isGroupFolder(c)) &&
+            // Project-level groups are shared by every copy; their sections still
+            // belong to one device. Below a section, a group may hold sections
+            // on any device, so everything under it is listed.
+            (c.hostId === hostId ||
+              isGroupFolder(c) ||
+              (depth > 0 && anchorOf(data.folders, r) !== null)) &&
             c.parentId === (depth === 0 ? null : r.id),
         )
         .map((c) => sectionMenu(c, depth + 1, hostId))}
@@ -2787,7 +2855,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
     const canNest =
       !!dragged &&
       dragged.id !== f.id &&
-      reparentTargets(data.folders, dragged).some(
+      reparentTargets(data.folders, dragged, data.roots).some(
         (x) =>
           x.id === (root ? null : f.id) &&
           (root ? f.projectId === dragged.projectId : true),
@@ -2967,12 +3035,13 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 <Icon name="Edit" />
                 {t("Переименовать")}
               </DropdownMenuItem>
-              {!root && reparentTargets(data.folders, f).length > 0 && (
-                <DropdownMenuItem onSelect={() => setRegrouping(f)}>
-                  <Icon name="MoveTo" />
-                  {t("Переместить в группу…")}
-                </DropdownMenuItem>
-              )}
+              {!root &&
+                reparentTargets(data.folders, f, data.roots).length > 0 && (
+                  <DropdownMenuItem onSelect={() => setRegrouping(f)}>
+                    <Icon name="MoveTo" />
+                    {t("Переместить в группу…")}
+                  </DropdownMenuItem>
+                )}
               {!root && !group && (
                 <DropdownMenuItem onSelect={() => setMovingSection(f)}>
                   <Icon name="FolderExport" />
@@ -3385,7 +3454,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
           <Icon name="Palette" />
           {t("Оформление")}
         </Button>
-        {reparentTargets(data.folders, sel).length > 0 && (
+        {reparentTargets(data.folders, sel, data.roots).length > 0 && (
           <Button
             size="sm"
             variant="ghost"
@@ -3584,17 +3653,18 @@ function Panel({ subPath }: PluginNavPanelProps) {
               <Icon name="Palette" />
               {t("Оформление")}
             </Button>
-            {!selRoot && reparentTargets(data.folders, sel).length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="pf-ghost-muted"
-                onClick={() => setRegrouping(sel)}
-              >
-                <Icon name="MoveTo" />
-                {t("Переместить в группу…")}
-              </Button>
-            )}
+            {!selRoot &&
+              reparentTargets(data.folders, sel, data.roots).length > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="pf-ghost-muted"
+                  onClick={() => setRegrouping(sel)}
+                >
+                  <Icon name="MoveTo" />
+                  {t("Переместить в группу…")}
+                </Button>
+              )}
             {!selRoot && (
               <Button
                 size="sm"
@@ -3881,6 +3951,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
       <MoveToGroupDialog
         folder={regrouping}
         folders={data.folders}
+        roots={data.roots}
         onClose={() => setRegrouping(null)}
         onMoved={refresh}
       />

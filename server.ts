@@ -878,9 +878,8 @@ export default async function plugin(bb: BbPluginApi) {
       : (await roots()).find((f) => f.projectId === input.projectId);
     if (!f || f.projectId !== input.projectId)
       throw new Error("Section or project source not found.");
-    // A group at the project level belongs to no device: its sections can live on any copy.
-    const freeGroup = isGroup(f) && folderAnchor(f) === null;
-    if (input.hostId && f.hostId !== input.hostId && !freeGroup)
+    // A group only arranges the tree: its sections can live on any device copy.
+    if (input.hostId && f.hostId !== input.hostId && !isGroup(f))
       throw new Error("A nested section must use its parent folder’s device.");
     if (isGroup(f) && !options.allowGroup)
       throw new Error(
@@ -888,17 +887,76 @@ export default async function plugin(bb: BbPluginApi) {
       );
     return f;
   }
-  /** Where new folders under a tree node go: a group places them in its nearest real folder. */
+  /**
+   * Where new folders under a tree node go: a group places them in its nearest
+   * real folder, or in the project copy on another device picked for the section.
+   */
   async function folderBase(node: Folder, hostId?: string): Promise<Folder> {
     if (!isGroup(node)) return node;
-    return (
-      folderAnchor(node) ??
-      (await target({
-        projectId: node.projectId,
-        hostId: hostId ?? node.hostId,
-        folderId: null,
-      }))
-    );
+    const anchor = folderAnchor(node);
+    if (anchor && (!hostId || anchor.hostId === hostId)) return anchor;
+    return target({
+      projectId: node.projectId,
+      hostId: hostId ?? node.hostId,
+      folderId: null,
+    });
+  }
+  /**
+   * A section folder outside its tree parent: another device or a path outside
+   * the parent folder (a website on a server, for example). Such a section
+   * joins neither its parent's archive nor its moves.
+   */
+  async function detached(f: Folder): Promise<boolean> {
+    const parent = f.parentId
+      ? (folders().find((x) => x.id === f.parentId) ?? null)
+      : null;
+    const base =
+      folderAnchor(parent) ??
+      (await roots()).find(
+        (r) => r.projectId === f.projectId && r.hostId === f.hostId,
+      );
+    return !base || base.hostId !== f.hostId || !within(f.path, base.path);
+  }
+  /** An absolute section path on a device: not a project root, another section or a reserved folder. */
+  async function externalFolderPath(
+    projectId: string,
+    hostId: string,
+    input: string,
+  ) {
+    if (/[\x00-\x1f]/.test(input) || !path.isAbsolute(input))
+      throw new Error("Enter an absolute folder path.");
+    const p = path.resolve(input);
+    if (
+      p === path.parse(p).root ||
+      p.split(path.sep).some((s) => s === ".bb" || s === ".git")
+    )
+      throw new Error(
+        "Choose a folder, not the disk root; .bb and .git are reserved.",
+      );
+    for (const project of await bb.sdk.projects.list())
+      for (const s of project.sources)
+        if (
+          s.type === "local_path" &&
+          s.hostId === hostId &&
+          (within(p, s.path) || within(s.path, p))
+        )
+          throw new Error(
+            project.id === projectId
+              ? "The folder overlaps the project folder: choose one inside the parent section or fully outside the project."
+              : "Another BB project uses this folder.",
+          );
+    for (const f of folders())
+      if (
+        !isGroup(f) &&
+        f.hostId === hostId &&
+        (within(p, f.path) || within(f.path, p))
+      )
+        throw new Error(
+          f.path === p
+            ? "This path is already in the tree."
+            : "Choose a folder that is not inside another section and does not contain one.",
+        );
+    return p;
   }
   const changed = () => bb.realtime.publish("changed", {});
   const agentsFile = (f: Folder) => path.join(f.path, "AGENTS.md");
@@ -989,6 +1047,19 @@ export default async function plugin(bb: BbPluginApi) {
   async function create(input: z.infer<typeof createSchema>) {
     const node = await target(input, { allowGroup: true });
     const parent = await folderBase(node, input.hostId);
+    // An absolute path inside the parent is an ordinary subfolder; outside it
+    // the section points at a folder elsewhere on the device.
+    const absolute = path.isAbsolute(input.relativePath)
+      ? path.resolve(input.relativePath)
+      : null;
+    const external =
+      absolute !== null && !within(absolute, parent.path)
+        ? await externalFolderPath(parent.projectId, parent.hostId, absolute)
+        : null;
+    const relativePath =
+      absolute !== null && external === null
+        ? path.relative(parent.path, absolute)
+        : input.relativePath;
     if (archives.moving(parent.hostId, parent.path))
       throw new Error(
         "The section is moving. Try again after the operation finishes.",
@@ -1006,7 +1077,7 @@ export default async function plugin(bb: BbPluginApi) {
       hostId: parent.hostId,
       parentId: input.folderId,
       name: input.name,
-      path: resolveFolderPath(parent.path, input.relativePath),
+      path: external ?? resolveFolderPath(parent.path, relativePath),
       kind: "folder",
       sort:
         (
@@ -1032,7 +1103,7 @@ export default async function plugin(bb: BbPluginApi) {
     await bb.sdk.files.mkdir({
       hostId: folder.hostId,
       path: folder.path,
-      rootPath: parent.path,
+      ...(external ? {} : { rootPath: parent.path }),
       recursive: true,
     });
     await bb.sdk.files.mkdir({
@@ -1289,6 +1360,7 @@ export default async function plugin(bb: BbPluginApi) {
         ),
     busyProjectMoves: moves.busy,
     canonical: canonicalPath,
+    detached,
   });
   bb.experimental_hooks.on("message.dispatch", (ctx) => {
     if (threadMoves.blocked(ctx.thread.id))
@@ -1398,7 +1470,7 @@ export default async function plugin(bb: BbPluginApi) {
       changed();
       return { ok: true as const };
     },
-    section_reparent: ({ folderId, parentId }) => {
+    section_reparent: async ({ folderId, parentId }) => {
       const all = folders();
       const f = all.find((x) => x.id === folderId);
       if (!f) throw new Error("Section not found.");
@@ -1409,11 +1481,15 @@ export default async function plugin(bb: BbPluginApi) {
       const current = f.parentId
         ? (all.find((x) => x.id === f.parentId) ?? null)
         : null;
+      // A section whose folder is outside its tree parent is tied to no folder
+      // in the tree, so it can go to any group or section of the project.
+      const free = !isGroup(f) && (await detached(f));
       if (parent) {
         const anyDevice =
-          isGroup(parent) &&
-          folderAnchor(parent) === null &&
-          folderAnchor(current) === null;
+          free ||
+          (isGroup(parent) &&
+            folderAnchor(parent) === null &&
+            folderAnchor(current) === null);
         if (
           parent.projectId !== f.projectId ||
           (parent.hostId !== f.hostId && !anyDevice)
@@ -1432,7 +1508,10 @@ export default async function plugin(bb: BbPluginApi) {
             throw new Error("A section cannot go inside itself.");
       }
       // Only the place in the tree changes, so the folder containment must stay the same.
-      if (folderAnchor(current)?.id !== folderAnchor(parent ?? null)?.id)
+      if (
+        !free &&
+        folderAnchor(current)?.id !== folderAnchor(parent ?? null)?.id
+      )
         throw new Error(
           "Only the place in the tree changes: choose a group or section within the same parent folder.",
         );
@@ -1815,11 +1894,10 @@ export default async function plugin(bb: BbPluginApi) {
       const node = input.folderId
         ? await target(input, { allowGroup: true })
         : null;
-      // A project-level group offers every device, like the project root.
-      const parent =
-        node && !(isGroup(node) && folderAnchor(node) === null)
-          ? await folderBase(node)
-          : null;
+      // A section keeps its children on its device; a group offers every
+      // device: its own folder there, or the project copy on the others.
+      const parent = node && !isGroup(node) ? node : null;
+      const anchor = node && isGroup(node) ? folderAnchor(node) : null;
       return {
         locations: hosts.map((h) => {
           const source = project.sources.find(
@@ -1829,16 +1907,18 @@ export default async function plugin(bb: BbPluginApi) {
             ? parent.hostId === h.id
               ? parent.path
               : null
-            : source?.type === "local_path"
-              ? source.path
-              : null;
+            : anchor?.hostId === h.id
+              ? anchor.path
+              : source?.type === "local_path"
+                ? source.path
+                : null;
           const reason =
             h.status !== "connected"
               ? "Device offline"
               : parent && parent.hostId !== h.id
                 ? "The parent section is on another device"
                 : !p
-                  ? "This project has no folder on this device"
+                  ? "No project folder here yet: add one in the project card"
                   : null;
           return {
             hostId: h.id,

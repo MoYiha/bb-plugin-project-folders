@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.7
+
+- **Sections on another device inside any group**: a group inside a section now offers every device where the project has a folder, so a Mac section can hold a group with a section on a server. The tree marks such a section with its device name.
+- **A section in any folder of its device**: the folder button in New section can go above the parent and pick any folder, for example a website folder on a server. Folders inside the parent stay ordinary subfolders; the disk root, other sections, other BB projects and folders containing the project are refused.
+- Archiving a section whose folder is outside the project keeps the files in place and archives only its chats and tree record; restore brings them back. A section holding sections on other devices or outside its folder asks to move or archive them first.
+- Such sections can move to any group or section of their project and change path anywhere on their device except another project.
+- The folder picker can always go up a level, even when the current folder is missing on the device.
+
 ## 0.4.6
 
 - **Groups**: a section without a folder that only arranges the tree. Create one with **New group** in any project, section or group menu or card. Sections created inside a group get their folder in the nearest real folder above; a project-level group can hold sections from every device copy of the project.

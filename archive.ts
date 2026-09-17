@@ -23,6 +23,8 @@ export const archiveSchema = z.object({
   threadIds: z.array(z.string()),
   restoreThreadIds: z.array(z.string()),
   error: z.string().nullable(),
+  /** The folder lives outside the project folder: its files stay in place. */
+  external: z.boolean().optional(),
 });
 export type Archive = z.infer<typeof archiveSchema>;
 /** Groups have no folder, so they join an archive through their place in the tree. */
@@ -190,31 +192,43 @@ export function makeArchives(
           throw new Error(
             "The section has running chats or queued messages. Finish them before archiving.",
           );
+        const members = withNestedGroups(
+          options.folders(),
+          options
+            .folders()
+            .filter(
+              (c) =>
+                c.kind !== "group" &&
+                c.projectId === f.projectId &&
+                c.hostId === f.hostId &&
+                inside(c.path, f.path),
+            ),
+        );
+        const memberIds = new Set(members.map((m) => m.id));
+        if (
+          options
+            .folders()
+            .some(
+              (c) =>
+                c.parentId && memberIds.has(c.parentId) && !memberIds.has(c.id),
+            )
+        )
+          throw new Error(
+            "The section holds sections on another device or outside its folder. Move or archive them first.",
+          );
         // Save history before admitting the move; after journaling, event exports are suppressed.
         for (const t of selected) await options.sync(t.id);
         const id = randomUUID();
+        const external = !inside(f.path, root.path);
         a = {
           id,
           folder: f,
-          members: withNestedGroups(
-            options.folders(),
-            options
-              .folders()
-              .filter(
-                (c) =>
-                  c.kind !== "group" &&
-                  c.projectId === f.projectId &&
-                  c.hostId === f.hostId &&
-                  inside(c.path, f.path),
-              ),
-          ),
+          members,
           rootPath: root.path,
-          archivePath: path.join(
-            root.path,
-            ".bb/archive/sections",
-            id,
-            "folder",
-          ),
+          archivePath: external
+            ? f.path
+            : path.join(root.path, ".bb/archive/sections", id, "folder"),
+          external,
           createdAt: Date.now(),
           state: "archiving",
           threadIds: [...ids],
@@ -277,37 +291,44 @@ export function makeArchives(
           await bb.sdk.threads.stop({ threadId: id });
           await bb.sdk.threads.archive({ threadId: id });
         }
-        const exists = await bb.sdk.hosts.pathsExist({
-          hostId: a.folder.hostId,
-          paths: [a.folder.path, a.archivePath],
-        });
-        if (exists.existence[a.folder.path] && exists.existence[a.archivePath])
-          throw new Error(
-            "Both paths exist; the move stopped without overwriting files.",
-          );
-        if (exists.existence[a.folder.path]) {
-          await bb.sdk.files.mkdir({
+        // A folder outside the project (a live website, say) stays in place:
+        // only its chats and its tree record go to the archive.
+        if (!a.external) {
+          const exists = await bb.sdk.hosts.pathsExist({
             hostId: a.folder.hostId,
-            rootPath: a.rootPath,
-            path: path.dirname(a.archivePath),
-            recursive: true,
+            paths: [a.folder.path, a.archivePath],
           });
-          await bb.sdk.files.write({
-            hostId: a.folder.hostId,
-            rootPath: a.rootPath,
-            path: path.join(path.dirname(a.archivePath), "manifest.json"),
-            content: JSON.stringify(a, null, 2),
-          });
-          await bb.sdk.files.move({
-            hostId: a.folder.hostId,
-            rootPath: a.rootPath,
-            sourcePath: a.folder.path,
-            destinationPath: a.archivePath,
-          });
-        } else if (!exists.existence[a.archivePath])
-          throw new Error(
-            "Neither the original folder nor the archive was found.",
-          );
+          if (
+            exists.existence[a.folder.path] &&
+            exists.existence[a.archivePath]
+          )
+            throw new Error(
+              "Both paths exist; the move stopped without overwriting files.",
+            );
+          if (exists.existence[a.folder.path]) {
+            await bb.sdk.files.mkdir({
+              hostId: a.folder.hostId,
+              rootPath: a.rootPath,
+              path: path.dirname(a.archivePath),
+              recursive: true,
+            });
+            await bb.sdk.files.write({
+              hostId: a.folder.hostId,
+              rootPath: a.rootPath,
+              path: path.join(path.dirname(a.archivePath), "manifest.json"),
+              content: JSON.stringify(a, null, 2),
+            });
+            await bb.sdk.files.move({
+              hostId: a.folder.hostId,
+              rootPath: a.rootPath,
+              sourcePath: a.folder.path,
+              destinationPath: a.archivePath,
+            });
+          } else if (!exists.existence[a.archivePath])
+            throw new Error(
+              "Neither the original folder nor the archive was found.",
+            );
+        }
         db.transaction(() => {
           for (const f of a!.members)
             db.prepare("DELETE FROM folders WHERE id=?").run(f.id);
@@ -343,7 +364,10 @@ export function makeArchives(
           hostId: a.folder.hostId,
           paths: [a.folder.path, a.archivePath],
         });
+        if (a.external && !exists.existence[a.folder.path])
+          throw new Error("The section folder was not found.");
         if (
+          !a.external &&
           exists.existence[a.folder.path] &&
           (a.state !== "restoring" || exists.existence[a.archivePath])
         )
@@ -365,7 +389,9 @@ export function makeArchives(
         a.state = "restoring";
         a.error = null;
         put(a);
-        if (exists.existence[a.archivePath]) {
+        if (a.external) {
+          // Nothing moved on archive, so nothing moves back.
+        } else if (exists.existence[a.archivePath]) {
           await bb.sdk.files.mkdir({
             hostId: a.folder.hostId,
             rootPath: a.rootPath,

@@ -102,10 +102,28 @@ A **project** is a BB project with a folder on a device. A **section** is a subf
 A **group** arranges sections in the tree without a folder of its own — for example an *Apps* group holding sections that point to different places.
 
 - **New group** — from any project, section or group **⋯** menu, or from a card. Only a name is needed.
-- **New section** inside a group creates its folder where the group sits: in the nearest real folder above, or in the project root. A project-level group is shared by every device copy, so it can hold sections from different machines.
-- **Move to group…** (section menu, card, or drag a row onto a group on the management page) changes only the place in the tree; the folder, files and chats stay where they are. A section can move between groups that share its parent folder.
+- **New section** inside a group creates its folder where the group sits: in the nearest real folder above, or in the project root. Any group — at the project level or inside a section — can hold sections from other devices: pick a device where the project has a folder, and the section goes into that device's project folder.
+- **Move to group…** (section menu, card, or drag a row onto a group on the management page) changes only the place in the tree; the folder, files and chats stay where they are. A section can move between groups that share its parent folder; a section on another device or outside its parent folder can move to any group or section of its project.
 - Groups have no chats and no rules and do not count as a level, so a section inside a group keeps its level 1 or 2 rules. Their default icon differs from sections and can be styled like any section.
 - **Delete group** works on an empty group. Archiving a section also archives the groups inside it and restores them with it.
+
+### A section in a folder outside the project
+
+A section can point at any folder on its device, not only a subfolder of its parent — for example a client's website on a server:
+
+```text
+Clients                          Project (Mac mini: ~/Documents/Clients)
+└── example-client.com/                 Section on Mac mini
+    └── Development              Group
+        └── Sites  Server    Section → /var/www/example-client
+```
+
+- In **New section**, pick the device, press the folder button and go up to any folder on that device. A folder inside the parent stays an ordinary subfolder; any other folder becomes the section's path as is.
+- The folder must not be the disk root, contain or sit inside another section or BB project, or contain the project folder. The device still needs a project folder (add one in the project card): BB runs chats on devices where the project has a copy.
+- The tree marks a section whose device differs from its parent's with a device badge.
+- Chats started there work in that folder, and the section gets `AGENTS.md`, `CLAUDE.md` and `.bb/chats/` like any section. On a folder served by a web server, keep those files out of public access.
+- **Archive** leaves such a folder in place: only its chats and its tree record go to the archive, and restore brings them back. A section that holds sections on other devices or outside its folder must have them moved or archived first.
+- **Change path** can move it anywhere on its device except into another project.
 
 The folder picker, shared by the project and section dialogs, browses the selected device, creates child folders and can delete an **empty, unregistered** folder after confirmation. It never deletes files recursively.
 

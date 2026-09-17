@@ -28,6 +28,12 @@ export const english = {
   "Папка раздела": "Section folder",
   "Новая папка создастся по названию раздела. Кнопка папки позволяет выбрать существующую.":
     "A new folder uses the section name. Use the folder button to choose an existing folder.",
+  "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.":
+    "Sections inside a group can be created on any device where the project has a folder.",
+  "Папку можно выбрать и вне проекта, например папку сайта на сервере.":
+    "You can also choose a folder outside the project, such as a website folder on a server.",
+  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.":
+    "If the section folder is outside the project folder, its files stay in place: only the chats and the section record are archived.",
   "Создать новую папку по названию": "Create a new folder using this name",
   "Правила AGENTS.md": "AGENTS.md rules",
   "Папка вместе с вложенными разделами, правилами и историей переместится в скрытый архив проекта .bb/archive/sections/. Чаты будут архивированы. Всё можно восстановить на странице «Проекты и разделы».":
