@@ -847,7 +847,8 @@ export default async function plugin(bb: BbPluginApi) {
   }
   async function target(
     input: z.infer<typeof targetSchema>,
-    options: { allowGroup?: boolean } = {},
+    /** anyHost: the host picks where a new child goes, not the node's own device. */
+    options: { allowGroup?: boolean; anyHost?: boolean } = {},
   ): Promise<Folder> {
     if (moves.busy(input.projectId))
       throw new Error(
@@ -878,8 +879,12 @@ export default async function plugin(bb: BbPluginApi) {
       : (await roots()).find((f) => f.projectId === input.projectId);
     if (!f || f.projectId !== input.projectId)
       throw new Error("Section or project source not found.");
-    // A group only arranges the tree: its sections can live on any device copy.
-    if (input.hostId && f.hostId !== input.hostId && !isGroup(f))
+    if (
+      input.hostId &&
+      f.hostId !== input.hostId &&
+      !isGroup(f) &&
+      !options.anyHost
+    )
       throw new Error("A nested section must use its parent folder’s device.");
     if (isGroup(f) && !options.allowGroup)
       throw new Error(
@@ -888,12 +893,11 @@ export default async function plugin(bb: BbPluginApi) {
     return f;
   }
   /**
-   * Where new folders under a tree node go: a group places them in its nearest
-   * real folder, or in the project copy on another device picked for the section.
+   * Where new folders under a tree node go: the section itself or a group's
+   * nearest real folder, or the project copy on another device picked for it.
    */
   async function folderBase(node: Folder, hostId?: string): Promise<Folder> {
-    if (!isGroup(node)) return node;
-    const anchor = folderAnchor(node);
+    const anchor = isGroup(node) ? folderAnchor(node) : node;
     if (anchor && (!hostId || anchor.hostId === hostId)) return anchor;
     return target({
       projectId: node.projectId,
@@ -1045,7 +1049,7 @@ export default async function plugin(bb: BbPluginApi) {
     await ensureClaudeStub(f);
   }
   async function create(input: z.infer<typeof createSchema>) {
-    const node = await target(input, { allowGroup: true });
+    const node = await target(input, { allowGroup: true, anyHost: true });
     const parent = await folderBase(node, input.hostId);
     // An absolute path inside the parent is an ordinary subfolder; outside it
     // the section points at a folder elsewhere on the device.
@@ -1549,7 +1553,10 @@ export default async function plugin(bb: BbPluginApi) {
         })),
     archive_list: async () => ({ archives: archives.list() }),
     archive_matches: async (input) => {
-      const f = await target(input, { allowGroup: true });
+      const f = await folderBase(
+        await target(input, { allowGroup: true, anyHost: true }),
+        input.hostId,
+      );
       return { archives: archives.matches(f.projectId, f.hostId, input.name) };
     },
     archive: ({ folderId }) => {
@@ -1894,20 +1901,16 @@ export default async function plugin(bb: BbPluginApi) {
       const node = input.folderId
         ? await target(input, { allowGroup: true })
         : null;
-      // A section keeps its children on its device; a group offers every
-      // device: its own folder there, or the project copy on the others.
-      const parent = node && !isGroup(node) ? node : null;
-      const anchor = node && isGroup(node) ? folderAnchor(node) : null;
+      // Every device is offered: the parent's own folder on its device, the
+      // project copy on the others.
+      const anchor = node && isGroup(node) ? folderAnchor(node) : node;
       return {
         locations: hosts.map((h) => {
           const source = project.sources.find(
             (s) => s.type === "local_path" && s.hostId === h.id,
           );
-          const p = parent
-            ? parent.hostId === h.id
-              ? parent.path
-              : null
-            : anchor?.hostId === h.id
+          const p =
+            anchor?.hostId === h.id
               ? anchor.path
               : source?.type === "local_path"
                 ? source.path
@@ -1915,11 +1918,9 @@ export default async function plugin(bb: BbPluginApi) {
           const reason =
             h.status !== "connected"
               ? "Device offline"
-              : parent && parent.hostId !== h.id
-                ? "The parent section is on another device"
-                : !p
-                  ? "No project folder here yet: add one in the project card"
-                  : null;
+              : !p
+                ? "No project folder here yet: add one in the project card"
+                : null;
           return {
             hostId: h.id,
             name: h.name,
@@ -1932,7 +1933,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     browse: async (input) => {
       const f = await folderBase(
-        await target(input, { allowGroup: true }),
+        await target(input, { allowGroup: true, anyHost: true }),
         input.hostId,
       );
       const p = input.relative

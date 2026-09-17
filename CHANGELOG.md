@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.8
+
+- A section can now hold a section on another device directly, without a group in between: New section offers every device where the project has a folder.
+
 ## 0.4.7
 
 - **Sections on another device inside any group**: a group inside a section now offers every device where the project has a folder, so a Mac section can hold a group with a section on a server. The tree marks such a section with its device name.

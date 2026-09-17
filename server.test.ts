@@ -317,15 +317,19 @@ describe("project folder boundaries", () => {
       expect(
         JSON.stringify(h.harness.inspection.sdk.callsTo("hosts.directory")),
       ).toContain("/macbook/projects");
-      await expect(
-        h.harness.behavior.callRpc("create", {
-          projectId: "p1",
-          folderId: folder.id,
-          hostId: "h1",
-          name: "Wrong host",
-          relativePath: "wrong",
-        }),
-      ).rejects.toThrow(/nested section/);
+      // A child on another device goes into that device's project folder.
+      const other = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: folder.id,
+        hostId: "h1",
+        name: "Mac child",
+        relativePath: "child",
+      })) as { hostId: string; path: string; parentId: string };
+      expect(other).toMatchObject({
+        hostId: "h1",
+        path: "/work/child",
+        parentId: folder.id,
+      });
       await expect(
         h.harness.behavior.callRpc("create", {
           projectId: "p1",
@@ -1705,16 +1709,36 @@ describe("sections on another device inside a group", () => {
         relativePath: "/home/u/clients/docs",
       })) as F;
       expect(docs.path).toBe("/home/u/clients/docs");
-      // A section still keeps its own children on its device.
+      // A section itself can also hold a section on another device.
       const client = (await call("list", null)) as { folders: F[] };
       const mac = client.folders.find((f) => f.path === "/work/client.com")!;
+      const { locations: direct } = (await call("locations", {
+        projectId: "p1",
+        folderId: mac.id,
+      })) as { locations: { hostId: string; path: string | null }[] };
+      expect(direct.map((l) => l.path)).toEqual([
+        "/work/client.com",
+        "/home/u/clients",
+      ]);
+      const server = (await call("create", {
+        projectId: "p1",
+        folderId: mac.id,
+        hostId: "h2",
+        name: "Server",
+        relativePath: "/home/u/sites/client_com",
+      })) as F;
+      expect(server).toMatchObject({
+        hostId: "h2",
+        parentId: mac.id,
+        path: "/home/u/sites/client_com",
+      });
+      // Chats still start only on the section's own device.
       await expect(
-        call("create", {
+        call("rename", {
           projectId: "p1",
-          folderId: mac.id,
-          hostId: "h2",
-          name: "Nope",
-          relativePath: "nope",
+          folderId: server.id,
+          hostId: "h1",
+          name: "x",
         }),
       ).rejects.toThrow(/parent folder’s device/);
     } finally {
