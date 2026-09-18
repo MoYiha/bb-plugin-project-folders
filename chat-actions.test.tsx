@@ -344,3 +344,101 @@ it("styles section and project labels as bold/unread when there is an unread cha
 
   view.lifecycle.unmount();
 });
+it("moves a chat from a section on another device up to the project root of its own device", async () => {
+  const remoteRoot = {
+    ...root,
+    hostId: "h2",
+    path: "/srv/work",
+  };
+  const group = {
+    ...folder,
+    id: "g1",
+    parentId: folder.id,
+    name: "Group",
+    path: "@group/g1",
+    kind: "group",
+  };
+  const remote = {
+    ...folder,
+    id: "f2",
+    hostId: "h2",
+    parentId: group.id,
+    name: "Remote",
+    path: "/srv/sites/remote",
+  };
+  const remoteChat: PluginSidebarThread = {
+    ...thread,
+    id: "t2",
+    title: "Remote chat",
+    host: { id: "h2", name: "Hub" },
+    updatedAt: Date.now(),
+    latestAttentionAt: Date.now(),
+    environment: {
+      id: "env-remote",
+      name: null,
+      branchName: null,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [remoteChat], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder, group, remote],
+          roots: [root, remoteRoot],
+          bindings: { "env-remote": remote.id },
+          errors: [],
+          machines: [
+            { id: "h1", name: "Mini", connected: true },
+            { id: "h2", name: "Hub", connected: true },
+          ],
+        }),
+        thread_move: () => ({ path: remoteRoot.path }),
+      },
+    },
+  );
+  fireEvent.contextMenu(await view.findByText("Remote chat"));
+  fireEvent.click(await view.findByText("Move to section…"));
+  const dialog = await view.findByRole("dialog");
+  const row = (name: string) =>
+    Array.from(dialog.querySelectorAll("button.pf-move-target")).find((b) =>
+      b.querySelector("span")?.textContent?.includes(name),
+    ) as HTMLButtonElement;
+  // The project appears once, for the device the chat already runs on.
+  expect(
+    Array.from(dialog.querySelectorAll("button.pf-move-target")).filter((b) =>
+      b.querySelector("span")?.textContent?.includes("Project"),
+    ),
+  ).toHaveLength(1);
+  // The chat's own section hangs under a group of another device: still listed.
+  expect(row("Remote")).toBeTruthy();
+  expect(row("Remote").textContent).toContain("Currently here");
+  // Sections of the other device cannot take a chat that stays on its own.
+  expect(row("Section").disabled).toBe(true);
+  expect(row("Project").disabled).toBe(false);
+  fireEvent.click(row("Project"));
+  expect(await view.findByText("/srv/work")).toBeTruthy();
+  fireEvent.click(
+    await view.findByRole("button", { name: "Move", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      view.inspection.rpcCalls.some(
+        (c) =>
+          c.method === "thread_move" &&
+          JSON.stringify(c.input) ===
+            JSON.stringify({
+              threadId: "t2",
+              projectId: "p1",
+              folderId: null,
+              hostId: "h2",
+            }),
+      ),
+    ).toBe(true),
+  );
+  view.lifecycle.unmount();
+});

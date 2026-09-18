@@ -1984,29 +1984,50 @@ function Tree(props: PluginThreadListProps) {
     setSelectedMove(null);
     setMoveCollapsed({});
   }, [movingChat?.id]);
-  const canMove = (chat: PluginSidebarThread | null, folder: Folder) =>
-    !!chat &&
-    !isGroupFolder(folder) &&
-    chat.projectId === folder.projectId &&
-    chat.host?.id === folder.hostId;
+  /**
+   * Where a chat lands on a tree node, or null when that node cannot take it.
+   * A chat never changes device, so the project row means the project copy on
+   * the chat's own device, not the copy the tree happens to show.
+   */
+  const moveTarget = (
+    chat: PluginSidebarThread | null,
+    folder: Folder,
+    root: boolean,
+  ) => {
+    const hostId = chat?.host?.id;
+    if (!chat || !hostId || chat.projectId !== folder.projectId) return null;
+    if (root)
+      return data.roots.some(
+        (r) => r.projectId === folder.projectId && r.hostId === hostId,
+      )
+        ? { projectId: folder.projectId, folderId: null, hostId }
+        : null;
+    if (isGroupFolder(folder) || folder.hostId !== hostId) return null;
+    return {
+      projectId: folder.projectId,
+      folderId: folder.id as string | null,
+      hostId,
+    };
+  };
+  const canMove = (
+    chat: PluginSidebarThread | null,
+    folder: Folder,
+    root = false,
+  ) => !!moveTarget(chat, folder, root);
   const moveChat = async (
     chat: PluginSidebarThread,
     folder: Folder,
     root: boolean,
     fromDrop = false,
   ) => {
-    if (moveBusy || !canMove(chat, folder)) return;
+    const target = moveTarget(chat, folder, root);
+    if (moveBusy || !target) return;
     setMoveBusy(true);
     setMoveError("");
     setDraggedChat(null);
     setDropTarget(null);
     try {
-      await rpc.call("thread_move", {
-        threadId: chat.id,
-        projectId: folder.projectId,
-        folderId: root ? null : folder.id,
-        hostId: folder.hostId,
-      });
+      await rpc.call("thread_move", { threadId: chat.id, ...target });
       setMovingChat(null);
       setCollapseRecords((old) => {
         const next = {
@@ -2206,7 +2227,7 @@ function Tree(props: PluginThreadListProps) {
           onToggle={() => toggle(f.id, folderClosed)}
           onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
-            if (!moveBusy && canMove(draggedChat, f)) {
+            if (!moveBusy && canMove(draggedChat, f, root)) {
               event.preventDefault();
               event.dataTransfer.dropEffect = "move";
               setDropTarget(f.id);
@@ -2379,74 +2400,104 @@ function Tree(props: PluginThreadListProps) {
           )}
           <div className="pf-move-targets" aria-busy={moveBusy}>
             {(() => {
+              // One tree per project, exactly as the sidebar draws it: a
+              // section on another device still hangs under its tree parent.
+              const current =
+                data.bindings[movingChat?.environment?.id ?? ""] ?? null;
+              const deviceName = (hostId: string) =>
+                data.machines.find((m) => m.id === hostId)?.name ?? hostId;
               const render = (
                 folder: Folder,
                 root: boolean,
                 depth: number,
-              ): React.ReactNode => (
-                <div key={folder.id}>
-                  <div
-                    className="pf-move-tree-row"
-                    style={{ paddingInlineStart: depth * 18 }}
-                  >
-                    <button
-                      className="pf-icon"
-                      aria-label={folder.name}
-                      aria-expanded={!moveCollapsed[folder.id]}
-                      onClick={() =>
-                        setMoveCollapsed((old) => ({
-                          ...old,
-                          [folder.id]: !old[folder.id],
-                        }))
-                      }
+              ): React.ReactNode => {
+                const target = moveTarget(movingChat, folder, root);
+                const hostId = root ? target?.hostId : folder.hostId;
+                const device =
+                  hostId &&
+                  (root
+                    ? data.roots.filter(
+                        (r) => r.projectId === folder.projectId,
+                      ).length > 1
+                    : !!foreignHost(data.folders, data.roots, folder))
+                    ? deviceName(hostId)
+                    : null;
+                const selected = selectedMove?.folder.id === folder.id;
+                return (
+                  <div key={folder.id}>
+                    <div
+                      className="pf-move-tree-row"
+                      style={{ paddingInlineStart: depth * 18 }}
                     >
-                      <Icon
-                        name={
-                          moveCollapsed[folder.id]
-                            ? "ChevronRight"
-                            : "ChevronDown"
+                      <button
+                        className="pf-icon"
+                        aria-label={folder.name}
+                        aria-expanded={!moveCollapsed[folder.id]}
+                        onClick={() =>
+                          setMoveCollapsed((old) => ({
+                            ...old,
+                            [folder.id]: !old[folder.id],
+                          }))
                         }
-                      />
-                    </button>
-                    <button
-                      className={
-                        "pf-move-target" +
-                        (selectedMove?.folder.id === folder.id
-                          ? " pf-selected"
-                          : "")
-                      }
-
-                      disabled={moveBusy || !canMove(movingChat, folder)}
-                      onClick={() => {
-                        setSelectedMove({ folder, root });
-                      }}
-                      title={folder.path}
-                    >
-                      <Icon name="Folder" />
-                      <span>{folder.name}</span>
-                      {selectedMove?.folder.id === folder.id && (
-                        <Icon name="Check" />
-                      )}
-                    </button>
+                      >
+                        <Icon
+                          name={
+                            moveCollapsed[folder.id]
+                              ? "ChevronRight"
+                              : "ChevronDown"
+                          }
+                        />
+                      </button>
+                      <button
+                        className={
+                          "pf-move-target" + (selected ? " pf-selected" : "")
+                        }
+                        disabled={moveBusy || !target}
+                        onClick={() => {
+                          setSelectedMove({ folder, root });
+                        }}
+                        title={folder.path}
+                      >
+                        <Icon name="Folder" />
+                        <span>{folder.name}</span>
+                        {device && (
+                          <span className="pf-host-badge">{device}</span>
+                        )}
+                        {(root ? !current : current === folder.id) && (
+                          <span className="pf-host-badge">
+                            {t("Сейчас здесь")}
+                          </span>
+                        )}
+                        {selected && <Icon name="Check" />}
+                      </button>
+                    </div>
+                    {!moveCollapsed[folder.id] &&
+                      data.folders
+                        .filter(
+                          (child) =>
+                            child.projectId === folder.projectId &&
+                            child.parentId === (root ? null : folder.id),
+                        )
+                        .map((child) => render(child, false, depth + 1))}
                   </div>
-                  {!moveCollapsed[folder.id] &&
-                    data.folders
-                      .filter(
-                        (child) =>
-                          child.projectId === folder.projectId &&
-                          child.hostId === folder.hostId &&
-                          child.parentId === (root ? null : folder.id),
-                      )
-                      .map((child) => render(child, false, depth + 1))}
-                </div>
+                );
+              };
+              const root = data.roots.find(
+                (r) => r.projectId === movingChat?.projectId,
               );
-              return data.roots
-                .filter((root) => root.projectId === movingChat?.projectId)
-                .map((root) => render(root, true, 0));
+              return root ? render(root, true, 0) : null;
             })()}
           </div>
           {selectedMove && (
-            <p className="pf-folder-path">{selectedMove.folder.path}</p>
+            <p className="pf-folder-path">
+              {(selectedMove.root
+                ? data.roots.find(
+                    (r) =>
+                      r.projectId === selectedMove.folder.projectId &&
+                      r.hostId === movingChat?.host?.id,
+                  )?.path
+                : null) ?? selectedMove.folder.path}
+            </p>
           )}
           <DialogFooter>
             <Button

@@ -852,6 +852,9 @@
 .pf-move-target span {
   flex: 1;
 }
+.pf-move-target .pf-host-badge {
+  flex: none;
+}
 .pf-move-target.pf-selected {
   background: var(--state-hover);
   box-shadow: inset 0 0 0 1px var(--border);

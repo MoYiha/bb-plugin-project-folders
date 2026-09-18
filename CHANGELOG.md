@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9
+
+- **Move a chat out of a section to the project level**: the destination tree now draws the project once and the project row means the project folder on the chat's own device, so a chat that lives in a section on another device is no longer stuck. Before, the project appeared once per device copy and the row of the other copy was greyed out.
+- The destination tree lists sections on other devices under their tree parent, the same as the chat list: a chat's own section is no longer missing from the list. Such sections are disabled while the chat stays on its device, and the chat's current place is marked.
+- Dropping a chat onto the project heading works the same way for a chat running on another device copy of the project.
+
 ## 0.4.8
 
 - A section can now hold a section on another device directly, without a group in between: New section offers every device where the project has a folder.

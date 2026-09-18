@@ -264,5 +264,6 @@
   "Удалить группу": "Excluir grupo",
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Seções dentro de um grupo podem ser criadas em qualquer dispositivo onde o projeto tenha uma pasta.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "Você também pode escolher uma pasta fora do projeto, como a pasta de um site em um servidor.",
-  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Se a pasta da seção estiver fora da pasta do projeto, os arquivos ficam no lugar: apenas os chats e o registro da seção são arquivados."
+  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Se a pasta da seção estiver fora da pasta do projeto, os arquivos ficam no lugar: apenas os chats e o registro da seção são arquivados.",
+  "Сейчас здесь": "Aqui agora"
 }

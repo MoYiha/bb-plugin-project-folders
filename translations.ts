@@ -4,6 +4,7 @@ export const english = {
   "Выберите подраздел на том же устройстве. История чата сохранится.":
     "Choose a section on the same device. Chat history will be preserved.",
   "Перенос чата…": "Moving chat…",
+  "Сейчас здесь": "Currently here",
 
   "Выбор папки": "Choose folder",
   "Новый раздел": "New section",

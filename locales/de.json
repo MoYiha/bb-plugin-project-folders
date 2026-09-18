@@ -264,5 +264,6 @@
   "Удалить группу": "Gruppe löschen",
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Bereiche in einer Gruppe können auf jedem Gerät angelegt werden, auf dem das Projekt einen Ordner hat.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "Du kannst auch einen Ordner außerhalb des Projekts wählen, etwa den Ordner einer Website auf einem Server.",
-  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Liegt der Bereichsordner außerhalb des Projektordners, bleiben seine Dateien an Ort und Stelle: Archiviert werden nur die Chats und der Bereichseintrag."
+  "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Liegt der Bereichsordner außerhalb des Projektordners, bleiben seine Dateien an Ort und Stelle: Archiviert werden nur die Chats und der Bereichseintrag.",
+  "Сейчас здесь": "Aktueller Ort"
 }
