@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.11
+
+- **Move a chat to any section of its project.** Moving a chat now files it into the section you pick — only its place in the tree changes, and it works everywhere: a chat that runs on a server can sit in a section of a Mac, because nothing about the chat's own folder is touched. Drag and drop and **Move to section…** both do this.
+- Why the old behaviour could not work: moving a chat's working folder needs BB's directory-update API (`threads.update({ experimental_directory })`) from `docs/bb-native-thread-relocation.patch`. Without that patch the server rejects the field, so every real move failed; with it, a move still cannot leave its machine.
+- A chat filed away from the folder it works in shows that folder next to its name, and its menu offers **File back where it works**.
+- Only a group refuses a chat — it holds sections, not chats — and a chat stays in its own project.
+
 ## 0.4.10
 
 - **A refused destination says why.** Dragging a chat onto a section of another device did nothing at all — no highlight, no message. The row now marks itself as refusing (dashed outline) and the drop answers: the chat's device against the section's device, plus the way around it — move the whole section in the tree with **Move to group…**. Groups, foreign projects and a project without a folder on the chat's device explain themselves the same way.

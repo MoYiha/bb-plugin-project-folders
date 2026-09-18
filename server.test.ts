@@ -1787,6 +1787,9 @@ describe("sections on another device inside a group", () => {
 
       // The Mac section cannot be archived while the server section hangs below it.
       h.harness.inspection.sdk.stub("threads.list", async () => []);
+      h.harness.inspection.sdk.stub("hosts.pathsExist", async () => ({
+        existence: {},
+      }));
       h.harness.inspection.sdk.stub("environments.list", async () => []);
       const moves: unknown[] = [];
       h.harness.inspection.sdk.stub("files.move", async (args) => {
@@ -1839,6 +1842,84 @@ describe("sections on another device inside a group", () => {
       expect(list.folders.find((f) => f.id === site.id)?.path).toBe(
         "/home/u/sites/client_com",
       );
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});
+
+describe("filing a chat into a section", () => {
+  it("remembers only a place that differs from the folder the chat works in", async () => {
+    const h = await setup();
+    const call = h.harness.behavior.callRpc;
+    try {
+      const site = (await call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Site",
+        relativePath: "site",
+      })) as { id: string };
+      const docs = (await call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Docs",
+        relativePath: "docs",
+      })) as { id: string };
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Apps",
+      })) as { id: string };
+      h.harness.inspection.sdk.stub("threads.get", async () =>
+        makeThreadResponse({ id: "t1", projectId: "p1", environmentId: "e1" }),
+      );
+      h.harness.inspection.sdk.stub("environments.get", async () => ({
+        projectId: "p1",
+        hostId: "h1",
+        path: "/work/site",
+      }));
+      h.harness.inspection.sdk.stub("environments.list", async () => [
+        { id: "e1", projectId: "p1", hostId: "h1", path: "/work/site" },
+      ]);
+      const places = async () =>
+        ((await call("list", null)) as { places: Record<string, string> })
+          .places;
+      await call("thread_place", {
+        threadId: "t1",
+        projectId: "p1",
+        folderId: docs.id,
+      });
+      expect(await places()).toEqual({ t1: docs.id });
+      // A chat filed where it already works needs nothing remembered.
+      await call("thread_place", {
+        threadId: "t1",
+        projectId: "p1",
+        folderId: site.id,
+      });
+      expect(await places()).toEqual({});
+      await expect(
+        call("thread_place", {
+          threadId: "t1",
+          projectId: "p1",
+          folderId: group.id,
+        }),
+      ).rejects.toThrow(/group/i);
+      await expect(
+        call("thread_place", {
+          threadId: "t1",
+          projectId: "p2",
+          folderId: docs.id,
+        }),
+      ).rejects.toThrow(/project/i);
+      // The project root is a place of its own: the chat works one level down.
+      await call("thread_place", {
+        threadId: "t1",
+        projectId: "p1",
+        folderId: null,
+      });
+      expect(await places()).toEqual({ t1: "" });
+      await call("thread_place_clear", { threadId: "t1" });
+      expect(await places()).toEqual({});
     } finally {
       await h.harness.lifecycle.dispose();
     }

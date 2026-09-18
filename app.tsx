@@ -25,6 +25,7 @@ import {
   sortChats,
   isSectionCollapsed,
   parseCollapseState,
+  placeOf,
   type CollapseRecord,
   hasFolderUnread,
 } from "./chat-list";
@@ -305,14 +306,24 @@ function useTree() {
     folders: Folder[];
     roots: Folder[];
     bindings: Record<string, string>;
+    /** Chats filed by hand: thread id to section id, empty for the project root. */
+    places: Record<string, string>;
     errors: string[];
     machines: { id: string; name: string; connected: boolean }[];
-  }>({ folders: [], roots: [], bindings: {}, errors: [], machines: [] });
+  }>({
+    folders: [],
+    roots: [],
+    bindings: {},
+    places: {},
+    errors: [],
+    machines: [],
+  });
   const [error, setError] = useState("");
   const refresh = useCallback(() => {
     rpc.call("list").then(
       (d) => {
-        setData(d);
+        // A server that predates hand-filed places simply has none.
+        setData({ ...d, places: d.places ?? {} });
         setError("");
       },
       (e) => setError(String(e)),
@@ -1556,9 +1567,15 @@ function ThreadRow({
   active,
   onNavigate,
   onMove,
+  onUnplace,
+  worksIn,
   onDrag,
 }: {
   onMove: (thread: PluginSidebarThread) => void;
+  /** Present while the chat is filed somewhere it does not work. */
+  onUnplace?: () => void;
+  /** The section the chat actually works in, shown when it sits elsewhere. */
+  worksIn?: { label: string; path: string };
   onDrag: (thread: PluginSidebarThread | null) => void;
   thread: PluginSidebarThread;
   active: string | null;
@@ -1684,6 +1701,11 @@ function ThreadRow({
           >
             {thread.title || thread.titleFallback}
           </span>
+          {worksIn && (
+            <span className="pf-host-badge" title={worksIn.path}>
+              {worksIn.label}
+            </span>
+          )}
         </a>
       )}
       {renameError && (
@@ -1728,6 +1750,12 @@ function ThreadRow({
             <Icon name="Folder" />
             {t("Переместить в подраздел…")}
           </DropdownMenuItem>
+          {onUnplace && (
+            <DropdownMenuItem onSelect={onUnplace}>
+              <Icon name="FolderSync" />
+              {t("Вернуть в рабочую папку")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => a.archive(thread.id)}>
             <Icon name="Archive" />
@@ -1992,29 +2020,25 @@ function Tree(props: PluginThreadListProps) {
     setSelectedMove(null);
     setMoveCollapsed({});
   }, [movingChat?.id]);
+  /** Where a chat sits in the tree: its filed place, else its working folder. */
+  const place = (chat: PluginSidebarThread) =>
+    placeOf(chat, data.bindings, data.places);
   /**
-   * Where a chat lands on a tree node, or null when that node cannot take it.
-   * A chat never changes device, so the project row means the project copy on
-   * the chat's own device, not the copy the tree happens to show.
+   * Where a chat goes when filed into a tree node, or null when the node
+   * cannot hold chats. Only the place in the tree changes: BB keeps a chat on
+   * the environment it was created with, so its working folder stays put.
    */
   const moveTarget = (
     chat: PluginSidebarThread | null,
     folder: Folder,
     root: boolean,
   ) => {
-    const hostId = chat?.host?.id;
-    if (!chat || !hostId || chat.projectId !== folder.projectId) return null;
-    if (root)
-      return data.roots.some(
-        (r) => r.projectId === folder.projectId && r.hostId === hostId,
-      )
-        ? { projectId: folder.projectId, folderId: null, hostId }
-        : null;
-    if (isGroupFolder(folder) || folder.hostId !== hostId) return null;
+    if (!chat || chat.projectId !== folder.projectId) return null;
+    if (!root && isGroupFolder(folder)) return null;
     return {
+      threadId: chat.id,
       projectId: folder.projectId,
-      folderId: folder.id as string | null,
-      hostId,
+      folderId: root ? null : folder.id,
     };
   };
   const canMove = (
@@ -2036,17 +2060,26 @@ function Tree(props: PluginThreadListProps) {
     if (!chat || moveTarget(chat, folder, root)) return null;
     if (chat.projectId !== folder.projectId)
       return t("Чат остаётся в своём проекте.");
-    if (!root && isGroupFolder(folder))
-      return t("У группы нет своей папки: выберите раздел внутри неё.");
-    const hostId = chat.host?.id;
-    if (!hostId) return t("У чата ещё нет рабочей папки.");
-    if (root)
-      return `${t("У проекта нет папки на устройстве чата:")} ${deviceName(
-        hostId,
-      )}`;
-    return `${t("Чат не меняет устройство")}: ${deviceName(hostId)} ≠ ${deviceName(
-      folder.hostId,
-    )}. ${t("Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.")}`;
+    return t("У группы нет своей папки: выберите раздел внутри неё.");
+  };
+  /** The section a chat works in, when that is not where it is filed. */
+  const worksIn = (chat: PluginSidebarThread) => {
+    if (data.places[chat.id] === undefined) return undefined;
+    const natural = data.bindings[chat.environment?.id ?? ""] ?? null;
+    if (natural === (data.places[chat.id] || null)) return undefined;
+    const folder = natural
+      ? data.folders.find((f) => f.id === natural)
+      : data.roots.find(
+          (r) => r.projectId === chat.projectId && r.hostId === chat.host?.id,
+        );
+    if (!folder) return undefined;
+    return {
+      label:
+        folder.hostId === chat.host?.id
+          ? folder.name
+          : `${folder.name} · ${deviceName(folder.hostId)}`,
+      path: `${t("Работает в")} ${folder.path}`,
+    };
   };
   const moveChat = async (
     chat: PluginSidebarThread,
@@ -2062,7 +2095,7 @@ function Tree(props: PluginThreadListProps) {
     setDropTarget(null);
     setDropReason(null);
     try {
-      await rpc.call("thread_move", { threadId: chat.id, ...target });
+      await rpc.call("thread_place", target);
       setMovingChat(null);
       setCollapseRecords((old) => {
         const next = {
@@ -2074,17 +2107,19 @@ function Tree(props: PluginThreadListProps) {
       });
       refresh();
     } catch (error) {
-      const message = String(error);
-      setMoveError(
-        /queued messages|Finish.*chat|Wait for the chat/i.test(message)
-          ? t(
-              "Дождитесь завершения ответа и сообщений в очереди, затем повторите перенос.",
-            )
-          : message,
-      );
+      setMoveError(String(error));
       if (!fromDrop) setMovingChat(chat);
     } finally {
       setMoveBusy(false);
+    }
+  };
+  const unplaceChat = async (chat: PluginSidebarThread) => {
+    setMoveError("");
+    try {
+      await rpc.call("thread_place_clear", { threadId: chat.id });
+      refresh();
+    } catch (error) {
+      setMoveError(String(error));
     }
   };
 
@@ -2113,6 +2148,7 @@ function Tree(props: PluginThreadListProps) {
       root,
       folders: data.folders,
       bindings: data.bindings,
+      places: data.places,
       threads,
       record: collapseRecords[f.id],
       activeThreadId: props.activeThreadId,
@@ -2164,6 +2200,12 @@ function Tree(props: PluginThreadListProps) {
               setMoveError("");
               setMovingChat(chat);
             }}
+            worksIn={worksIn(thread)}
+            onUnplace={
+              data.places[thread.id] === undefined
+                ? undefined
+                : () => void unplaceChat(thread)
+            }
             onDrag={(chat) => {
               setDraggedChat(chat);
               if (!chat) {
@@ -2214,10 +2256,7 @@ function Tree(props: PluginThreadListProps) {
     const target = { projectId: f.projectId, folderId: root ? null : f.id };
     const ts = threads.filter(
       (t) =>
-        t.projectId === f.projectId &&
-        (root
-          ? !data.bindings[t.environment?.id ?? ""]
-          : data.bindings[t.environment?.id ?? ""] === f.id),
+        t.projectId === f.projectId && (root ? !place(t) : place(t) === f.id),
     );
     const folderClosed = isClosed(f, root);
     const folderUnread = hasFolderUnread({
@@ -2226,6 +2265,7 @@ function Tree(props: PluginThreadListProps) {
       root,
       folders: data.folders,
       bindings: data.bindings,
+      places: data.places,
       threads,
     });
     const folderLook = look(f.projectId, root ? null : f);
@@ -2447,7 +2487,7 @@ function Tree(props: PluginThreadListProps) {
           </DialogHeader>
           <p>
             {t(
-              "Выберите подраздел на том же устройстве. История чата сохранится.",
+              "Выберите подраздел этого проекта. Меняется только место в дереве: чат продолжит работать в своей папке.",
             )}
           </p>
           {moveError && (
@@ -2459,24 +2499,17 @@ function Tree(props: PluginThreadListProps) {
             {(() => {
               // One tree per project, exactly as the sidebar draws it: a
               // section on another device still hangs under its tree parent.
-              const current =
-                data.bindings[movingChat?.environment?.id ?? ""] ?? null;
-              const deviceName = (hostId: string) =>
-                data.machines.find((m) => m.id === hostId)?.name ?? hostId;
+              const current = movingChat ? place(movingChat) : null;
               const render = (
                 folder: Folder,
                 root: boolean,
                 depth: number,
               ): React.ReactNode => {
                 const target = moveTarget(movingChat, folder, root);
-                const hostId = root ? target?.hostId : folder.hostId;
-                const device =
-                  hostId &&
-                  (root
-                    ? data.roots.filter((r) => r.projectId === folder.projectId)
-                        .length > 1
-                    : !!foreignHost(data.folders, data.roots, folder))
-                    ? deviceName(hostId)
+                const device = root
+                  ? null
+                  : foreignHost(data.folders, data.roots, folder)
+                    ? deviceName(folder.hostId)
                     : null;
                 const blocked = moveBlock(movingChat, folder, root);
                 const selected = selectedMove?.folder.id === folder.id;
@@ -2548,16 +2581,8 @@ function Tree(props: PluginThreadListProps) {
               return root ? render(root, true, 0) : null;
             })()}
           </div>
-          {selectedMove && (
-            <p className="pf-folder-path">
-              {(selectedMove.root
-                ? data.roots.find(
-                    (r) =>
-                      r.projectId === selectedMove.folder.projectId &&
-                      r.hostId === movingChat?.host?.id,
-                  )?.path
-                : null) ?? selectedMove.folder.path}
-            </p>
+          {selectedMove && !selectedMove.root && (
+            <p className="pf-folder-path">{selectedMove.folder.path}</p>
           )}
           <DialogFooter>
             <Button

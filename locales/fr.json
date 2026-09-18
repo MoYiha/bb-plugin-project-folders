@@ -76,7 +76,6 @@
   "Выберите новый, ещё не существующий путь на том же диске. Работающие чаты нужно завершить.": "Choisissez un chemin inexistant sur le même volume. Terminez d’abord les discussions en cours.",
   "Незавершённые переносы": "Déplacements inachevés",
   "Переместить в подраздел…": "Déplacer vers une section…",
-  "Выберите подраздел на том же устройстве. История чата сохранится.": "Choisissez une section sur le même appareil. L’historique du chat sera conservé.",
   "Перенос чата…": "Déplacement du chat…",
   "Новая папка": "Nouveau dossier",
   "Название папки": "Nom du dossier",
@@ -268,8 +267,7 @@
   "Сейчас здесь": "Ici actuellement",
   "Чат остаётся в своём проекте.": "Une conversation reste dans son projet.",
   "У группы нет своей папки: выберите раздел внутри неё.": "Un groupe n'a pas de dossier propre : choisissez une section à l'intérieur.",
-  "У чата ещё нет рабочей папки.": "Cette conversation n'a pas encore de dossier de travail.",
-  "У проекта нет папки на устройстве чата:": "Le projet n'a pas de dossier sur l'appareil de la conversation :",
-  "Чат не меняет устройство": "Une conversation ne change pas d'appareil",
-  "Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.": "Remontez plutôt la section entière : Déplacer vers un groupe… dans son menu."
+  "Вернуть в рабочую папку": "Reclasser dans son dossier de travail",
+  "Работает в": "Travaille dans",
+  "Выберите подраздел этого проекта. Меняется только место в дереве: чат продолжит работать в своей папке.": "Choisissez une section de ce projet. Seule la place dans l'arborescence change : la conversation continue de travailler dans son dossier."
 }

@@ -173,7 +173,11 @@ export function isThreadBusy(thread: {
 export function collectSubtreeFolderIds(
   folderId: string,
   projectId: string,
-  folders: readonly { id: string; projectId: string; parentId: string | null }[],
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[],
 ): Set<string> {
   const ids = new Set<string>([folderId]);
   let added = true;
@@ -194,26 +198,50 @@ export function collectSubtreeFolderIds(
   return ids;
 }
 
+/**
+ * Where a chat sits in the tree: the section it was filed into by hand, else
+ * the section of the folder it works in. An empty place is the project root.
+ */
+export function placeOf(
+  thread: ChatThread,
+  bindings: Record<string, string>,
+  places?: Record<string, string>,
+): string | null {
+  const placed = places?.[thread.id];
+  if (placed !== undefined) return placed || null;
+  return bindings[thread.environment?.id ?? ""] ?? null;
+}
+
 export function collectFolderThreads<T extends ChatThread>(
   folderId: string,
   projectId: string,
-  folders: readonly { id: string; projectId: string; parentId: string | null }[],
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[],
   bindings: Record<string, string>,
   threads: readonly T[],
+  places?: Record<string, string>,
 ): T[] {
   const folderIds = collectSubtreeFolderIds(folderId, projectId, folders);
   return threads.filter(
     (t) =>
       t.projectId === projectId &&
-      folderIds.has(bindings[t.environment?.id ?? ""] ?? ""),
+      folderIds.has(placeOf(t, bindings, places) ?? ""),
   );
 }
 
 export function isSectionInactive<T extends ChatThread>(params: {
   folderId: string;
   projectId: string;
-  folders: readonly { id: string; projectId: string; parentId: string | null }[];
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[];
   bindings: Record<string, string>;
+  places?: Record<string, string>;
   threads: readonly T[];
   activeThreadId?: string | null;
   thresholdMs?: number;
@@ -224,6 +252,7 @@ export function isSectionInactive<T extends ChatThread>(params: {
     projectId,
     folders,
     bindings,
+    places,
     threads,
     activeThreadId,
     thresholdMs = INACTIVE_SECTION_THRESHOLD_MS,
@@ -236,6 +265,7 @@ export function isSectionInactive<T extends ChatThread>(params: {
     folders,
     bindings,
     threads,
+    places,
   );
 
   if (sectionThreads.length === 0) return false;
@@ -256,8 +286,13 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
   folderId: string;
   projectId: string;
   root: boolean;
-  folders: readonly { id: string; projectId: string; parentId: string | null }[];
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[];
   bindings: Record<string, string>;
+  places?: Record<string, string>;
   threads: readonly T[];
   record?: CollapseRecord;
   activeThreadId?: string | null;
@@ -271,6 +306,7 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     root,
     folders,
     bindings,
+    places,
     threads,
     record,
     activeThreadId,
@@ -297,6 +333,7 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     folders,
     bindings,
     threads,
+    places,
   );
 
   if (record && !record.collapsed && record.at > 0) {
@@ -329,11 +366,17 @@ export function hasFolderUnread<T extends ChatThread>(params: {
   folderId: string;
   projectId: string;
   root: boolean;
-  folders: readonly { id: string; projectId: string; parentId: string | null }[];
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[];
   bindings: Record<string, string>;
+  places?: Record<string, string>;
   threads: readonly T[];
 }): boolean {
-  const { folderId, projectId, root, folders, bindings, threads } = params;
+  const { folderId, projectId, root, folders, bindings, places, threads } =
+    params;
   if (root) {
     return threads.some(
       (t) => t.projectId === projectId && !t.isArchived && !!t.isUnread,
@@ -345,6 +388,7 @@ export function hasFolderUnread<T extends ChatThread>(params: {
     folders,
     bindings,
     threads,
+    places,
   );
   return sectionThreads.some((t) => !t.isArchived && !!t.isUnread);
 }

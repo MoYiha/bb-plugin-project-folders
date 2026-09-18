@@ -165,6 +165,19 @@ export const rpcContract = defineRpcContract({
     input: z.object({ folderId: z.string().min(1) }),
     output: z.object({ ok: z.literal(true) }),
   },
+  thread_place: {
+    input: z.object({
+      threadId: z.string().min(1),
+      projectId: z.string().min(1),
+      /** A section id, or null for the project root. */
+      folderId: z.string().min(1).nullable(),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  thread_place_clear: {
+    input: z.object({ threadId: z.string().min(1) }),
+    output: z.object({ ok: z.literal(true) }),
+  },
   section_reparent: {
     input: z.object({
       folderId: z.string().min(1),
@@ -196,6 +209,8 @@ export const rpcContract = defineRpcContract({
       folders: z.array(folderSchema),
       roots: z.array(folderSchema),
       bindings: z.record(z.string(), z.string()),
+      /** Chats placed by hand: thread id to section id, empty for the project root. */
+      places: z.record(z.string(), z.string()),
       errors: z.array(z.string()),
       machines: z.array(
         z.object({ id: z.string(), name: z.string(), connected: z.boolean() }),
@@ -539,6 +554,8 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE item_styles (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
     // Groups arrange sections without a folder of their own.
     `ALTER TABLE folders ADD COLUMN kind TEXT NOT NULL DEFAULT 'folder'`,
+    // Where a chat is filed by hand, when that is not where it works.
+    `CREATE TABLE thread_places (threadId TEXT PRIMARY KEY, projectId TEXT NOT NULL, folderId TEXT)`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -1149,6 +1166,26 @@ export default async function plugin(bb: BbPluginApi) {
       throw new Error("The chat working folder is not registered in the tree.");
     return { t, f };
   }
+  /**
+   * The section a chat belongs to through its working folder, null for the
+   * project root and for a folder the tree does not know.
+   */
+  async function naturalPlace(threadId: string): Promise<string | null> {
+    const t = await bb.sdk.threads.get({ threadId });
+    if (!t.environmentId) return null;
+    const env = await bb.sdk.environments.get({
+      environmentId: t.environmentId,
+    });
+    const path = canonicalPath(env.hostId, env.path ?? "");
+    return (
+      folders().find(
+        (f) =>
+          f.projectId === t.projectId &&
+          f.hostId === env.hostId &&
+          f.path === path,
+      )?.id ?? null
+    );
+  }
   const syncing = new Map<string, Promise<{ path: string }>>();
   async function exportChat(threadId: string) {
     const { t, f } = await locate(threadId);
@@ -1299,6 +1336,7 @@ export default async function plugin(bb: BbPluginApi) {
   const dropProjectRows = (projectId: string) => {
     db.prepare("DELETE FROM folders WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM project_order WHERE projectId=?").run(projectId);
+    db.prepare("DELETE FROM thread_places WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM project_rules WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM item_styles WHERE key=?").run(`p:${projectId}`);
     db.prepare(
@@ -1474,6 +1512,36 @@ export default async function plugin(bb: BbPluginApi) {
       changed();
       return { ok: true as const };
     },
+    thread_place: async ({ threadId, projectId, folderId }) => {
+      const thread = await bb.sdk.threads.get({ threadId });
+      if (thread.projectId !== projectId)
+        throw new Error("Choose a section in this chat's project.");
+      const all = folders();
+      const f = folderId ? all.find((x) => x.id === folderId) : null;
+      if (folderId && !f) throw new Error("Section not found.");
+      if (f && f.projectId !== projectId)
+        throw new Error("Choose a section in this chat's project.");
+      if (f && isGroup(f))
+        throw new Error(
+          "A group holds sections, not chats. Choose a section inside it.",
+        );
+      // Filing a chat where it already works leaves nothing to remember.
+      if ((await naturalPlace(threadId)) === (folderId ?? null))
+        db.prepare("DELETE FROM thread_places WHERE threadId=?").run(threadId);
+      else
+        db.prepare("INSERT OR REPLACE INTO thread_places VALUES (?,?,?)").run(
+          threadId,
+          projectId,
+          folderId,
+        );
+      changed();
+      return { ok: true as const };
+    },
+    thread_place_clear: ({ threadId }) => {
+      db.prepare("DELETE FROM thread_places WHERE threadId=?").run(threadId);
+      changed();
+      return { ok: true as const };
+    },
     section_reparent: async ({ folderId, parentId }) => {
       const all = folders();
       const f = all.find((x) => x.id === folderId);
@@ -1591,10 +1659,21 @@ export default async function plugin(bb: BbPluginApi) {
       db.prepare(
         "DELETE FROM exports WHERE error IS NOT NULL AND updatedAt < ?",
       ).run(Date.now() - 3600_000);
+      // A section can disappear under a chat filed into it; fall back to where
+      // the chat works rather than hiding it from the tree.
+      db.prepare(
+        "DELETE FROM thread_places WHERE folderId IS NOT NULL AND folderId NOT IN (SELECT id FROM folders)",
+      ).run();
+      const places: Record<string, string> = {};
+      for (const row of db
+        .prepare("SELECT threadId, folderId FROM thread_places")
+        .all() as { threadId: string; folderId: string | null }[])
+        places[row.threadId] = row.folderId ?? "";
       return {
         folders: fs,
         roots: await roots(),
         bindings,
+        places,
         machines: (await bb.sdk.hosts.list()).map((h) => ({
           id: h.id,
           name: h.name,
@@ -2456,8 +2535,20 @@ export default async function plugin(bb: BbPluginApi) {
     summary: "Project sections and chat history",
     commands: [
       {
+        name: "place-chat",
+        summary: "List a chat under a section, leaving its folder alone",
+        usage:
+          "bb project-folders place-chat <thread-id> <project-id> <folder-id-or-dash>",
+      },
+      {
+        name: "unplace-chat",
+        summary: "List a chat under the folder it works in again",
+        usage: "bb project-folders unplace-chat <thread-id>",
+      },
+      {
         name: "move-chat",
-        summary: "Move an idle chat and its dedicated storage",
+        summary:
+          "Move an idle chat and its dedicated storage (needs the core directory-update API)",
         usage:
           "bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>",
       },
@@ -2522,7 +2613,15 @@ export default async function plugin(bb: BbPluginApi) {
       try {
         const args = argv.filter((a) => a !== "--json");
         let value: unknown;
-        if (args[0] === "move-chat") {
+        if (args[0] === "place-chat") {
+          value = await handlers.thread_place({
+            threadId: args[1] ?? "",
+            projectId: args[2] ?? "",
+            folderId: args[3] === "-" ? null : (args[3] ?? ""),
+          });
+        } else if (args[0] === "unplace-chat") {
+          value = handlers.thread_place_clear({ threadId: args[1] ?? "" });
+        } else if (args[0] === "move-chat") {
           const input = targetSchema
             .extend({ threadId: z.string().min(1) })
             .parse({
@@ -2592,7 +2691,7 @@ export default async function plugin(bb: BbPluginApi) {
           return {
             exitCode: 0,
             stdout:
-              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | move-section <folder-id> <absolute-path> | delete-project <project-id> keep|archive",
+              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | place-chat <thread-id> <project-id> <folder-id-or-dash> | unplace-chat <thread-id> | move-section <folder-id> <absolute-path> | delete-project <project-id> keep|archive",
           };
         return { exitCode: 0, stdout: JSON.stringify(value, null, 2) };
       } catch (e) {

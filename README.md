@@ -285,7 +285,7 @@ Either way the old path stays as a link; unfinished moves are retried from **Unf
 
 **Delete a project** — **Leave files in place** (default) only removes it from the tree; **Move files to the archive** relocates the folder to `<parent>/.bb/archive/projects/<id>/folder`. The project's BB chats are deleted. Nothing is removed from a Git remote.
 
-**Move a chat to another section** — **Move to section…** in a chat menu, or drag the chat onto a section or project root in the same project and device. The destination list draws the project tree exactly once, the way the chat list does: sections on other devices are listed under their tree parent, and the project row always means the project folder on the chat's own device, so a chat living in a section on a server can be lifted up to the project level of that server. Destinations on another device are shown but disabled, and the chat's current place is marked. A chat cannot change device — BB's chat relocation works within one machine — so a refused row says which device the chat runs on and which one the section is on, and points at **Move to group…**, which moves the whole section in the tree instead. Chat history stays intact; only its `.bb/chats/<id>` folder moves. This needs BB's experimental directory-update API from the [companion core patch](docs/bb-native-thread-relocation.patch); without it the plugin reports an error and moves nothing, and every other feature works.
+**Move a chat to another section** — **Move to section…** in a chat menu, or drag the chat onto any section or the project root of its project. This files the chat into that section: only its place in the tree changes, so it works between devices too, and a chat filed away from the folder it works in shows that folder next to its name and offers **File back where it works** in its menu. A group refuses a chat, because a group holds sections and has no folder of its own. The chat's working folder is never touched: changing it needs BB's directory-update API from the [companion core patch](docs/bb-native-thread-relocation.patch), and even that API keeps a chat on its machine.
 
 ## Files and chat history
 
@@ -309,6 +309,8 @@ BB stays the canonical chat store. The plugin exports paginated history after a 
 bb project-folders list
 bb project-folders create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id]
 bb project-folders move-section <folder-id> <absolute-path>
+bb project-folders place-chat <thread-id> <project-id> <folder-id-or-dash>
+bb project-folders unplace-chat <thread-id>
 bb project-folders move-chat <thread-id> <project-id> <folder-id-or-dash> <host-id>
 bb project-folders archive <folder-id>
 bb project-folders archives

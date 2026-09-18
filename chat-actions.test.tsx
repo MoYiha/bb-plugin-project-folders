@@ -75,12 +75,9 @@ function mount(failMove = false) {
           bindings: {},
           errors: [],
         }),
-        thread_move: () => {
-          if (failMove)
-            throw new Error(
-              "Wait for the chat and its queued messages to finish before moving it.",
-            );
-          return { path: folder.path };
+        thread_place: () => {
+          if (failMove) throw new Error("Section not found.");
+          return { ok: true };
         },
       },
     },
@@ -134,7 +131,7 @@ it("opens the chat action menu on right-click and offers native actions plus mov
   expect(await view.findByText("Pin")).toBeTruthy();
   view.lifecycle.unmount();
 });
-it("drops a chat onto a section through the same relocation RPC", async () => {
+it("drops a chat onto a section through the filing RPC", async () => {
   const view = mount();
   const chat = (await view.findByText("Example chat")).closest(".pf-thread")!;
   const target = (await view.findByText("Section")).closest(".pf-heading")!;
@@ -150,7 +147,7 @@ it("drops a chat onto a section through the same relocation RPC", async () => {
   fireEvent.drop(target, { dataTransfer });
   await waitFor(() =>
     expect(
-      view.inspection.rpcCalls.some((call) => call.method === "thread_move"),
+      view.inspection.rpcCalls.some((call) => call.method === "thread_place"),
     ).toBe(true),
   );
   view.lifecycle.unmount();
@@ -214,15 +211,15 @@ it("selects a destination before explicitly moving from the menu", async () => {
     (b) => b.textContent === "Section",
   )!;
   fireEvent.click(section);
-  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
-    false,
-  );
+  expect(
+    view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
+  ).toBe(false);
   fireEvent.click(
     await view.findByRole("button", { name: "Move", exact: true }),
   );
   await waitFor(() =>
     expect(
-      view.inspection.rpcCalls.some((c) => c.method === "thread_move"),
+      view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
     ).toBe(true),
   );
   view.lifecycle.unmount();
@@ -344,12 +341,8 @@ it("styles section and project labels as bold/unread when there is an unread cha
 
   view.lifecycle.unmount();
 });
-it("moves a chat from a section on another device up to the project root of its own device", async () => {
-  const remoteRoot = {
-    ...root,
-    hostId: "h2",
-    path: "/srv/work",
-  };
+it("files a chat from a section on another device into any section of its project", async () => {
+  const remoteRoot = { ...root, hostId: "h2", path: "/srv/work" };
   const group = {
     ...folder,
     id: "g1",
@@ -391,13 +384,14 @@ it("moves a chat from a section on another device up to the project root of its 
           folders: [folder, group, remote],
           roots: [root, remoteRoot],
           bindings: { "env-remote": remote.id },
+          places: {},
           errors: [],
           machines: [
             { id: "h1", name: "Mini", connected: true },
             { id: "h2", name: "Hub", connected: true },
           ],
         }),
-        thread_move: () => ({ path: remoteRoot.path }),
+        thread_place: () => ({ ok: true }),
       },
     },
   );
@@ -408,20 +402,18 @@ it("moves a chat from a section on another device up to the project root of its 
     Array.from(dialog.querySelectorAll("button.pf-move-target")).find((b) =>
       b.querySelector("span")?.textContent?.includes(name),
     ) as HTMLButtonElement;
-  // The project appears once, for the device the chat already runs on.
+  // The project appears once, with its whole tree under it.
   expect(
     Array.from(dialog.querySelectorAll("button.pf-move-target")).filter((b) =>
       b.querySelector("span")?.textContent?.includes("Project"),
     ),
   ).toHaveLength(1);
-  // The chat's own section hangs under a group of another device: still listed.
-  expect(row("Remote")).toBeTruthy();
   expect(row("Remote").textContent).toContain("Currently here");
-  // Sections of the other device cannot take a chat that stays on its own.
-  expect(row("Section").disabled).toBe(true);
-  expect(row("Project").disabled).toBe(false);
-  fireEvent.click(row("Project"));
-  expect(await view.findByText("/srv/work")).toBeTruthy();
+  // A section on the other device takes the chat: only the tree place changes.
+  expect(row("Section").disabled).toBe(false);
+  // A group holds sections, not chats.
+  expect(row("Group").disabled).toBe(true);
+  fireEvent.click(row("Section"));
   fireEvent.click(
     await view.findByRole("button", { name: "Move", exact: true }),
   );
@@ -429,38 +421,28 @@ it("moves a chat from a section on another device up to the project root of its 
     expect(
       view.inspection.rpcCalls.some(
         (c) =>
-          c.method === "thread_move" &&
+          c.method === "thread_place" &&
           JSON.stringify(c.input) ===
             JSON.stringify({
               threadId: "t2",
               projectId: "p1",
-              folderId: null,
-              hostId: "h2",
+              folderId: "f1",
             }),
       ),
     ).toBe(true),
   );
   view.lifecycle.unmount();
 });
-it("explains a drop on a section of another device instead of ignoring it", async () => {
-  const remoteRoot = { ...root, hostId: "h2", path: "/srv/work" };
-  const remote = {
-    ...folder,
-    id: "f2",
-    hostId: "h2",
-    parentId: folder.id,
-    name: "Remote",
-    path: "/srv/sites/remote",
-  };
-  const remoteChat: PluginSidebarThread = {
+it("shows where a filed chat works and offers to file it back", async () => {
+  const other = { ...folder, id: "f2", path: "/work/Other", name: "Other" };
+  const filed: PluginSidebarThread = {
     ...thread,
-    id: "t2",
-    title: "Remote chat",
-    host: { id: "h2", name: "Hub" },
+    id: "t3",
+    title: "Filed chat",
     updatedAt: Date.now(),
     latestAttentionAt: Date.now(),
     environment: {
-      id: "env-remote",
+      id: "env-sec",
       name: null,
       branchName: null,
       providerId: null,
@@ -471,23 +453,60 @@ it("explains a drop on a section of another device instead of ignoring it", asyn
     app.threadLists[0]!,
     { activeThreadId: null, onNavigate() {} },
     {
-      sidebarThreads: { threads: [remoteChat], projects: [] },
+      sidebarThreads: { threads: [filed], projects: [] },
       rpc: {
         list: () => ({
-          folders: [folder, remote],
-          roots: [root, remoteRoot],
-          bindings: { "env-remote": remote.id },
+          folders: [folder, other],
+          roots: [root],
+          bindings: { "env-sec": folder.id },
+          places: { t3: other.id },
           errors: [],
-          machines: [
-            { id: "h1", name: "Mini", connected: true },
-            { id: "h2", name: "Hub", connected: true },
-          ],
+          machines: [{ id: "h1", name: "Mini", connected: true }],
+        }),
+        thread_place_clear: () => ({ ok: true }),
+      },
+    },
+  );
+  const row = (await view.findByText("Filed chat")).closest(".pf-thread")!;
+  // The chat is listed under Other, and says it still works in Section.
+  expect(row.textContent).toContain("Section");
+  fireEvent.contextMenu(await view.findByText("Filed chat"));
+  fireEvent.click(await view.findByText("File back where it works"));
+  await waitFor(() =>
+    expect(
+      view.inspection.rpcCalls.some((c) => c.method === "thread_place_clear"),
+    ).toBe(true),
+  );
+  view.lifecycle.unmount();
+});
+it("explains a drop on a group, which holds sections and not chats", async () => {
+  const group = {
+    ...folder,
+    id: "g1",
+    parentId: null,
+    name: "Group",
+    path: "@group/g1",
+    kind: "group",
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [thread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder, group],
+          roots: [root],
+          bindings: {},
+          places: {},
+          errors: [],
+          machines: [{ id: "h1", name: "Mini", connected: true }],
         }),
       },
     },
   );
-  const chat = (await view.findByText("Remote chat")).closest(".pf-thread")!;
-  const target = (await view.findByText("Section")).closest(".pf-heading")!;
+  const chat = (await view.findByText("Example chat")).closest(".pf-thread")!;
+  const target = (await view.findByText("Group")).closest(".pf-heading")!;
   const values = new Map<string, string>();
   const dataTransfer = {
     effectAllowed: "",
@@ -497,15 +516,12 @@ it("explains a drop on a section of another device instead of ignoring it", asyn
   };
   fireEvent.dragStart(chat, { dataTransfer });
   fireEvent.dragOver(target, { dataTransfer });
-  // The refused row is marked as such, not as a promise to take the chat.
   expect(target.className).toContain("pf-drop-refused");
   fireEvent.drop(target, { dataTransfer });
   const alert = await view.findByRole("alert");
-  expect(alert.textContent).toContain("A chat does not change device");
-  expect(alert.textContent).toContain("Hub");
-  expect(alert.textContent).toContain("Mini");
-  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
-    false,
-  );
+  expect(alert.textContent).toContain("A group has no folder of its own");
+  expect(
+    view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
+  ).toBe(false);
   view.lifecycle.unmount();
 });
