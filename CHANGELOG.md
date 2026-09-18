@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.10
+
+- **A refused destination says why.** Dragging a chat onto a section of another device did nothing at all — no highlight, no message. The row now marks itself as refusing (dashed outline) and the drop answers: the chat's device against the section's device, plus the way around it — move the whole section in the tree with **Move to group…**. Groups, foreign projects and a project without a folder on the chat's device explain themselves the same way.
+- In **Move to section…** the reason sits on the row of every destination that cannot take the chat, so a greyed-out row is no longer a dead end.
+
 ## 0.4.9
 
 - **Move a chat out of a section to the project level**: the destination tree now draws the project once and the project row means the project folder on the chat's own device, so a chat that lives in a section on another device is no longer stuck. Before, the project appeared once per device copy and the row of the other copy was greyed out.

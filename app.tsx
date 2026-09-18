@@ -1751,6 +1751,7 @@ function FolderHeading({
   closed,
   unread = false,
   highlighted,
+  refused = false,
   rulesAllowed,
   look,
   group = false,
@@ -1779,6 +1780,8 @@ function FolderHeading({
   closed: boolean;
   unread?: boolean;
   highlighted: boolean;
+  /** The highlighted row refuses this chat: shown, but not as a promise. */
+  refused?: boolean;
   rulesAllowed: boolean;
   look: {
     icon: string;
@@ -1812,7 +1815,10 @@ function FolderHeading({
   return (
     <div
       className={
-        "pf-heading" + row.className + (highlighted ? " pf-drop-target" : "")
+        "pf-heading" +
+        row.className +
+        (highlighted ? " pf-drop-target" : "") +
+        (highlighted && refused ? " pf-drop-refused" : "")
       }
       style={row.style}
       onContextMenu={(event) => {
@@ -1971,6 +1977,8 @@ function Tree(props: PluginThreadListProps) {
     null,
   );
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  /** Why the row under the pointer refuses the drag; null while it accepts. */
+  const [dropReason, setDropReason] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
   const [selectedMove, setSelectedMove] = useState<{
@@ -2014,6 +2022,32 @@ function Tree(props: PluginThreadListProps) {
     folder: Folder,
     root = false,
   ) => !!moveTarget(chat, folder, root);
+  const deviceName = (hostId: string) =>
+    data.machines.find((m) => m.id === hostId)?.name ?? hostId;
+  /**
+   * Why a node refuses the chat, or null when it takes it. A refusal is said
+   * out loud: a row that only greys out reads as a broken drag.
+   */
+  const moveBlock = (
+    chat: PluginSidebarThread | null,
+    folder: Folder,
+    root: boolean,
+  ): string | null => {
+    if (!chat || moveTarget(chat, folder, root)) return null;
+    if (chat.projectId !== folder.projectId)
+      return t("Чат остаётся в своём проекте.");
+    if (!root && isGroupFolder(folder))
+      return t("У группы нет своей папки: выберите раздел внутри неё.");
+    const hostId = chat.host?.id;
+    if (!hostId) return t("У чата ещё нет рабочей папки.");
+    if (root)
+      return `${t("У проекта нет папки на устройстве чата:")} ${deviceName(
+        hostId,
+      )}`;
+    return `${t("Чат не меняет устройство")}: ${deviceName(hostId)} ≠ ${deviceName(
+      folder.hostId,
+    )}. ${t("Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.")}`;
+  };
   const moveChat = async (
     chat: PluginSidebarThread,
     folder: Folder,
@@ -2026,6 +2060,7 @@ function Tree(props: PluginThreadListProps) {
     setMoveError("");
     setDraggedChat(null);
     setDropTarget(null);
+    setDropReason(null);
     try {
       await rpc.call("thread_move", { threadId: chat.id, ...target });
       setMovingChat(null);
@@ -2131,7 +2166,10 @@ function Tree(props: PluginThreadListProps) {
             }}
             onDrag={(chat) => {
               setDraggedChat(chat);
-              if (!chat) setDropTarget(null);
+              if (!chat) {
+                setDropTarget(null);
+                setDropReason(null);
+              }
             }}
           />
         ))}
@@ -2199,6 +2237,7 @@ function Tree(props: PluginThreadListProps) {
           closed={folderClosed}
           unread={folderUnread && listSettings.boldUnread}
           highlighted={dropTarget === f.id}
+          refused={dropTarget === f.id && !!dropReason}
           rulesAllowed={root || (!group && level <= 2)}
           look={folderLook}
           group={group}
@@ -2227,29 +2266,47 @@ function Tree(props: PluginThreadListProps) {
           onToggle={() => toggle(f.id, folderClosed)}
           onNewChat={() => void open(f, root)}
           onDragOver={(event) => {
-            if (!moveBusy && canMove(draggedChat, f, root)) {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "move";
-              setDropTarget(f.id);
-            }
+            // A refusing row still takes the drop: the reason is worth more
+            // than a dead cursor over the row the user aimed at.
+            if (
+              moveBusy ||
+              !draggedChat ||
+              draggedChat.projectId !== f.projectId
+            )
+              return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            setDropTarget(f.id);
+            setDropReason(moveBlock(draggedChat, f, root));
           }}
           onDragLeave={(event) => {
             if (
               !(event.relatedTarget instanceof Node) ||
               !event.currentTarget.contains(event.relatedTarget)
-            )
+            ) {
               setDropTarget(null);
+              setDropReason(null);
+            }
           }}
           onDrop={(event) => {
             event.preventDefault();
             event.stopPropagation();
             if (
-              draggedChat &&
+              !draggedChat ||
               event.dataTransfer.getData(
                 "application/x-bb-project-folders-thread",
-              ) === draggedChat.id
+              ) !== draggedChat.id
             )
-              void moveChat(draggedChat, f, root, true);
+              return;
+            const blocked = moveBlock(draggedChat, f, root);
+            if (blocked) {
+              setDraggedChat(null);
+              setDropTarget(null);
+              setDropReason(null);
+              setMoveError(blocked);
+              return;
+            }
+            void moveChat(draggedChat, f, root, true);
           }}
           onNewProject={() => setNewProject(true)}
           onCreate={() =>
@@ -2421,11 +2478,15 @@ function Tree(props: PluginThreadListProps) {
                     : !!foreignHost(data.folders, data.roots, folder))
                     ? deviceName(hostId)
                     : null;
+                const blocked = moveBlock(movingChat, folder, root);
                 const selected = selectedMove?.folder.id === folder.id;
                 return (
                   <div key={folder.id}>
                     <div
                       className="pf-move-tree-row"
+                      // A disabled button swallows its own tooltip: the row
+                      // carries the reason this destination is refused.
+                      title={blocked ?? folder.path}
                       style={{ paddingInlineStart: depth * 18 }}
                     >
                       <button

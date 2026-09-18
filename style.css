@@ -721,6 +721,11 @@
   outline: 1px solid var(--ink);
   border-radius: 6px;
 }
+.pf-drop-target.pf-drop-refused {
+  background: transparent;
+  outline-style: dashed;
+  outline-color: var(--muted-foreground);
+}
 .pf-move-targets {
   max-height: 360px;
   overflow-y: auto;

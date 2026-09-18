@@ -442,3 +442,70 @@ it("moves a chat from a section on another device up to the project root of its 
   );
   view.lifecycle.unmount();
 });
+it("explains a drop on a section of another device instead of ignoring it", async () => {
+  const remoteRoot = { ...root, hostId: "h2", path: "/srv/work" };
+  const remote = {
+    ...folder,
+    id: "f2",
+    hostId: "h2",
+    parentId: folder.id,
+    name: "Remote",
+    path: "/srv/sites/remote",
+  };
+  const remoteChat: PluginSidebarThread = {
+    ...thread,
+    id: "t2",
+    title: "Remote chat",
+    host: { id: "h2", name: "Hub" },
+    updatedAt: Date.now(),
+    latestAttentionAt: Date.now(),
+    environment: {
+      id: "env-remote",
+      name: null,
+      branchName: null,
+      providerId: null,
+      workspaceDisplayKind: null,
+    },
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [remoteChat], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder, remote],
+          roots: [root, remoteRoot],
+          bindings: { "env-remote": remote.id },
+          errors: [],
+          machines: [
+            { id: "h1", name: "Mini", connected: true },
+            { id: "h2", name: "Hub", connected: true },
+          ],
+        }),
+      },
+    },
+  );
+  const chat = (await view.findByText("Remote chat")).closest(".pf-thread")!;
+  const target = (await view.findByText("Section")).closest(".pf-heading")!;
+  const values = new Map<string, string>();
+  const dataTransfer = {
+    effectAllowed: "",
+    dropEffect: "",
+    setData: (k: string, v: string) => values.set(k, v),
+    getData: (k: string) => values.get(k) || "",
+  };
+  fireEvent.dragStart(chat, { dataTransfer });
+  fireEvent.dragOver(target, { dataTransfer });
+  // The refused row is marked as such, not as a promise to take the chat.
+  expect(target.className).toContain("pf-drop-refused");
+  fireEvent.drop(target, { dataTransfer });
+  const alert = await view.findByRole("alert");
+  expect(alert.textContent).toContain("A chat does not change device");
+  expect(alert.textContent).toContain("Hub");
+  expect(alert.textContent).toContain("Mini");
+  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
+    false,
+  );
+  view.lifecycle.unmount();
+});

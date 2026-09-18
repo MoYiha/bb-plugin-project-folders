@@ -265,5 +265,11 @@
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Las secciones de un grupo pueden crearse en cualquier dispositivo donde el proyecto tenga una carpeta.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "También puedes elegir una carpeta fuera del proyecto, como la carpeta de un sitio web en un servidor.",
   "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Si la carpeta de la sección está fuera de la carpeta del proyecto, sus archivos se quedan en su sitio: solo se archivan los chats y el registro de la sección.",
-  "Сейчас здесь": "Aquí ahora"
+  "Сейчас здесь": "Aquí ahora",
+  "Чат остаётся в своём проекте.": "Un chat permanece en su propio proyecto.",
+  "У группы нет своей папки: выберите раздел внутри неё.": "Un grupo no tiene carpeta propia: elige una sección dentro de él.",
+  "У чата ещё нет рабочей папки.": "Este chat aún no tiene carpeta de trabajo.",
+  "У проекта нет папки на устройстве чата:": "El proyecto no tiene carpeta en el dispositivo del chat:",
+  "Чат не меняет устройство": "Un chat no cambia de dispositivo",
+  "Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.": "Sube el chat junto con su sección: Mover a grupo… en el menú de la sección."
 }

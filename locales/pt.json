@@ -265,5 +265,11 @@
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Seções dentro de um grupo podem ser criadas em qualquer dispositivo onde o projeto tenha uma pasta.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "Você também pode escolher uma pasta fora do projeto, como a pasta de um site em um servidor.",
   "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Se a pasta da seção estiver fora da pasta do projeto, os arquivos ficam no lugar: apenas os chats e o registro da seção são arquivados.",
-  "Сейчас здесь": "Aqui agora"
+  "Сейчас здесь": "Aqui agora",
+  "Чат остаётся в своём проекте.": "Um chat permanece no seu projeto.",
+  "У группы нет своей папки: выберите раздел внутри неё.": "Um grupo não tem pasta própria: escolha uma seção dentro dele.",
+  "У чата ещё нет рабочей папки.": "Este chat ainda não tem pasta de trabalho.",
+  "У проекта нет папки на устройстве чата:": "O projeto não tem pasta no dispositivo do chat:",
+  "Чат не меняет устройство": "Um chat não muda de dispositivo",
+  "Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.": "Suba o chat junto com a sua seção: Mover para grupo… no menu da seção."
 }

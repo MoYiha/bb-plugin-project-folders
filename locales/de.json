@@ -265,5 +265,11 @@
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.": "Bereiche in einer Gruppe können auf jedem Gerät angelegt werden, auf dem das Projekt einen Ordner hat.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.": "Du kannst auch einen Ordner außerhalb des Projekts wählen, etwa den Ordner einer Website auf einem Server.",
   "Если папка раздела лежит вне папки проекта, файлы останутся на месте: в архив уйдут только чаты и запись раздела.": "Liegt der Bereichsordner außerhalb des Projektordners, bleiben seine Dateien an Ort und Stelle: Archiviert werden nur die Chats und der Bereichseintrag.",
-  "Сейчас здесь": "Aktueller Ort"
+  "Сейчас здесь": "Aktueller Ort",
+  "Чат остаётся в своём проекте.": "Ein Chat bleibt in seinem Projekt.",
+  "У группы нет своей папки: выберите раздел внутри неё.": "Eine Gruppe hat keinen eigenen Ordner: Wählen Sie einen Bereich darin.",
+  "У чата ещё нет рабочей папки.": "Dieser Chat hat noch keinen Arbeitsordner.",
+  "У проекта нет папки на устройстве чата:": "Das Projekt hat keinen Ordner auf dem Gerät des Chats:",
+  "Чат не меняет устройство": "Ein Chat wechselt das Gerät nicht",
+  "Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.": "Heben Sie den Chat mit seinem Bereich an: In Gruppe verschieben… im Bereichsmenü."
 }

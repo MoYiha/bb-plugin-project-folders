@@ -5,6 +5,15 @@ export const english = {
     "Choose a section on the same device. Chat history will be preserved.",
   "Перенос чата…": "Moving chat…",
   "Сейчас здесь": "Currently here",
+  "Чат остаётся в своём проекте.": "A chat stays in its own project.",
+  "У группы нет своей папки: выберите раздел внутри неё.":
+    "A group has no folder of its own: choose a section inside it.",
+  "У чата ещё нет рабочей папки.": "This chat has no working folder yet.",
+  "У проекта нет папки на устройстве чата:":
+    "The project has no folder on the chat's device:",
+  "Чат не меняет устройство": "A chat does not change device",
+  "Поднять чат выше можно вместе с его разделом: «Переместить в группу…» в меню раздела.":
+    "Lift the chat with its section instead: Move to group… in the section menu.",
 
   "Выбор папки": "Choose folder",
   "Новый раздел": "New section",
