@@ -2416,9 +2416,8 @@ function Tree(props: PluginThreadListProps) {
                 const device =
                   hostId &&
                   (root
-                    ? data.roots.filter(
-                        (r) => r.projectId === folder.projectId,
-                      ).length > 1
+                    ? data.roots.filter((r) => r.projectId === folder.projectId)
+                        .length > 1
                     : !!foreignHost(data.folders, data.roots, folder))
                     ? deviceName(hostId)
                     : null;
