@@ -344,4 +344,36 @@ export const english = {
   "Подходящих групп нет. Создайте группу рядом с этим разделом.":
     "No suitable groups. Create a group next to this section.",
   "Удалить группу": "Delete group",
+
+  "Провайдер, модель и агент": "Provider, model and agent",
+  "Новый чат, созданный здесь, начинается с этих настроек. Выключенная группа наследуется: ближайший раздел выше, затем проект, затем настройки плагина, затем обычный выбор BB.":
+    "A new chat created here starts with these settings. A group left off is inherited: the nearest section above, then the project, then the plugin settings, then BB's usual choice.",
+  "Свой провайдер и модель": "Own provider and model",
+  "Свой режим доступа": "Own permission mode",
+  Агент: "Agent",
+  Наследовать: "Inherit",
+  "Без агента": "No agent",
+  "как в BB": "as in BB",
+  "из настроек плагина": "from plugin settings",
+  "из проекта": "from the project",
+  отсюда: "set here",
+  "из раздела выше": "from a section above",
+  "Выбор агента даёт плагин CLI Agents. Без него провайдер и модель работают как обычно.":
+    "Choosing an agent needs the CLI Agents plugin. Without it the provider and the model work as usual.",
+  "У этого CLI нет своих агентов: Claude Code, Codex, OpenCode.":
+    "This CLI has no session agents of its own: Claude Code, Codex, OpenCode.",
+  "Провайдер и агент": "Provider and agent",
+  "С чего начинается новый чат, если проект и раздел молчат.":
+    "What a new chat starts with when the project and the section say nothing.",
+  "По умолчанию для новых чатов": "Defaults for new chats",
+  "Действует, пока проект или раздел не задал своё. Выключенная группа оставляет обычный выбор BB.":
+    "Applies until a project or a section sets its own. A group left off keeps BB's usual choice.",
+  "Агенты для чатов": "Agents for chats",
+  "Плагин CLI Agents установлен. Агент выбирается у проекта или раздела: откройте его карточку и задайте агента рядом с моделью.":
+    "The CLI Agents plugin is installed. The agent is chosen on a project or a section: open its card and set the agent next to the model.",
+  "Чтобы новый чат сразу начинался нужным агентом Claude Code, Codex или OpenCode, поставьте плагин CLI Agents.":
+    "To have a new chat start with the right Claude Code, Codex or OpenCode agent, install the CLI Agents plugin.",
+  "Он же есть в каталоге плагинов BB под именем":
+    "It is also in the BB plugin catalog as",
+  "Открыть страницу плагина": "Open the plugin page",
 } as const;

@@ -1,0 +1,377 @@
+import { describe, it, expect } from "vitest";
+import {
+  createFakePluginHost,
+  makeThreadResponse,
+} from "@get-bb/plugin-sdk/testing";
+import plugin from "./server";
+import { normalizeExecution, resolveExecution } from "./execution";
+
+const root = {
+  id: "p1",
+  name: "Test",
+  sources: [
+    { type: "local_path", hostId: "h1", path: "/work", isDefault: true },
+  ],
+};
+/** What the CLI Agents plugin answered, per rpc method, in this test. */
+type AgentStubs = {
+  running?: boolean;
+  catalog?: { agents: string[]; supported?: boolean; warnings?: string[] };
+  select?: () => { token: string; label: string };
+  pending?: unknown;
+};
+async function setup(agents: AgentStubs = {}) {
+  const rpcCalls: { method: string; input: unknown }[] = [];
+  const h = createFakePluginHost({
+    pluginId: "project-folders",
+    agentSkillIds: ["project-folders"],
+    sdk: {
+      projects: {
+        list: async () => [root] as never,
+        defaultExecutionOptions: async () =>
+          ({ providerId: "codex", model: "gpt-6" }) as never,
+      },
+      hosts: {
+        list: async () =>
+          [{ id: "h1", name: "Mac", status: "connected" }] as never,
+      },
+      files: {
+        mkdir: async () => ({}) as never,
+        read: async () => {
+          throw new Error("ENOENT: no such file or directory");
+        },
+        write: async () => ({ outcome: "written", sha256: "s", sizeBytes: 1 }),
+      },
+      environments: { list: async () => [] },
+      plugins: {
+        list: async () =>
+          ({
+            plugins: [
+              {
+                id: "cli-agents",
+                status: agents.running === false ? "disabled" : "running",
+              },
+            ],
+          }) as never,
+        callRpc: async (args) => {
+          const { method, input } = args as unknown as {
+            method: string;
+            input: unknown;
+          };
+          rpcCalls.push({ method, input });
+          if (method === "catalog")
+            return {
+              supported: agents.catalog?.supported ?? true,
+              warnings: agents.catalog?.warnings ?? [],
+              agents: (agents.catalog?.agents ?? ["reviewer", "writer"]).map(
+                (id) => ({ id, description: "", source: "user", mode: "all" }),
+              ),
+            } as never;
+          if (method === "pending") return (agents.pending ?? null) as never;
+          if (method === "select")
+            return (agents.select?.() ?? {
+              token: "11111111-1111-4111-8111-111111111111",
+              label: "Agent: reviewer",
+            }) as never;
+          if (method === "clearPending") return true as never;
+          throw new Error(`unexpected cli-agents method ${method}`);
+        },
+      },
+    },
+  });
+  await plugin(h.bb);
+  return { ...h, rpcCalls };
+}
+const call = (h: Awaited<ReturnType<typeof setup>>) =>
+  h.harness.behavior.callRpc;
+const section = async (h: Awaited<ReturnType<typeof setup>>, name: string) =>
+  (
+    (await call(h)("create", {
+      projectId: "p1",
+      folderId: null,
+      name,
+      relativePath: name,
+    })) as { id: string }
+  ).id;
+const spawnRequest = (providerId = "claude-code") => ({
+  projectId: "p1",
+  providerId,
+  model: "claude-opus-5",
+  reasoningLevel: "high",
+  permissionMode: "full",
+  environment: {
+    type: "provider",
+    environmentProviderId: "project-checkout",
+    machine: { type: "existing", hostId: "h1" },
+  },
+  input: [],
+  executionInputSources: {},
+});
+function stubSpawn(h: Awaited<ReturnType<typeof setup>>) {
+  h.harness.inspection.sdk.stub("threads.spawn", async () =>
+    makeThreadResponse({ id: "t1", projectId: "p1" }),
+  );
+  h.harness.inspection.sdk.stub("threads.get", async () =>
+    makeThreadResponse({ id: "t1", projectId: "p1", environmentId: null }),
+  );
+}
+
+describe("execution inheritance", () => {
+  it("lets the nearest place win one group at a time", () => {
+    const resolved = resolveExecution([
+      {
+        origin: { scope: "folder", folderId: "f1" },
+        value: { agentMode: "none" },
+      },
+      {
+        origin: { scope: "project", folderId: null },
+        value: {
+          providerId: "claude-code",
+          model: "opus",
+          reasoningLevel: "high",
+          agentMode: "agent",
+          agentId: "reviewer",
+        },
+      },
+      {
+        origin: { scope: "global", folderId: null },
+        value: { providerId: "codex", model: "gpt-6", permissionMode: "auto" },
+      },
+    ]);
+    // The section pins no model, so the project's travels down to it.
+    expect(resolved.model).toMatchObject({
+      providerId: "claude-code",
+      model: "opus",
+      origin: { scope: "project" },
+    });
+    // Nobody above the plugin default pinned permissions.
+    expect(resolved.permissionMode).toMatchObject({
+      value: "auto",
+      origin: { scope: "global" },
+    });
+    // "No agent" is a decision, not an absence: it beats the project's agent.
+    expect(resolved.agent).toMatchObject({
+      mode: "none",
+      origin: { scope: "folder", folderId: "f1" },
+    });
+  });
+  it("keeps only the groups a place really pins", () => {
+    expect(
+      normalizeExecution({ model: "opus", reasoningLevel: "high" }),
+    ).toEqual({});
+    expect(normalizeExecution({ agentMode: "agent" })).toEqual({});
+    expect(
+      normalizeExecution({
+        providerId: "codex",
+        model: "gpt-6",
+        agentMode: "agent",
+        agentId: "reviewer",
+      }),
+    ).toEqual({
+      providerId: "codex",
+      model: "gpt-6",
+      agentMode: "agent",
+      agentId: "reviewer",
+    });
+  });
+  it("shows a section what it pins itself and what it inherits", async () => {
+    const h = await setup();
+    try {
+      const id = await section(h, "Website");
+      await call(h)("execution_save", {
+        scope: { kind: "project", projectId: "p1" },
+        value: {
+          providerId: "claude-code",
+          model: "claude-opus-5",
+          reasoningLevel: "high",
+          permissionMode: "auto",
+        },
+      });
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: {
+          providerId: "acp-opencode",
+          model: "gemini",
+          serviceTier: "fast",
+        },
+      });
+      const read = (await call(h)("execution_read", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+      })) as Record<string, never>;
+      expect(read.own).toMatchObject({ providerId: "acp-opencode" });
+      expect(read.effective).toMatchObject({
+        model: { providerId: "acp-opencode", origin: { scope: "folder" } },
+        // Not pinned here: the project's permission mode still applies.
+        permissionMode: { value: "auto", origin: { scope: "project" } },
+      });
+      expect(read.inherited).toMatchObject({
+        model: { providerId: "claude-code", origin: { scope: "project" } },
+      });
+      expect(read.hostId).toBe("h1");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("forgets a group when it is switched off, and survives a reload", async () => {
+    const h = await setup();
+    try {
+      const scope = { kind: "project", projectId: "p1" };
+      await call(h)("execution_save", {
+        scope,
+        value: { providerId: "codex", model: "gpt-6", permissionMode: "auto" },
+      });
+      Object.assign(h, await h.harness.lifecycle.reload(plugin));
+      expect(
+        ((await call(h)("execution_read", { scope })) as Record<string, never>)
+          .own,
+      ).toMatchObject({ providerId: "codex", permissionMode: "auto" });
+      await call(h)("execution_save", {
+        scope,
+        value: { permissionMode: "auto" },
+      });
+      expect(
+        ((await call(h)("execution_read", { scope })) as Record<string, never>)
+          .own,
+      ).toEqual({ permissionMode: "auto" });
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});
+
+describe("pinned agents", () => {
+  it("binds the pinned agent to the new chat and leaves no pending choice", async () => {
+    const h = await setup();
+    try {
+      const id = await section(h, "Review");
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: {
+          providerId: "claude-code",
+          model: "claude-opus-5",
+          agentMode: "agent",
+          agentId: "reviewer",
+        },
+      });
+      stubSpawn(h);
+      await call(h)("spawn", {
+        projectId: "p1",
+        folderId: id,
+        request: spawnRequest(),
+      });
+      const spawned = JSON.stringify(
+        h.harness.inspection.sdk.callsTo("threads.spawn"),
+      );
+      expect(spawned).toContain("cli-agents-selection:11111111");
+      expect(spawned).toContain("agent-only");
+      const methods = h.rpcCalls.map((c) => c.method);
+      expect(methods).toContain("select");
+      expect(methods).toContain("clearPending");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("leaves the chat alone when the composer runs another CLI", async () => {
+    const h = await setup();
+    try {
+      const id = await section(h, "Review");
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: { agentMode: "agent", agentId: "reviewer" },
+      });
+      stubSpawn(h);
+      await call(h)("spawn", {
+        projectId: "p1",
+        folderId: id,
+        request: spawnRequest("acp-antigravity"),
+      });
+      expect(
+        JSON.stringify(h.harness.inspection.sdk.callsTo("threads.spawn")),
+      ).not.toContain("cli-agents-selection");
+      expect(h.rpcCalls.map((c) => c.method)).not.toContain("select");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("yields to an agent the user picked in the composer", async () => {
+    const h = await setup({ pending: { agentId: "writer" } });
+    try {
+      const id = await section(h, "Review");
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: { agentMode: "agent", agentId: "reviewer" },
+      });
+      stubSpawn(h);
+      await call(h)("spawn", {
+        projectId: "p1",
+        folderId: id,
+        request: spawnRequest(),
+      });
+      expect(h.rpcCalls.map((c) => c.method)).not.toContain("select");
+      expect(
+        JSON.stringify(h.harness.inspection.sdk.callsTo("threads.spawn")),
+      ).not.toContain("cli-agents-selection");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("refuses to start a chat whose pinned agent cannot be applied", async () => {
+    const h = await setup();
+    try {
+      const id = await section(h, "Review");
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: { agentMode: "agent", agentId: "reviewer" },
+      });
+      stubSpawn(h);
+      h.harness.inspection.sdk.stub("plugins.callRpc", async (...args) => {
+        const { method } = args[0] as unknown as { method: string };
+        if (method === "pending") return null;
+        throw new Error("Agent is not available. Refresh the list.");
+      });
+      await expect(
+        call(h)("spawn", {
+          projectId: "p1",
+          folderId: id,
+          request: spawnRequest(),
+        }),
+      ).rejects.toThrow(/reviewer/);
+      expect(h.harness.inspection.sdk.callsTo("threads.spawn")).toHaveLength(0);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("refuses to pin an agent the machine does not have", async () => {
+    const h = await setup({ catalog: { agents: ["writer"] } });
+    try {
+      const id = await section(h, "Review");
+      await expect(
+        call(h)("execution_save", {
+          scope: { kind: "folder", projectId: "p1", folderId: id },
+          value: {
+            providerId: "claude-code",
+            model: "claude-opus-5",
+            agentMode: "agent",
+            agentId: "reviewer",
+          },
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("reports the missing plugin instead of an empty agent list", async () => {
+    const h = await setup({ running: false });
+    try {
+      const id = await section(h, "Review");
+      const catalog = (await call(h)("execution_agents", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        providerId: "claude-code",
+      })) as { installed: boolean; agents: unknown[] };
+      expect(catalog.installed).toBe(false);
+      expect(catalog.agents).toEqual([]);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});

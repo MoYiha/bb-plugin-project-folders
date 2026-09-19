@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.16
+
+- **The panel no longer crashes while pinning a provider.** BB's picker resolves its own catalog and reports the result back; this plugin answered with the inherited service tier again, the two never agreed, and React stopped the whole panel with "Maximum update depth exceeded" — after which the section tree stayed dead until the page was reloaded. A group that is switched on now reads only what it pins itself, and a group that is off ignores what the picker says.
+- The new-chat composer keeps its place while the pinned values load, instead of remounting around BB's own composer.
+
+## 0.4.15
+
+- **Saving provider and model no longer fails.** A group switched off left an `undefined` behind in the request, and the server refused the whole save with `rpc input at $input.value.serviceTier is not a JSON value`.
+- **A card opened from the ⋯ menu or a link loads its rules.** The key arrived before the tree, the first read had no row to ask about and nothing asked again, so **AGENTS.md rules** stayed on "Loading…" until you switched settings sections and came back.
+
+## 0.4.14
+
+- **A new chat can start with the right provider, model and agent.** The plugin as a whole (**Settings → Provider and agent**), a project, and every section — at any depth — can pin the provider and model with their reasoning level and service tier, the permission mode, and the native session agent. A chat created there opens with them.
+- **Inherited group by group, nearest place wins.** A section can take its project's model and still pin its own agent, or set **No agent** to refuse the one its project pinned. A group left off falls through to the section above, then the project, then the plugin, then BB's own remembered choice — nothing changes BB's defaults, and nothing is written to disk.
+- **Seeds, not locks.** The composer opens with the values filled in and its own pickers still win for that chat.
+- **Agents come from the CLI Agents plugin.** Claude Code, Codex and OpenCode agents are listed from the section's own machine, and the choice is bound to the chat it was created for, so two chats started at the same moment never take each other's agent. An agent picked by hand in the composer wins. If a pinned agent cannot be applied — machine offline, agent renamed, plugin off — the chat is not created and the error names the place and the reason. Without that plugin, provider and model still work.
+
+## 0.4.13
+
+- **One project in the new-chat folder picker.** A project with copies on several machines no longer appears once per device. Pick the folder once; the composer's machine control chooses which copy the chat opens in. Sections of every device stay in that same tree; a section still lives on its own device.
+
+## 0.4.12
+
+- **Phone: the folder ⋯ menu no longer crashes the sidebar.** On a narrow screen the menu is a sheet, but the “Chat sorting” submenu still used desktop Radix parts. Opening ⋯ threw, and BB fell back to its own chat list.
+- Nested sections stay indented in that same sheet, instead of lining up as a flat list.
+- A long section path under the composer is truncated so it no longer runs over the next chip.
+
 ## 0.4.11
 
 - **Move a chat to any section of its project.** Moving a chat now files it into the section you pick — only its place in the tree changes, and it works everywhere: a chat that runs on a server can sit in a section of a Mac, because nothing about the chat's own folder is touched. Drag and drop and **Move to section…** both do this.
@@ -129,13 +156,11 @@ Stable release of the 0.3.4 preview series: it contains everything from 0.3.4-rc
 - Choose **Leave files in place** (default) or **Move files to the archive** next to the project folder.
 - BB chats of that project are removed; Git remotes and other machines are not deleted. Archiving files is refused when the folder is also another project's section.
 
-
 ## 0.3.4-rc.3
 
 - Rename chats inline from the context/ellipsis menu or by double-clicking the title. Enter or blur saves through the native BB rename action; Escape cancels.
 - Failed drag/drop reports a short notice without reopening the destination picker.
 - Explicit Move action opens a collapsible folder tree with destination selection and Move/Cancel buttons.
-
 
 ## 0.3.4-rc.2 (included in rc.3)
 
@@ -143,7 +168,6 @@ Stable release of the 0.3.4 preview series: it contains everything from 0.3.4-rc
 - Create folders on the selected device without leaving the picker.
 - Confirm empty-folder deletion; preserve nonempty folders, symlinks, and registered project/section folders.
 - Translate new controls into all 11 supported languages.
-
 
 ## 0.3.4-rc.1
 

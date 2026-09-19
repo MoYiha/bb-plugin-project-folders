@@ -6,6 +6,17 @@ import {
 } from "@get-bb/plugin-sdk/app";
 import type { rpcContract } from "./server";
 
+type SectionLabel = {
+  label: string;
+  compactLabel: string;
+  path: string;
+  projectName: string;
+};
+
+function paintedText(section: SectionLabel, compact: boolean): string {
+  return compact ? section.compactLabel : section.label;
+}
+
 // Per-pane ownership keeps split conversations independent. Only the existing
 // project label is decorated; no extra control or workspace mutation is added.
 export function ThreadSectionLabel({
@@ -13,11 +24,7 @@ export function ThreadSectionLabel({
 }: PluginThreadHeaderActionProps) {
   const marker = useRef<HTMLSpanElement>(null);
   const rpc = useRpc<typeof rpcContract>();
-  const [section, setSection] = useState<{
-    label: string;
-    path: string;
-    projectName: string;
-  } | null>(null);
+  const [section, setSection] = useState<SectionLabel | null>(null);
   const requestVersion = useRef(0);
   const refresh = useCallback(() => {
     const version = ++requestVersion.current;
@@ -42,6 +49,7 @@ export function ThreadSectionLabel({
     );
     if (!pane) return;
     const originals = new Map<HTMLElement, string>();
+    const chipOriginals = new Map<HTMLElement, string | null>();
     const paint = () => {
       for (const display of Array.from(
         pane.querySelectorAll<HTMLElement>("[data-option-display]"),
@@ -51,18 +59,28 @@ export function ThreadSectionLabel({
         );
         if (
           !full ||
-          (full.textContent !== section.projectName && !originals.has(full))
+          (full.textContent !== section.projectName &&
+            full.textContent !== section.label &&
+            !originals.has(full))
         )
           continue;
+        if (!chipOriginals.has(display))
+          chipOriginals.set(
+            display,
+            display.getAttribute("data-pf-section-chip"),
+          );
+        display.setAttribute("data-pf-section-chip", "");
+        display.title = section.label;
         for (const label of Array.from(
           display.querySelectorAll<HTMLElement>(
             "[data-promptbox-full-label], [data-promptbox-compact-label]",
           ),
         )) {
+          const compact = label.hasAttribute("data-promptbox-compact-label");
+          const next = paintedText(section, compact);
           if (!originals.has(label))
             originals.set(label, label.textContent ?? "");
-          if (label.textContent !== section.label)
-            label.textContent = section.label;
+          if (label.textContent !== next) label.textContent = next;
         }
       }
     };
@@ -76,7 +94,15 @@ export function ThreadSectionLabel({
     return () => {
       observer.disconnect();
       for (const [label, original] of originals) {
-        if (label.textContent === section.label) label.textContent = original;
+        const painted =
+          label.textContent === section.label ||
+          label.textContent === section.compactLabel;
+        if (painted) label.textContent = original;
+      }
+      for (const [chip, original] of chipOriginals) {
+        if (original === null) chip.removeAttribute("data-pf-section-chip");
+        else chip.setAttribute("data-pf-section-chip", original);
+        if (chip.title === section.label) chip.removeAttribute("title");
       }
     };
   }, [section]);

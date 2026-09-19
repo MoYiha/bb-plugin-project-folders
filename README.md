@@ -23,6 +23,7 @@
 - [Chat list](#chat-list)
 - [Appearance](#appearance)
 - [AGENTS.md rules](#agentsmd-rules)
+- [Provider, model and agent](#provider-model-and-agent)
 - [Section archive](#section-archive)
 - [Import and export](#import-and-export)
 - [Language](#language)
@@ -59,19 +60,20 @@ What you get from that:
 
 ## Features at a glance
 
-| Area | What it does |
-| --- | --- |
-| Projects & sections | Real folders, nesting, manual order by drag and drop, rename, change path, folderless groups |
-| Sidebar tree | Replaces BB's chat list with the project → section → chat tree; bold unread, auto-collapse, per-list limits |
-| New chats | Chat-plus button per project or section; the composer gets a project/section picker |
-| Rules | AGENTS.md templates for projects and sections, per-project and per-section overrides, own-file mode, custom rules into files or into BB sessions, a one-shot startup instruction |
-| Appearance | 118 icons in 7 groups or any emoji, 12 colors or a custom one, 4 fill styles, 4 presets, color by level or by project, per-item looks with inheritance |
-| Archive | Archive a section with nested sections, files and chats; restore it to the same path |
-| Devices | One project with a working copy on each connected machine |
-| Moves | Move a whole project, move or re-link a section, move a chat between sections (core patch) |
-| Settings | One settings screen on the management page and in BB settings; shared by all devices |
-| Import & export | Settings and looks as a JSON file |
-| Languages | 11 interface languages, English by default |
+| Area                | What it does                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projects & sections | Real folders, nesting, manual order by drag and drop, rename, change path, folderless groups                                                                                        |
+| Sidebar tree        | Replaces BB's chat list with the project → section → chat tree; bold unread, auto-collapse, per-list limits                                                                         |
+| New chats           | Chat-plus button per project or section; the composer gets a project/section picker                                                                                                 |
+| Rules               | AGENTS.md templates for projects and sections, per-project and per-section overrides, own-file mode, custom rules into files or into BB sessions, a one-shot startup instruction    |
+| Provider and agent  | Pin the provider, model, reasoning level, service tier, permission mode and — with CLI Agents — the session agent on the plugin, a project or any section; inherited group by group |
+| Appearance          | 118 icons in 7 groups or any emoji, 12 colors or a custom one, 4 fill styles, 4 presets, color by level or by project, per-item looks with inheritance                              |
+| Archive             | Archive a section with nested sections, files and chats; restore it to the same path                                                                                                |
+| Devices             | One project with a working copy on each connected machine                                                                                                                           |
+| Moves               | Move a whole project, move or re-link a section, move a chat between sections (core patch)                                                                                          |
+| Settings            | One settings screen on the management page and in BB settings; shared by all devices                                                                                                |
+| Import & export     | Settings and looks as a JSON file                                                                                                                                                   |
+| Languages           | 11 interface languages, English by default                                                                                                                                          |
 
 ## Install
 
@@ -99,7 +101,7 @@ A **project** is a BB project with a folder on a device. A **section** is a subf
 
 ### Groups
 
-A **group** arranges sections in the tree without a folder of its own — for example an *Apps* group holding sections that point to different places.
+A **group** arranges sections in the tree without a folder of its own — for example an _Apps_ group holding sections that point to different places.
 
 - **New group** — from any project, section or group **⋯** menu, or from a card. Only a name is needed.
 - **New section** inside a group creates its folder where the group sits: in the nearest real folder above, or in the project root. A group can hold sections from other devices too (see below).
@@ -142,7 +144,7 @@ The plugin adds a thread list to BB's sidebar: projects, their sections and subs
 
 ## Starting chats in the right folder
 
-Pressing chat-plus on a project or section opens BB's standard composer on the management page. The composer's project control becomes a **project/section tree**, indented by depth, with every device where the project has a copy. Pick the root or any nested section before sending; the tooltip shows the destination path. Errors stay visible and keep your draft.
+Pressing chat-plus on a project or section opens BB's standard composer on the management page. The composer's project control becomes a **project/section tree**, indented by depth. A project with copies on several machines appears once; pick the folder, then pick the machine in the composer's device control — the chat starts in that copy's folder. Sections of every device stay in the same tree; a section still lives on its own device. The tooltip shows the destination path. Errors stay visible and keep your draft.
 
 Inside an open chat, the project name on the composer's project control is replaced with the section path, so you always see where the agent works.
 
@@ -152,7 +154,7 @@ Every chat started from BB also receives short instructions: store reports in `.
 
 The same settings are available in two places, and they are identical:
 
-- **Management page** — a **Settings** block sits above the project tree in the left column: Chat list, Appearance, AGENTS.md rules, Section archive, Import & export, Language. Pick an item to open it; pick a project or section to open its card. A deep link `settings/<section>` opens a section directly.
+- **Management page** — a **Settings** block sits above the project tree in the left column: Chat list, Appearance, AGENTS.md rules, Provider and agent, Section archive, Import & export, Language. Pick an item to open it; pick a project or section to open its card. A deep link `settings/<section>` opens a section directly.
 - **BB settings → Projects & Sections** — the same sections with their own side menu.
 
 Settings (except the language) are stored on the BB server, so every device and browser sees the same values, and open windows update immediately.
@@ -162,14 +164,17 @@ Settings (except the language) are stored on the BB server, so every device and 
 ![Chat list settings: chat order, section collapsing and tree view.](docs/images/chat-list.webp)
 
 **Chat order**
+
 - **Chat sorting** — Recent activity (default), Alphabetical or Newest first. Activity uses BB's update and attention timestamps, so a new message moves a chat up. Also available from any heading's **⋯ → Chat sorting**.
 - **Chats per section** — 1–100 (default 10). The rest open with **Show all**.
 
 **Section collapsing**
+
 - **Collapse inactive sections automatically** — on by default, also toggled from the heading menu.
 - **Collapse sections inactive for, hours** — from 0.25 to 720 hours (default 2).
 
 **Tree view**
+
 - **List density** — Comfortable or Compact rows.
 - **Nested section indent** — 0–32 px.
 - **Bold sections with unread chats** — on by default.
@@ -182,18 +187,20 @@ A single project or section can override sorting and the chat limit in its own *
 
 **Ready-made styles** change every level at once; the active one is marked with a check.
 
-| Preset | Look |
-| --- | --- |
-| Standard | Plain folder icons, no colors |
-| Monochrome | Briefcase badge for projects, folder, open folder and layers icons in gray |
-| By level | Blue badge for projects, violet level 1, teal level 2, amber level 3+ |
+| Preset     | Look                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------ |
+| Standard   | Plain folder icons, no colors                                                              |
+| Monochrome | Briefcase badge for projects, folder, open folder and layers icons in gray                 |
+| By level   | Blue badge for projects, violet level 1, teal level 2, amber level 3+                      |
 | By project | Every project gets its own color; its sections take it, level 1 sections get a left stripe |
 
 **Color is set by**
+
 - **By level** — each level has its own color.
 - **By project** — sections take the color of their project. A project without a chosen color gets a stable color derived from its ID.
 
 **Levels** — switch between Projects, Level 1, Level 2 and Level 3+ and set for each:
+
 - **Icon** — 118 Hugeicons in 7 groups (Folders, Work, Development, AI & content, Communication & marketing, Finance, Life & hobbies) with search, 52 quick emoji, or any emoji typed in.
 - **Color** — no color, 12 swatches tuned to read in light and dark themes (gray, red, orange, amber, green, teal, cyan, blue, indigo, violet, pink, rose), or any custom color.
 - **Fill** — none, icon badge, left stripe or row background.
@@ -201,6 +208,7 @@ A single project or section can override sorting and the chat limit in its own *
 The preview on the right highlights the level you are editing.
 
 **Individual looks** — any project or section has **⋯ → Appearance** (also a button on its card):
+
 - its own icon, color and fill, each field either set or inherited;
 - **Apply to all nested sections that have no look of their own** — the look cascades down the tree;
 - its own chat sorting and chats-per-section limit;
@@ -215,6 +223,7 @@ The nearest value wins: the item itself, then the closest ancestor that cascades
 Rules are plain `AGENTS.md` files in the project and section folders, so BB agents and terminal agents such as Claude Code or Codex read the same instructions.
 
 **Default rules** (Settings → AGENTS.md rules)
+
 - **Auto-create AGENTS.md** — when a project, section or subsection is created, write the matching template into its `AGENTS.md`.
 - **Project rules template** and **Sections rules template** — shipped English presets: project discipline (verify the device, read component docs, file placement, result artifacts, records, secrets) and Karpathy-style coding guidelines (think first, minimal and surgical changes, verification criteria). Edit them freely.
 - **Custom rules** — optional extra rules for the whole tree, such as model routing or delegation.
@@ -233,11 +242,26 @@ Rules are plain `AGENTS.md` files in the project and section folders, so BB agen
 Text above the markers is never touched; changing a template rewrites the same block in place.
 
 **Per project and per section** — a project or a level 1–2 section card, and its **Working rules** dialog, has three tabs; the open tab is what the folder uses once saved:
+
 - **Default** — the shared templates.
 - **Custom template** — its own template (for a project: a project template and a template for new sections inside it), its own custom rules and target, its own startup instruction. The nearest override wins down the tree.
 - **Own file** — edit that device's `AGENTS.md` and `CLAUDE.md` directly; the plugin writes nothing there and Apply skips the folder.
 
 Level 3+ sections get no rules. An existing `AGENTS.md` without the plugin markers is treated as yours: the folder opens on **Own file** and nothing is injected. Saving detects concurrent edits and refuses to overwrite a changed file. When a project has copies on several devices, rules are written to every copy.
+
+## Provider, model and agent
+
+A new chat opens with whatever BB remembers for the project. That is enough until one section is a website you review with Claude Code and the next is research you run on a cheaper model.
+
+Any place in the tree can pin what its chats start with — the plugin as a whole (**Settings → Provider and agent**), a project, and every section, however deep, on its card:
+
+- **Own provider and model** — BB's own picker, including the reasoning level and the service tier.
+- **Own permission mode** — accept-edits, auto or full.
+- **Agent** — a native session agent for Claude Code, Codex or OpenCode. This one needs the [CLI Agents](https://github.com/VKirill/bb-plugin-cli-agents) plugin; without it the two rows above work as usual.
+
+The three groups are inherited one at a time, and the nearest place wins: a section can take its project's model and still pin its own agent, or set **No agent** to refuse the one its project pinned. A group left off falls through to the section above, then the project, then the plugin, then BB's own remembered choice. Nothing is written to disk, and nothing changes BB's defaults.
+
+They are seeds, not locks. The composer opens with them filled in, and its own controls still win for that one chat. A pinned agent is bound to the chat it was created for, so two chats started at the same moment never take each other's agent, and an agent chosen by hand in the composer wins over the pinned one. When a pinned agent cannot be applied — the machine is offline, the agent was renamed, CLI Agents is off — the chat is not created and the message says which place pinned what. Switching the composer to a CLI without session agents is not an error: the agent simply does not apply, because it belongs to its own CLI.
 
 ## Section archive
 
@@ -270,7 +294,7 @@ A project can keep a working copy on each connected machine — a laptop, a Mac 
 - The project card shows **device tabs for every machine BB knows**. A solid bolt means the machine is connected; a faded tab means there is no copy there yet.
 - A tab with a copy shows its path with a folder button. Picking a new place **moves** the copy; picking a folder that already holds the project **uses** it without moving files.
 - **Add copy** on an empty tab opens **Working copies** with that device selected: the folder is created if missing and seeded with `AGENTS.md`.
-- The sidebar keeps one entry per project; new chats can pick any device with a copy.
+- The sidebar and the new-chat folder picker keep one entry per project; the composer's machine control chooses which copy the chat opens in.
 - Each copy has its own sections, chats and `AGENTS.md`; project-level rules are written to all copies. The last copy cannot be removed, and a copy with sections or chats must be cleared first.
 
 ## Move and delete
@@ -278,6 +302,7 @@ A project can keep a working copy on each connected machine — a laptop, a Mac 
 **Move a project** (card or **⋯ → Move**) — relocate the whole project folder with hidden files, rules, nested sections, chat exports and archives to a new path on the **same device and disk volume**. The old path becomes a symbolic link so existing chats keep working. Running chats and queued work must finish first. Home folders, BB runtime directories, linked Git worktrees and projects with environments outside their folder cannot be moved. Interrupted moves appear as **Unfinished moves** with **Retry**.
 
 **Change a section path** (**⋯ → Change path**) — pick a folder inside the same project on the same device:
+
 - a **new folder** — the section moves with files, nested sections, chat exports and archive manifests;
 - an **existing folder** — the section re-links to it without touching files, the fix for a folder renamed outside BB.
 

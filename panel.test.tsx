@@ -2,17 +2,16 @@
 import { beforeAll, afterEach, expect, it } from "vitest";
 import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { installTestMatchMedia, setCompactViewport } from "./test-match-media";
 let app: Awaited<ReturnType<typeof loadPluginApp>>;
 beforeAll(async () => {
-  window.matchMedia = () =>
-    ({
-      matches: false,
-      addEventListener() {},
-      removeEventListener() {},
-    }) as unknown as MediaQueryList;
+  installTestMatchMedia();
   app = await loadPluginApp(() => import("./app"));
 });
-afterEach(cleanup);
+afterEach(() => {
+  setCompactViewport(false);
+  cleanup();
+});
 
 const root = {
   id: "p1",
@@ -573,12 +572,16 @@ it("shows a group as a folderless card with group actions", async () => {
     name: "VK bot",
     path: "/work/vk-bot",
   };
-  const view = renderSlot(app.navPanels[0]!, { subPath: "" }, {
-    rpc: {
-      ...rpc,
-      list: () => ({ ...rpc.list(), folders: [section, group, inGroup] }),
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: {
+        ...rpc,
+        list: () => ({ ...rpc.list(), folders: [section, group, inGroup] }),
+      },
     },
-  });
+  );
   await view.findByText("VK bot");
   view.getByText("Apps").click();
   await view.findByText(/creates no folder/);
@@ -586,5 +589,115 @@ it("shows a group as a folderless card with group actions", async () => {
   expect(card.textContent).toContain("Delete group");
   expect(card.textContent).not.toContain("Rules");
   expect(card.textContent).not.toContain("New chat");
+  view.lifecycle.unmount();
+});
+it("keeps nested sections indented in the phone-width project picker", async () => {
+  setCompactViewport(true);
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "chat/p1/root:h1" },
+    { rpc },
+  );
+  const compose = await waitFor(() => {
+    const node = view.baseElement.querySelector(".pf-native-compose");
+    expect(node).toBeTruthy();
+    return node as HTMLElement;
+  });
+  const native = document.createElement("button");
+  native.setAttribute("data-promptbox-project-control", "");
+  native.className = "native-project";
+  compose.append(native);
+  const picker = await waitFor(() =>
+    view.getByRole("button", { name: "Projects & Sections" }),
+  );
+  fireEvent.click(picker);
+  const nested = await view.findByRole("menuitem", { name: /Section/ });
+  expect(nested.style.paddingLeft).toBe("24px");
+  view.lifecycle.unmount();
+});
+
+it("lists a project once in the composer picker and keeps every device's sections", async () => {
+  setCompactViewport(true);
+  const copy = { ...root, hostId: "h2", path: "/srv/project" };
+  const copySection = {
+    ...copy,
+    id: "f2",
+    path: "/srv/project/Server",
+    name: "Server",
+  };
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "chat/p1/root:h1" },
+    {
+      rpc: {
+        ...rpc,
+        list: () => ({
+          folders: [section, copySection],
+          roots: [root, copy],
+          bindings: {},
+          errors: [],
+          machines: [
+            { id: "h1", name: "Mac Mini", connected: true },
+            { id: "h2", name: "OVH", connected: true },
+          ],
+        }),
+      },
+    },
+  );
+  const compose = await waitFor(() => {
+    const node = view.baseElement.querySelector(".pf-native-compose");
+    expect(node).toBeTruthy();
+    return node as HTMLElement;
+  });
+  const native = document.createElement("button");
+  native.setAttribute("data-promptbox-project-control", "");
+  native.className = "native-project";
+  compose.append(native);
+  fireEvent.click(
+    await waitFor(() =>
+      view.getByRole("button", { name: "Projects & Sections" }),
+    ),
+  );
+  const projectRows = await view.findAllByRole("menuitem", {
+    name: /^Project/,
+  });
+  expect(projectRows).toHaveLength(1);
+  expect(projectRows[0].textContent).not.toMatch(/Mac Mini|OVH/);
+  expect(projectRows[0].textContent).toContain("✓");
+  expect(view.getByRole("menuitem", { name: /Section/ })).toBeTruthy();
+  expect(view.getByRole("menuitem", { name: /Server/ }).textContent).toContain(
+    "OVH",
+  );
+  view.lifecycle.unmount();
+});
+
+it("loads the rules of a card opened by deep link, before the tree arrives", async () => {
+  // The key comes from the URL while the tree is still loading, so the first
+  // run of the rules effect has no row to read yet: it has to ask again.
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "select/p1/f1" },
+    {
+      rpc: {
+        ...rpc,
+        rules_read: () => ({
+          content: "",
+          claude: null,
+          sha: null,
+          path: "/work/Section/AGENTS.md",
+          mode: "inherit",
+          template: "Section template",
+          projectTemplate: "",
+          custom: "",
+          customTarget: "file",
+          startup: "",
+          suggestedSection: "",
+          suggestedProject: "",
+        }),
+      },
+    },
+  );
+  await view.findByText("/work/Section");
+  expect(await view.findByRole("tab", { name: "Default" })).toBeTruthy();
   view.lifecycle.unmount();
 });

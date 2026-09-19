@@ -3,17 +3,14 @@ import { beforeAll, afterEach, expect, it } from "vitest";
 import { fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
+import { installTestMatchMedia, setCompactViewport } from "./test-match-media";
 let app: Awaited<ReturnType<typeof loadPluginApp>>;
 beforeAll(async () => {
-  window.matchMedia = () =>
-    ({
-      matches: false,
-      addEventListener() {},
-      removeEventListener() {},
-    }) as unknown as MediaQueryList;
+  installTestMatchMedia();
   app = await loadPluginApp(() => import("./app"));
 });
 afterEach(() => {
+  setCompactViewport(false);
   cleanup();
   localStorage.clear();
 });
@@ -523,5 +520,20 @@ it("explains a drop on a group, which holds sections and not chats", async () =>
   expect(
     view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
   ).toBe(false);
+  view.lifecycle.unmount();
+});
+it("opens the folder ellipsis on a phone-width viewport without crashing", async () => {
+  setCompactViewport(true);
+  const view = mount();
+  fireEvent.click(
+    await view.findByRole("button", { name: "Chat actions: Project" }),
+  );
+  expect(
+    await view.findByRole("menuitem", { name: /New section/ }),
+  ).toBeTruthy();
+  expect(view.getByText("Chat sorting")).toBeTruthy();
+  expect(
+    view.getByRole("menuitemradio", { name: /Recent activity/ }),
+  ).toBeTruthy();
   view.lifecycle.unmount();
 });

@@ -21,6 +21,8 @@ import {
   useFolderLook,
 } from "./appearance";
 import { Help, RuleFields, type RuleDraft } from "./agents-apply";
+import { ExecutionEditor } from "./execution-ui";
+import type { PermissionMode, ReasoningLevel, ServiceTier } from "./execution";
 import {
   sortChats,
   isSectionCollapsed,
@@ -2176,7 +2178,7 @@ function Tree(props: PluginThreadListProps) {
     });
     props.onNavigate();
   };
-  /** One entry per project: roots of other devices are picked in the composer and the copies dialog. */
+  /** One entry per project; per-device copies are opened from the card or composer machine control. */
   const visibleRoots = data.roots.filter(
     (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
   );
@@ -2721,6 +2723,23 @@ function Panel({ subPath }: PluginNavPanelProps) {
     node: HTMLElement;
     className: string;
   } | null>(null);
+  /**
+   * What a new chat in the chosen place starts with. These are seeds for BB's
+   * own composer, not locks: its pickers still win, and a group nobody pinned
+   * leaves BB's remembered choice exactly as it was. The composer re-seeds
+   * every selection when a seed changes, so it is mounted only once the
+   * values for the chosen folder have arrived.
+   */
+  const [chatSeeds, setChatSeeds] = useState<{
+    key: string;
+    seeds: {
+      defaultProviderId?: string;
+      defaultModel?: string;
+      defaultReasoningLevel?: ReasoningLevel;
+      defaultServiceTier?: ServiceTier;
+      defaultPermissionMode?: PermissionMode;
+    };
+  } | null>(null);
   useEffect(() => {
     const owner = composeRef.current;
     if (!owner) return;
@@ -2734,9 +2753,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
       slot = null;
     };
     const attach = () => {
-      const button = owner.querySelector<HTMLElement>(
-        "[data-promptbox-project-control]",
-      );
+      const button = Array.from(
+        owner.querySelectorAll<HTMLElement>("[data-promptbox-project-control]"),
+      ).find((el) => !el.closest(".pf-native-project-slot"));
       if (button === original) return;
       restore();
       if (!button) {
@@ -2746,7 +2765,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
       original = button;
       previousDisplay = button.style.display;
       slot = document.createElement("span");
-      slot.className = "pf-native-project-slot inline-flex shrink-0";
+      slot.className = "pf-native-project-slot inline-flex min-w-0";
       button.before(slot);
       button.style.display = "none";
       setProjectSlot({ node: slot, className: button.className });
@@ -2847,6 +2866,49 @@ function Panel({ subPath }: PluginNavPanelProps) {
       (r) => r.projectId === projectId && folderId === `root:${r.hostId}`,
     );
   const rootSelected = folderId?.startsWith("root:") ?? false;
+  const seedKey =
+    action === "chat" && f
+      ? `${f.projectId}:${rootSelected ? "" : f.id}:${f.hostId}`
+      : "";
+  useEffect(() => {
+    if (!seedKey || !f) return;
+    let live = true;
+    const read = async () => {
+      // A place that cannot be read still opens a chat: BB's own defaults.
+      let seeds: NonNullable<typeof chatSeeds>["seeds"] = {};
+      try {
+        const r = await rpc.call("execution_read", {
+          scope: rootSelected
+            ? { kind: "project", projectId: f.projectId }
+            : { kind: "folder", projectId: f.projectId, folderId: f.id },
+        });
+        const model = r.effective.model;
+        seeds = {
+          ...(model
+            ? {
+                defaultProviderId: model.providerId,
+                defaultModel: model.model,
+                ...(model.reasoningLevel
+                  ? { defaultReasoningLevel: model.reasoningLevel }
+                  : {}),
+                ...(model.serviceTier
+                  ? { defaultServiceTier: model.serviceTier }
+                  : {}),
+              }
+            : {}),
+          ...(r.effective.permissionMode
+            ? { defaultPermissionMode: r.effective.permissionMode.value }
+            : {}),
+        };
+      } catch {}
+      if (live) setChatSeeds({ key: seedKey, seeds });
+    };
+    void read();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedKey, rpc]);
   // `settings/<section>` opens a plugin settings section.
   useEffect(() => {
     if (action !== "settings" || !projectId || !isSettingsSection(projectId))
@@ -2871,50 +2933,59 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const visibleRoots = data.roots.filter(
     (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
   );
-  const sectionMenu = (
-    r: Folder,
-    depth = 0,
-    hostId = r.hostId,
-  ): React.ReactNode => (
-    <div key={`${r.id}:${hostId}`}>
-      {isGroupFolder(r) ? (
-        <div className="pf-menu-group" style={{ paddingLeft: 8 + depth * 16 }}>
-          <Icon name="Layers" />
-          {r.name}
-        </div>
-      ) : (
-        <DropdownMenuItem
-          style={depth > 0 ? { paddingLeft: 8 + depth * 16 } : undefined}
-          onSelect={() => {
-            setSubmitError("");
-            nav.toPluginPanel("folders", {
-              subPath: `chat/${r.projectId}/${depth === 0 ? `root:${r.hostId}` : r.id}`,
-            });
-          }}
-        >
-          <Icon name="Folder" />
-          {r.name}
-          {depth === 0 && projectCopies(r.projectId).length > 1 && (
-            <span className="pf-menu-host">· {machineName(r.hostId)}</span>
-          )}
-          {f?.path === r.path && f?.hostId === r.hostId ? " ✓" : ""}
-        </DropdownMenuItem>
-      )}
-      {data.folders
-        .filter(
-          (c) =>
-            c.projectId === r.projectId &&
-            // Project-level groups are shared by every copy; their sections still
-            // belong to one device. Below a section, a group may hold sections
-            // on any device, so everything under it is listed.
-            (c.hostId === hostId ||
-              isGroupFolder(c) ||
-              (depth > 0 && anchorOf(data.folders, r) !== null)) &&
-            c.parentId === (depth === 0 ? null : r.id),
-        )
-        .map((c) => sectionMenu(c, depth + 1, hostId))}
-    </div>
-  );
+  const sectionMenu = (r: Folder, depth = 0): React.ReactNode => {
+    const otherHost =
+      depth > 0 ? foreignHost(data.folders, data.roots, r) : null;
+    const selected =
+      depth === 0
+        ? rootSelected && f?.projectId === r.projectId
+        : f?.id === r.id;
+    return (
+      <div key={r.id}>
+        {isGroupFolder(r) ? (
+          <div
+            className="pf-menu-group"
+            style={{ paddingLeft: 8 + depth * 16 }}
+          >
+            <Icon name="Layers" />
+            {r.name}
+          </div>
+        ) : (
+          <DropdownMenuItem
+            style={depth > 0 ? { paddingLeft: 8 + depth * 16 } : undefined}
+            onSelect={() => {
+              setSubmitError("");
+              const dest =
+                depth === 0
+                  ? `root:${
+                      rootSelected && f?.projectId === r.projectId
+                        ? f.hostId
+                        : r.hostId
+                    }`
+                  : r.id;
+              nav.toPluginPanel("folders", {
+                subPath: `chat/${r.projectId}/${dest}`,
+              });
+            }}
+          >
+            <Icon name="Folder" />
+            {r.name}
+            {otherHost && (
+              <span className="pf-menu-host">· {machineName(otherHost)}</span>
+            )}
+            {selected ? " ✓" : ""}
+          </DropdownMenuItem>
+        )}
+        {data.folders
+          .filter(
+            (c) =>
+              c.projectId === r.projectId &&
+              c.parentId === (depth === 0 ? null : r.id),
+          )
+          .map((c) => sectionMenu(c, depth + 1))}
+      </div>
+    );
+  };
   const selectedNames: string[] = [];
   let ancestor = f;
   const visited = new Set<string>();
@@ -3317,8 +3388,19 @@ function Panel({ subPath }: PluginNavPanelProps) {
     return () => {
       live = false;
     };
+    // The row itself, not just the key: a card opened by deep link or from the
+    // ⋯ menu has its key before the tree has loaded, and without the resolved
+    // node here the first run bailed out and nothing ever asked again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedKey, rpc]);
+  }, [
+    selectedKey,
+    selectedNode?.id,
+    selectedNode?.projectId,
+    selRoot,
+    selGroup,
+    selLevel,
+    rpc,
+  ]);
   const cardCopies = sel && selRoot ? projectCopies(sel.projectId) : [];
   /** Every machine BB knows: the ones holding a copy first, then the free ones. */
   const cardMachines =
@@ -3924,6 +4006,29 @@ function Panel({ subPath }: PluginNavPanelProps) {
               )}
             </div>
           )}
+          {sel && !selGroup && (
+            <div className="pf-agents-rule">
+              <h3>
+                {t("Провайдер, модель и агент")}
+                <Help
+                  text={t(
+                    "Новый чат, созданный здесь, начинается с этих настроек. Выключенная группа наследуется: ближайший раздел выше, затем проект, затем настройки плагина, затем обычный выбор BB.",
+                  )}
+                />
+              </h3>
+              <ExecutionEditor
+                scope={
+                  selRoot
+                    ? { kind: "project", projectId: sel.projectId }
+                    : {
+                        kind: "folder",
+                        projectId: sel.projectId,
+                        folderId: sel.id,
+                      }
+                }
+              />
+            </div>
+          )}
         </section>
       );
   if (action === "chat")
@@ -3936,8 +4041,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 <button
                   type="button"
                   className={projectSlot.className}
+                  data-promptbox-project-control=""
                   aria-label={t("Проекты и разделы")}
-                  title={f.path}
+                  title={selectedNames.join(" / ")}
                 >
                   <Icon name="Folder" />
                   <span className="min-w-0 truncate">
@@ -3947,7 +4053,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="max-h-80 overflow-auto min-w-64">
-                {data.roots.map((r) => sectionMenu(r))}
+                {visibleRoots.map((r) => sectionMenu(r))}
               </DropdownMenuContent>
             </DropdownMenu>,
             projectSlot.node,
@@ -3957,42 +4063,47 @@ function Panel({ subPath }: PluginNavPanelProps) {
             {submitError}
           </p>
         )}
-        <NewThreadComposer
-          key={`${f.id}:${f.hostId}`}
-          defaultProjectId={projectId}
-          defaultEnvironment={{
-            type: "provider",
-            environmentProviderId: "project-checkout",
-            machine: { type: "existing", hostId: f.hostId },
-            inputs: { path: f.path },
-          }}
-          draftKey={`project-folders:${f.id}`}
-          layout="document"
-          className="w-full"
-          onSubmit={async (request) => {
-            setSubmitError("");
-            try {
-              const t = await rpc.call("spawn", {
-                projectId,
-                folderId: rootSelected ? null : folderId,
-                hostId: f.hostId,
-                request: request as unknown as ComposerRequest,
-              });
-              nav.toThread(t.id);
-            } catch (e) {
-              const message = e instanceof Error ? e.message : String(e);
-              const m = message.match(
-                /This section lives on the "(.+)" device\./,
-              );
-              setSubmitError(
-                m
-                  ? `${t("Этот раздел живёт на устройстве")} «${m[1]}». ${t("Выберите это устройство или создайте раздел на нужном сервере.")}`
-                  : message,
-              );
-              throw e;
-            }
-          }}
-        />
+        {chatSeeds?.key !== seedKey ? (
+          <p className="p-4">{t("Загрузка…")}</p>
+        ) : (
+          <NewThreadComposer
+            key={`${f.id}:${f.hostId}`}
+            {...chatSeeds.seeds}
+            defaultProjectId={projectId}
+            defaultEnvironment={{
+              type: "provider",
+              environmentProviderId: "project-checkout",
+              machine: { type: "existing", hostId: f.hostId },
+              inputs: { path: f.path },
+            }}
+            draftKey={`project-folders:${f.id}`}
+            layout="document"
+            className="w-full"
+            onSubmit={async (request) => {
+              setSubmitError("");
+              try {
+                const t = await rpc.call("spawn", {
+                  projectId,
+                  folderId: rootSelected ? null : folderId,
+                  hostId: f.hostId,
+                  request: request as unknown as ComposerRequest,
+                });
+                nav.toThread(t.id);
+              } catch (e) {
+                const message = e instanceof Error ? e.message : String(e);
+                const m = message.match(
+                  /This section lives on the "(.+)" device\./,
+                );
+                setSubmitError(
+                  m
+                    ? `${t("Этот раздел живёт на устройстве")} «${m[1]}». ${t("Выберите это устройство или создайте раздел на нужном сервере.")}`
+                    : message,
+                );
+                throw e;
+              }
+            }}
+          />
+        )}
       </div>
     ) : (
       <p className="p-4">{error || t("Загрузка…")}</p>

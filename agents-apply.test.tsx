@@ -2,14 +2,10 @@
 import { beforeAll, afterEach, expect, it } from "vitest";
 import { fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
+import { installTestMatchMedia } from "./test-match-media";
 let app: Awaited<ReturnType<typeof loadPluginApp>>;
 beforeAll(async () => {
-  window.matchMedia = () =>
-    ({
-      matches: false,
-      addEventListener() {},
-      removeEventListener() {},
-    }) as unknown as MediaQueryList;
+  installTestMatchMedia();
   app = await loadPluginApp(() => import("./app"));
 });
 afterEach(cleanup);

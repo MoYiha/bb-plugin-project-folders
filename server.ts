@@ -28,6 +28,21 @@ import {
   prefsSchema,
   type ItemStyles,
 } from "./preferences";
+import {
+  agentCatalogSchema,
+  agentMarker,
+  AGENT_MARKER_PATTERN,
+  CLI_AGENTS_PLUGIN_ID,
+  executionFallbackSchema,
+  executionSchema,
+  isAgentProvider,
+  normalizeExecution,
+  resolvedExecutionSchema,
+  resolveExecution,
+  type AgentCatalog,
+  type Execution,
+  type ExecutionLayer,
+} from "./execution";
 
 const defaultAgentsTemplate = `# Section rules
 
@@ -114,6 +129,17 @@ const createSchema = targetSchema.extend({
   relativePath: z.string().trim().min(1).max(1000),
   allowFresh: z.boolean().optional(),
 });
+/** Where execution defaults are pinned: the whole plugin, a project, a section. */
+const executionScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("global") }),
+  z.object({ kind: z.literal("project"), projectId: z.string().min(1) }),
+  z.object({
+    kind: z.literal("folder"),
+    projectId: z.string().min(1),
+    folderId: z.string().min(1),
+  }),
+]);
+export type ExecutionScope = z.infer<typeof executionScopeSchema>;
 const requestSchema = z.object({
   projectId: z.string(),
   providerId: z.string(),
@@ -135,7 +161,12 @@ export const rpcContract = defineRpcContract({
   thread_section: {
     input: z.object({ threadId: z.string() }),
     output: z
-      .object({ label: z.string(), path: z.string(), projectName: z.string() })
+      .object({
+        label: z.string(),
+        compactLabel: z.string(),
+        path: z.string(),
+        projectName: z.string(),
+      })
       .nullable(),
   },
   project_move: {
@@ -385,6 +416,33 @@ export const rpcContract = defineRpcContract({
     }),
     output: z.object({ ok: z.literal(true) }),
   },
+  execution_read: {
+    input: z.object({ scope: executionScopeSchema }),
+    output: z.object({
+      /** What this very place pins; empty groups are simply absent. */
+      own: executionSchema,
+      /** What a new chat here starts with once inheritance is applied. */
+      effective: resolvedExecutionSchema,
+      /** What the parents alone would give, shown while a group is off. */
+      inherited: resolvedExecutionSchema,
+      /** The machine the pickers and the agent list resolve against. */
+      hostId: z.string().nullable(),
+      /** What BB itself would start with here: shown, and used as the seed. */
+      fallback: executionFallbackSchema.nullable(),
+      agents: agentCatalogSchema,
+    }),
+  },
+  execution_save: {
+    input: z.object({ scope: executionScopeSchema, value: executionSchema }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  execution_agents: {
+    input: z.object({
+      scope: executionScopeSchema,
+      providerId: z.string().min(1).max(100),
+    }),
+    output: agentCatalogSchema,
+  },
   agents_config: {
     input: z.null(),
     output: z.object({
@@ -556,6 +614,9 @@ export default async function plugin(bb: BbPluginApi) {
     `ALTER TABLE folders ADD COLUMN kind TEXT NOT NULL DEFAULT 'folder'`,
     // Where a chat is filed by hand, when that is not where it works.
     `CREATE TABLE thread_places (threadId TEXT PRIMARY KEY, projectId TEXT NOT NULL, folderId TEXT)`,
+    // Provider, model, permissions and agent a new chat starts with.
+    // Key 'g' is the plugin-wide default, p:<project> and f:<folder> override it.
+    `CREATE TABLE execution_defaults (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -770,6 +831,291 @@ export default async function plugin(bb: BbPluginApi) {
     return (
       projectRule(projectId)?.startup?.trim() || shared.agents_startup.trim()
     );
+  };
+  const executionKey = (scope: ExecutionScope) =>
+    scope.kind === "global"
+      ? "g"
+      : scope.kind === "project"
+        ? `p:${scope.projectId}`
+        : `f:${scope.folderId}`;
+  const executionAt = (key: string): Execution => {
+    const row = db
+      .prepare("SELECT data FROM execution_defaults WHERE key=?")
+      .get(key) as { data: string } | undefined;
+    if (!row) return {};
+    const parsed = executionSchema.safeParse(safeJson(row.data));
+    return parsed.success ? normalizeExecution(parsed.data) : {};
+  };
+  const saveExecution = (key: string, value: Execution) => {
+    const clean = normalizeExecution(value);
+    if (Object.keys(clean).length === 0)
+      db.prepare("DELETE FROM execution_defaults WHERE key=?").run(key);
+    else
+      db.prepare(
+        "INSERT INTO execution_defaults (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data=excluded.data",
+      ).run(key, JSON.stringify(clean));
+  };
+  /**
+   * The places a new chat here inherits from, nearest first: the section, its
+   * ancestors, the project, then the plugin-wide default. `skipOwn` leaves the
+   * section itself out, which is what shows a place what it would inherit.
+   */
+  const executionLayers = (
+    f: Folder | null,
+    projectId: string,
+    skipOwn = false,
+  ): ExecutionLayer[] => {
+    const layers: ExecutionLayer[] = [];
+    let cur: Folder | undefined = f ?? undefined;
+    const visited = new Set<string>();
+    while (cur && !visited.has(cur.id)) {
+      visited.add(cur.id);
+      if (!(skipOwn && cur === f))
+        layers.push({
+          origin: { scope: "folder", folderId: cur.id },
+          value: executionAt(`f:${cur.id}`),
+        });
+      cur = cur.parentId
+        ? (folders().find((x) => x.id === cur!.parentId) as Folder | undefined)
+        : undefined;
+    }
+    if (!(skipOwn && f === null))
+      layers.push({
+        origin: { scope: "project", folderId: null },
+        value: executionAt(`p:${projectId}`),
+      });
+    layers.push({
+      origin: { scope: "global", folderId: null },
+      value: executionAt("g"),
+    });
+    return layers;
+  };
+  const effectiveExecution = (f: Folder | null, projectId: string) =>
+    resolveExecution(executionLayers(f, projectId));
+  /**
+   * Which CLI the agent list belongs to: the pin that applies here, else the
+   * project's own remembered choice — the same provider BB would start with.
+   */
+  const executionProvider = async (
+    scope: ExecutionScope,
+    resolved: ReturnType<typeof resolveExecution>,
+  ) => {
+    if (resolved.model) return resolved.model.providerId;
+    if (scope.kind === "global") return "";
+    const remembered = await bb.sdk.projects.defaultExecutionOptions({
+      projectId: scope.projectId,
+    });
+    return remembered?.providerId ?? "";
+  };
+  /**
+   * What BB would start with when nothing here is pinned: the project's
+   * remembered execution defaults, else the catalog default of the first
+   * available provider on this machine. Shown as the inherited value, and
+   * used as the seed the moment a group is switched on.
+   */
+  const executionFallback = async (
+    scope: ExecutionScope,
+    hostId: string | null,
+  ) => {
+    const clean = (v: {
+      providerId?: string;
+      model?: string;
+      reasoningLevel?: string;
+      serviceTier?: string;
+      permissionMode?: string;
+    }) => {
+      const parsed = executionFallbackSchema.safeParse({
+        providerId: v.providerId ?? "",
+        model: v.model ?? "",
+        reasoningLevel: v.reasoningLevel ?? null,
+        serviceTier: v.serviceTier ?? null,
+        permissionMode: v.permissionMode ?? null,
+      });
+      return parsed.success && parsed.data.providerId && parsed.data.model
+        ? parsed.data
+        : null;
+    };
+    if (scope.kind !== "global") {
+      try {
+        const remembered = await bb.sdk.projects.defaultExecutionOptions({
+          projectId: scope.projectId,
+        });
+        if (remembered) {
+          const value = clean(remembered);
+          if (value) return value;
+        }
+      } catch {}
+    }
+    try {
+      const routing = hostId ? { hostId } : {};
+      const providers = await bb.sdk.providers.list(routing);
+      const provider = providers.find((p) => p.available) ?? providers[0];
+      if (!provider) return null;
+      const options = await bb.sdk.providers.models({
+        ...routing,
+        providerId: provider.id,
+      });
+      const model =
+        options.models.find((m) => m.isDefault) ?? options.models[0];
+      return model
+        ? clean({
+            providerId: provider.id,
+            model: model.model,
+            reasoningLevel: model.defaultReasoningEffort,
+          })
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const executionOrigin = (scope: ExecutionScope) => ({
+    scope: scope.kind,
+    folderId: scope.kind === "folder" ? scope.folderId : null,
+  });
+  /**
+   * The section a scope points at and the machine its pickers resolve
+   * against: a section keeps its own device, a project takes its default
+   * copy, and the plugin-wide default has no machine of its own.
+   */
+  const executionPlace = async (scope: ExecutionScope) => {
+    if (scope.kind === "global") return { folder: null, hostId: null };
+    if (scope.kind === "folder") {
+      const folder = folders().find((f) => f.id === scope.folderId);
+      if (!folder) throw new Error("Section not found.");
+      if (folder.projectId !== scope.projectId)
+        throw new Error("This section belongs to another project.");
+      return { folder, hostId: folder.hostId };
+    }
+    const project = (await bb.sdk.projects.list()).find(
+      (p) => p.id === scope.projectId,
+    );
+    const source =
+      project?.sources.find((s) => s.isDefault) ?? project?.sources[0];
+    return { folder: null, hostId: source?.hostId ?? null };
+  };
+  /**
+   * Agents belong to the CLI Agents plugin: it discovers them on the machine
+   * and binds one to a chat. It is optional, so every call here reports what
+   * is missing instead of pretending the list is simply empty.
+   */
+  const cliAgentsRunning = async () => {
+    try {
+      const list = await bb.sdk.plugins.list();
+      return (
+        list.plugins.find((p) => p.id === CLI_AGENTS_PLUGIN_ID)?.status ===
+        "running"
+      );
+    } catch {
+      return false;
+    }
+  };
+  const callCliAgents = <T>(
+    method: string,
+    input: unknown,
+    outputSchema: z.ZodType<T>,
+  ) =>
+    bb.sdk.plugins.callRpc({
+      pluginId: CLI_AGENTS_PLUGIN_ID,
+      method,
+      input: input as never,
+      outputSchema,
+    });
+  const cliAgentSelection = z.object({ token: z.string(), label: z.string() });
+  const cliAgentCatalog = z.object({
+    agents: z.array(
+      z.object({
+        id: z.string(),
+        description: z.string().default(""),
+        source: z.string().default(""),
+        mode: z.string().default(""),
+      }),
+    ),
+    supported: z.boolean(),
+    warnings: z.array(z.string()).default([]),
+  });
+  const agentCatalogFor = async (
+    projectId: string,
+    hostId: string | null,
+    providerId: string,
+  ): Promise<AgentCatalog> => {
+    const installed = await cliAgentsRunning();
+    const supported = isAgentProvider(providerId);
+    const empty = { installed, supported, agents: [], error: null };
+    if (!installed || !supported || !hostId) return empty;
+    try {
+      const catalog = await callCliAgents(
+        "catalog",
+        { projectId, hostId, providerId, environmentId: null },
+        cliAgentCatalog,
+      );
+      return {
+        installed,
+        supported: catalog.supported,
+        agents: catalog.agents.slice(0, 500),
+        error: catalog.warnings[0] ?? null,
+      };
+    } catch (e) {
+      return { ...empty, error: (e as Error).message || String(e) };
+    }
+  };
+  /**
+   * Applies the agent pinned for this place to the chat being created, as the
+   * marker CLI Agents reads from the first message. The marker binds the
+   * choice to this one chat, so two chats started at the same moment never
+   * take each other's agent.
+   *
+   * A pinned agent that cannot be applied stops the chat: starting the
+   * default agent instead, silently, is the one outcome nobody asked for.
+   * Switching the composer to a CLI without session agents is not a failure —
+   * an agent belongs to its CLI.
+   */
+  const bindPinnedAgent = async (
+    folder: Folder | null,
+    projectId: string,
+    hostId: string,
+    request: { providerId: string; input: unknown[] },
+  ): Promise<string | null> => {
+    const pin = effectiveExecution(folder, projectId).agent;
+    if (!pin || pin.mode !== "agent" || !pin.agentId) return null;
+    if (!isAgentProvider(request.providerId)) return null;
+    // An agent chosen by hand in this very composer is the newer decision.
+    if (AGENT_MARKER_PATTERN.test(JSON.stringify(request.input))) return null;
+    const where = folder ? `section “${folder.name}”` : "this project";
+    const fail = (reason: string) =>
+      new Error(
+        `Agent “${pin.agentId}” is pinned for ${where}: ${reason} Choose another agent for the section, or set it to “Inherit”.`,
+      );
+    if (!(await cliAgentsRunning()))
+      throw fail("the CLI Agents plugin is not running.");
+    try {
+      const pending = await callCliAgents(
+        "pending",
+        { projectId, providerId: request.providerId },
+        z.unknown(),
+      );
+      if (pending) return null;
+      const selection = await callCliAgents(
+        "select",
+        {
+          projectId,
+          hostId,
+          providerId: request.providerId,
+          environmentId: null,
+          agentId: pin.agentId,
+        },
+        cliAgentSelection,
+      );
+      // `select` also arms the project-wide pending choice, which belongs to
+      // the composer's own picker. This chat carries its marker instead.
+      await callCliAgents(
+        "clearPending",
+        { projectId, providerId: request.providerId },
+        z.unknown(),
+      );
+      return agentMarker(selection.token);
+    } catch (e) {
+      throw fail((e as Error).message || String(e));
+    }
   };
   /** The section a workspace path belongs to, resolved without any IO. */
   const folderAt = (hostId: string, workspace: string | null) => {
@@ -1339,8 +1685,14 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare("DELETE FROM thread_places WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM project_rules WHERE projectId=?").run(projectId);
     db.prepare("DELETE FROM item_styles WHERE key=?").run(`p:${projectId}`);
+    db.prepare("DELETE FROM execution_defaults WHERE key=?").run(
+      `p:${projectId}`,
+    );
     db.prepare(
       "DELETE FROM folder_rules WHERE folderId NOT IN (SELECT id FROM folders)",
+    ).run();
+    db.prepare(
+      "DELETE FROM execution_defaults WHERE key LIKE 'f:%' AND substr(key,3) NOT IN (SELECT id FROM folders)",
     ).run();
     for (const a of archives.list()) {
       if (a.folder.projectId === projectId)
@@ -1459,6 +1811,7 @@ export default async function plugin(bb: BbPluginApi) {
       }
       return {
         label: [project.name, ...names].join(" / "),
+        compactLabel: names[names.length - 1] ?? project.name,
         path: f.path,
         projectName: project.name,
       };
@@ -1509,6 +1862,7 @@ export default async function plugin(bb: BbPluginApi) {
         );
       db.prepare("DELETE FROM folders WHERE id=?").run(g.id);
       db.prepare("DELETE FROM item_styles WHERE key=?").run(`f:${g.id}`);
+      db.prepare("DELETE FROM execution_defaults WHERE key=?").run(`f:${g.id}`);
       changed();
       return { ok: true as const };
     },
@@ -2208,6 +2562,77 @@ export default async function plugin(bb: BbPluginApi) {
         );
       return { ok: true as const };
     },
+    execution_read: async ({ scope }) => {
+      const place = await executionPlace(scope);
+      const own = executionAt(executionKey(scope));
+      const layers =
+        scope.kind === "global"
+          ? []
+          : executionLayers(place.folder, scope.projectId, true);
+      const inherited = resolveExecution(layers);
+      const effective = resolveExecution([
+        { origin: executionOrigin(scope), value: own },
+        ...layers,
+      ]);
+      const providerId = await executionProvider(scope, effective);
+      return {
+        own,
+        effective,
+        inherited,
+        hostId: place.hostId,
+        fallback: await executionFallback(scope, place.hostId),
+        agents:
+          scope.kind === "global" || !providerId
+            ? {
+                installed: await cliAgentsRunning(),
+                supported: false,
+                agents: [],
+                error: null,
+              }
+            : await agentCatalogFor(scope.projectId, place.hostId, providerId),
+      };
+    },
+    execution_save: async ({ scope, value }) => {
+      const place = await executionPlace(scope);
+      if (scope.kind !== "global" && value.agentMode === "agent") {
+        // A pinned agent that cannot be resolved now would fail every new chat
+        // here later, with nothing on screen explaining why. Check it once.
+        const catalog = await agentCatalogFor(
+          scope.projectId,
+          place.hostId,
+          await executionProvider(
+            scope,
+            resolveExecution([
+              { origin: executionOrigin(scope), value },
+              ...executionLayers(place.folder, scope.projectId, true),
+            ]),
+          ),
+        );
+        if (!catalog.installed)
+          throw new Error(
+            "Agents need the CLI Agents plugin. Install it, or choose “Inherit”.",
+          );
+        if (!catalog.agents.some((a) => a.id === value.agentId))
+          throw new Error(
+            catalog.error ??
+              "This agent is not available on the section's machine. Refresh the list and choose again.",
+          );
+      }
+      saveExecution(executionKey(scope), value);
+      changed();
+      return { ok: true as const };
+    },
+    execution_agents: async ({ scope, providerId }) => {
+      const place = await executionPlace(scope);
+      if (scope.kind === "global")
+        return {
+          installed: await cliAgentsRunning(),
+          supported: false,
+          agents: [],
+          error: null,
+        };
+      return agentCatalogFor(scope.projectId, place.hostId, providerId);
+    },
     agents_config: async () => {
       const s = shared;
       return {
@@ -2400,17 +2825,23 @@ export default async function plugin(bb: BbPluginApi) {
       // A one-shot startup instruction rides along with the first message and
       // is never repeated: later turns carry nothing of it.
       const startup = effectiveStartup(input.folderId ? f : null, f.projectId);
-      const startupInput = startup
-        ? [
-            ...req.input,
-            {
-              type: "text" as const,
-              text: startup,
-              mentions: [],
-              visibility: "agent-only" as const,
-            },
-          ]
-        : req.input;
+      const agentMark = await bindPinnedAgent(
+        input.folderId ? f : null,
+        f.projectId,
+        f.hostId,
+        req,
+      );
+      const agentOnly = (text: string) => ({
+        type: "text" as const,
+        text,
+        mentions: [],
+        visibility: "agent-only" as const,
+      });
+      const startupInput = [
+        ...req.input,
+        ...(startup ? [agentOnly(startup)] : []),
+        ...(agentMark ? [agentOnly(agentMark)] : []),
+      ];
       const t = await bb.sdk.threads.spawn({
         ...req,
         input: startupInput,

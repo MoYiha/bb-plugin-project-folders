@@ -221,6 +221,7 @@ const DropdownMenuItem = React.forwardRef<
       onKeyDown: callerKeyDown,
       onFocus: callerFocus,
       onBlur: callerBlur,
+      style,
       ...domProps
     },
     ref,
@@ -247,6 +248,7 @@ const DropdownMenuItem = React.forwardRef<
             className,
           )}
           data-disabled={disabled ? "" : undefined}
+          style={style}
           onFocus={callerFocus}
           onBlur={callerBlur}
           onClick={() => {
@@ -282,6 +284,7 @@ const DropdownMenuItem = React.forwardRef<
         textValue={_textValue}
         onFocus={callerFocus}
         onBlur={callerBlur}
+        style={style}
         {...domProps}
         {...hoverProps}
       >
@@ -392,18 +395,35 @@ const DropdownMenuCheckboxItem = React.forwardRef<
 );
 DropdownMenuCheckboxItem.displayName = "DropdownMenuCheckboxItem";
 
+const RadioGroupContext = React.createContext<{
+  value?: string;
+  onValueChange?: (value: string) => void;
+}>({});
+
 function DropdownMenuRadioGroup({
   children,
-  ...props
+  value,
+  onValueChange,
+  className,
 }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
   const { isCompactViewport } = useResponsiveMenu();
 
   if (isCompactViewport) {
-    return null;
+    return (
+      <RadioGroupContext.Provider value={{ value, onValueChange }}>
+        <div role="group" className={className}>
+          {children}
+        </div>
+      </RadioGroupContext.Provider>
+    );
   }
 
   return (
-    <DropdownMenuPrimitive.RadioGroup {...props}>
+    <DropdownMenuPrimitive.RadioGroup
+      value={value}
+      onValueChange={onValueChange}
+      className={className}
+    >
       {children}
     </DropdownMenuPrimitive.RadioGroup>
   );
@@ -419,18 +439,52 @@ const DropdownMenuRadioItem = React.forwardRef<
       children,
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
+      onSelect,
+      disabled,
+      value,
       ...props
     },
     ref,
   ) => {
-    const { isCompactViewport } = useResponsiveMenu();
+    const { isCompactViewport, onOpenChange } = useResponsiveMenu();
+    const radioGroup = React.useContext(RadioGroupContext);
     const { hoverProps } = useMenuItemHover({
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
     });
 
     if (isCompactViewport) {
-      return null;
+      const checked = radioGroup.value === value;
+      return (
+        <button
+          ref={ref as React.RefCallback<HTMLButtonElement> | null}
+          type="button"
+          role="menuitemradio"
+          value={value}
+          disabled={disabled}
+          aria-disabled={disabled || undefined}
+          aria-checked={checked}
+          className={cn(
+            "relative flex w-full cursor-default select-none items-center rounded-sm py-2 pl-8 pr-2 text-left text-xs outline-none transition-colors focus:bg-state-hover focus:text-foreground active:bg-state-active active:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+            className,
+          )}
+          data-disabled={disabled ? "" : undefined}
+          onClick={() => {
+            if (disabled) return;
+            const event = createSelectEvent();
+            onSelect?.(event);
+            radioGroup.onValueChange?.(value);
+            if (!event.defaultPrevented) {
+              onOpenChange(false);
+            }
+          }}
+        >
+          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+            {checked && <Icon name="Circle" className="h-2 w-2 fill-current" />}
+          </span>
+          {children}
+        </button>
+      );
     }
 
     return (
@@ -442,6 +496,9 @@ const DropdownMenuRadioItem = React.forwardRef<
           MENU_ITEM_LAST_HOVERED_CLASS,
           className,
         )}
+        onSelect={onSelect}
+        disabled={disabled}
+        value={value}
         {...props}
         {...hoverProps}
       >
@@ -545,7 +602,24 @@ DropdownMenuGroup.displayName = "DropdownMenuGroup";
 
 const DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 
-const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+function DropdownMenuSub({
+  children,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  const { isCompactViewport } = useResponsiveMenu();
+
+  if (isCompactViewport) {
+    return (
+      <div role="group" className="flex flex-col">
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <DropdownMenuPrimitive.Sub {...props}>{children}</DropdownMenuPrimitive.Sub>
+  );
+}
 
 const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubTrigger>,
@@ -564,10 +638,26 @@ const DropdownMenuSubTrigger = React.forwardRef<
     },
     ref,
   ) => {
+    const { isCompactViewport } = useResponsiveMenu();
     const { hoverProps } = useMenuItemHover({
       onPointerEnter: callerPointerEnter,
       onKeyDown: callerKeyDown,
     });
+
+    if (isCompactViewport) {
+      return (
+        <div
+          ref={ref as React.RefCallback<HTMLDivElement> | null}
+          className={cn(
+            "px-2 py-1.5 text-xs font-medium text-muted-foreground",
+            inset && "pl-8",
+            className,
+          )}
+        >
+          {children}
+        </div>
+      );
+    }
 
     return (
       <DropdownMenuPrimitive.SubTrigger
@@ -594,17 +684,38 @@ DropdownMenuSubTrigger.displayName =
 const DropdownMenuSubContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.SubContent
-    ref={ref}
-    {...usePortalScopeProps()}
-    className={cn(
-      "z-50 min-w-28 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-      className,
-    )}
-    {...props}
-  />
-));
+>(({ className, children, ...props }, ref) => {
+  const { isCompactViewport } = useResponsiveMenu();
+  const scopeProps = usePortalScopeProps();
+
+  if (isCompactViewport) {
+    const { style, ...domProps } = stripRadixContentProps(props);
+    return (
+      <div
+        ref={ref as React.RefCallback<HTMLDivElement> | null}
+        className={cn("flex flex-col gap-0.5", className)}
+        {...domProps}
+        style={style}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <DropdownMenuPrimitive.SubContent
+      ref={ref}
+      {...scopeProps}
+      className={cn(
+        "z-50 min-w-28 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </DropdownMenuPrimitive.SubContent>
+  );
+});
 DropdownMenuSubContent.displayName =
   DropdownMenuPrimitive.SubContent.displayName;
 

@@ -4,12 +4,14 @@ import { Icon } from "./components/ui/icon";
 import { ChatSettings } from "./chat-settings";
 import { AppearanceSettings, TransferSettings } from "./appearance";
 import { AgentsMarkersHint, AgentsRulesEditor } from "./agents-apply";
+import { ExecutionSettings } from "./execution-ui";
 import { SettingRow, SettingsGroup } from "./settings-ui";
 
 export const SETTINGS_SECTIONS = [
   "list",
   "appearance",
   "rules",
+  "execution",
   "archive",
   "transfer",
   "language",
@@ -34,6 +36,11 @@ const meta = (section: SettingsSection) =>
       icon: "FileText",
       title: t("Правила AGENTS.md"),
       hint: t("Шаблоны и свои правила для новых проектов и разделов."),
+    },
+    execution: {
+      icon: "Bot",
+      title: t("Провайдер и агент"),
+      hint: t("С чего начинается новый чат, если проект и раздел молчат."),
     },
     archive: {
       icon: "Archive",
@@ -116,6 +123,16 @@ export function SettingsPane({
             <AgentsRulesEditor />
           </SettingsGroup>
         </>
+      )}
+      {section === "execution" && (
+        <SettingsGroup
+          title={t("По умолчанию для новых чатов")}
+          hint={t(
+            "Действует, пока проект или раздел не задал своё. Выключенная группа оставляет обычный выбор BB.",
+          )}
+        >
+          <ExecutionSettings />
+        </SettingsGroup>
       )}
       {section === "archive" && archive}
       {section === "transfer" && <TransferSettings />}
