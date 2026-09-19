@@ -256,6 +256,8 @@ Text above the markers is never touched; changing a template rewrites the same b
 - **Custom template** — its own template (for a project: a project template and a template for new sections inside it), its own custom rules and target, its own startup instruction. The nearest override wins down the tree.
 - **Own file** — edit that device's `AGENTS.md` and `CLAUDE.md` directly; the plugin writes nothing there and Apply skips the folder.
 
+A chat can set all of this too: `bb project-folders rules show|set <project-id> <folder-id-or-dash>` writes the same record this card writes, which is how an agent asked for "rules for this section" leaves it on **Custom template** rather than typing into the file behind the plugin's back. Saving a custom template writes it into that place's `AGENTS.md` straight away.
+
 Level 3+ sections get no rules. An existing `AGENTS.md` without the plugin markers is treated as yours: the folder opens on **Own file** and nothing is injected. Saving detects concurrent edits and refuses to overwrite a changed file. When a project has copies on several devices, rules are written to every copy.
 
 ## Provider, model and agent

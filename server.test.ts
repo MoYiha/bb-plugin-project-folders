@@ -1925,3 +1925,91 @@ describe("filing a chat into a section", () => {
     }
   });
 });
+
+describe("rules from the CLI", () => {
+  it("switches a section to its own template the way its card does", async () => {
+    const h = await setup();
+    try {
+      const section = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Bot",
+        relativePath: "Bot",
+      })) as { id: string };
+      const run = (argv: string[]) => h.harness.behavior.runCli(argv);
+      const set = await run([
+        "rules",
+        "set",
+        "p1",
+        section.id,
+        "--mode",
+        "custom",
+        "--template",
+        "# Bot rules\nRestart the service after every change.",
+        "--startup",
+        "Tell me the bot status first.",
+        "--target",
+        "session",
+        "--json",
+      ]);
+      expect(set.exitCode).toBe(0);
+      const saved = JSON.parse(set.stdout ?? "{}");
+      expect(saved.mode).toBe("custom");
+      expect(saved.template).toContain("Restart the service");
+      expect(saved.startup).toBe("Tell me the bot status first.");
+      expect(saved.customTarget).toBe("session");
+      // The card reads the same record.
+      const shown = JSON.parse(
+        (await run(["rules", "show", "p1", section.id, "--json"])).stdout ??
+          "{}",
+      );
+      expect(shown.mode).toBe("custom");
+      expect(shown.template).toContain("Restart the service");
+      // The template reached the section's AGENTS.md, between the markers.
+      const written = h.writes.filter(
+        (w) => w.path === "/work/Bot/AGENTS.md",
+      ) as { content: string }[];
+      expect(written.at(-1)?.content).toContain("Restart the service");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("keeps what it was not asked to change and refuses an unknown mode", async () => {
+    const h = await setup();
+    try {
+      const run = (argv: string[]) => h.harness.behavior.runCli(argv);
+      await run([
+        "rules",
+        "set",
+        "p1",
+        "-",
+        "--mode",
+        "custom",
+        "--template",
+        "# Project rules",
+        "--json",
+      ]);
+      const after = JSON.parse(
+        (
+          await run([
+            "rules",
+            "set",
+            "p1",
+            "-",
+            "--startup",
+            "Read the registry first.",
+            "--json",
+          ])
+        ).stdout ?? "{}",
+      );
+      expect(after.mode).toBe("custom");
+      expect(after.projectTemplate).toContain("# Project rules");
+      expect(after.startup).toBe("Read the registry first.");
+      const bad = await run(["rules", "set", "p1", "-", "--mode", "loud"]);
+      expect(bad.exitCode).toBe(1);
+      expect(bad.stderr).toContain("default, custom or own-file");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});

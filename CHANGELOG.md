@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.22
+
+- **An agent can set the rules of a project or a section, not just type into the file.** `bb project-folders rules show|set` writes the same record the card writes, so asking a chat for "rules for this section" now leaves the card on **Custom template** with the text in it, instead of on Default with an edit the next apply would overwrite. The plugin skill explains the modes, the inheritance and what section rules should contain.
+- **Saving a custom template writes it to that place's AGENTS.md at once.** Until now only a project did that, and a section's own template waited for the next **Apply to existing sections**.
+
 ## 0.4.21
 
 - **A moved chat is listed where you dropped it, whatever its agent can do.** The chat is filed into the destination the moment you move it, so the tree follows immediately; when its own agent then switches the working directory, the filing is dropped and the chat belongs to that section outright.

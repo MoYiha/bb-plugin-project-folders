@@ -2570,12 +2570,15 @@ export default async function plugin(bb: BbPluginApi) {
       const failed: string[] = [];
       for (const t of targets) {
         try {
-          if (!input.folderId && input.mode === "custom") {
-            // A custom project template is stamped into every copy's
-            // AGENTS.md (created when missing), custom rules included.
+          if (input.mode === "custom") {
+            // Its own template belongs in its own AGENTS.md right away: a
+            // section that was given rules and shows none on disk until some
+            // later Apply is a promise the card did not keep. A project has
+            // one copy per device, so every copy is stamped.
             const merged = applyRuleBlocks(
               await readAgents(t),
-              input.projectTemplate ?? "",
+              (input.folderId ? input.sectionTemplate : input.projectTemplate) ??
+                "",
               fileCustom,
             );
             if (merged !== null) await writeAgents(t, merged);
@@ -3146,6 +3149,13 @@ export default async function plugin(bb: BbPluginApi) {
         usage: "bb project-folders delete-project <project-id> keep|archive",
       },
       {
+        name: "rules",
+        summary:
+          "Read or set the AGENTS.md rules of a project or a section, the way its card does",
+        usage:
+          "bb project-folders rules show|set <project-id> <folder-id-or-dash> [--mode default|custom|own-file] [--template TEXT|--template-file PATH] [--sections-template TEXT|--sections-template-file PATH] [--custom TEXT|--custom-file PATH] [--target file|session|both] [--startup TEXT] [--host HOST_ID]",
+      },
+      {
         name: "sync",
         usage: "bb project-folders sync <thread-id>",
         summary: "Export chat history: sync <thread-id>",
@@ -3227,13 +3237,91 @@ export default async function plugin(bb: BbPluginApi) {
             projectId: z.string().min(1).parse(args[1]),
             files: z.enum(["keep", "archive"]).parse(args[2]),
           });
+        } else if (args[0] === "rules") {
+          /**
+           * The same two steps the card takes: read what this place has, then
+           * save the whole set. Writing rules by editing AGENTS.md by hand
+           * leaves the plugin's own record on "Default", so the card keeps
+           * offering the shared template and the next Apply overwrites the
+           * text — this command is how an agent sets rules for real.
+           */
+          const flag = (name: string) => {
+            const at = argv.indexOf(`--${name}`);
+            return at === -1 ? undefined : argv[at + 1];
+          };
+          const text = async (
+            name: string,
+            hostId: string,
+            root: string,
+          ): Promise<string | undefined> => {
+            const inline = flag(name);
+            if (inline !== undefined) return inline;
+            const file = flag(`${name}-file`);
+            if (file === undefined) return undefined;
+            const read = await bb.sdk.files.read({
+              hostId,
+              path: file,
+              rootPath: root,
+            });
+            return read.content;
+          };
+          const sub = args[1] === "set" ? "set" : "show";
+          const at = {
+            projectId: z.string().min(1).parse(args[2]),
+            folderId: args[3] === "-" || !args[3] ? null : args[3],
+            ...(flag("host") ? { hostId: flag("host") } : {}),
+          };
+          const place = await target(at);
+          if (sub === "show") value = await handlers.rules_read(at);
+          else {
+            const current = await handlers.rules_read(at);
+            const modes = {
+              default: "inherit",
+              inherit: "inherit",
+              custom: "custom",
+              "own-file": "manual",
+              manual: "manual",
+            } as const;
+            const asked = flag("mode");
+            const mode = asked
+              ? (modes[asked as keyof typeof modes] ??
+                (() => {
+                  throw new Error(
+                    "Mode is default, custom or own-file.",
+                  );
+                })())
+              : current.mode;
+            const template = await text("template", place.hostId, place.path);
+            const sections = await text(
+              "sections-template",
+              place.hostId,
+              place.path,
+            );
+            const custom = await text("custom", place.hostId, place.path);
+            await handlers.rules_settings_save({
+              projectId: at.projectId,
+              folderId: at.folderId,
+              mode,
+              // A project keeps two templates: its own and the one its new
+              // sections start from.
+              sectionTemplate:
+                (at.folderId ? template : sections) ?? current.template,
+              projectTemplate:
+                (at.folderId ? undefined : template) ?? current.projectTemplate,
+              custom: custom ?? current.custom,
+              customTarget: (flag("target") ??
+                current.customTarget) as typeof current.customTarget,
+              startup: flag("startup") ?? current.startup,
+            });
+            value = await handlers.rules_read(at);
+          }
         } else if (args[0] === "sync")
           value = await sync(z.string().min(1).parse(args[1]));
         else
           return {
             exitCode: 0,
             stdout:
-              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | place-chat <thread-id> <project-id> <folder-id-or-dash> | unplace-chat <thread-id> | move-section <folder-id> <absolute-path> | delete-project <project-id> keep|archive",
+              "bb project-folders list | create <project-id> <parent-id-or-dash> <name> <relative-path> [host-id] | rules show|set <project-id> <folder-id-or-dash> [flags] | sync <thread-id> | archives | archive <folder-id> | restore <archive-id> | place-chat <thread-id> <project-id> <folder-id-or-dash> | unplace-chat <thread-id> | move-section <folder-id> <absolute-path> | delete-project <project-id> keep|archive",
           };
         return { exitCode: 0, stdout: JSON.stringify(value, null, 2) };
       } catch (e) {
