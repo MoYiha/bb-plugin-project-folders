@@ -27,10 +27,13 @@ it("paints the full section path on the wide label and the folder name on the co
     {
       rpc: {
         thread_section: () => ({
-          label: "Launch / Website / Design",
-          compactLabel: "Design",
-          path: "/work/Website/Design",
-          projectName: "Launch",
+          section: {
+            label: "Launch / Website / Design",
+            compactLabel: "Design",
+            path: "/work/Website/Design",
+            projectName: "Launch",
+          },
+          pending: false,
         }),
       },
     },
@@ -44,6 +47,48 @@ it("paints the full section path on the wide label and the folder name on the co
     ).toBe("Design");
     expect(chip.getAttribute("data-pf-section-chip")).toBe("");
   });
+  view.lifecycle.unmount();
+  chip.remove();
+});
+
+it("keeps asking while the chat has no workspace yet, then paints", async () => {
+  // A chat handed off to a new thread is created before its environment.
+  document.body.setAttribute("data-split-pane-id", "pane");
+  const chip = document.createElement("div");
+  chip.setAttribute("data-option-display", "");
+  chip.innerHTML =
+    '<span data-promptbox-full-label="">Launch</span><span data-promptbox-compact-label="">Launch</span>';
+  document.body.prepend(chip);
+  let answered = 0;
+  const view = renderSlot(
+    app.threadHeaderActions[0]!,
+    { threadId: "t1", projectId: "p1", isCompactViewport: false },
+    {
+      rpc: {
+        thread_section: () => {
+          answered += 1;
+          return answered < 2
+            ? { section: null, pending: true }
+            : {
+                section: {
+                  label: "Launch / Website",
+                  compactLabel: "Website",
+                  path: "/work/Website",
+                  projectName: "Launch",
+                },
+                pending: false,
+              };
+        },
+      },
+    },
+  );
+  await waitFor(
+    () =>
+      expect(
+        chip.querySelector("[data-promptbox-full-label]")?.textContent,
+      ).toBe("Launch / Website"),
+    { timeout: 4000 },
+  );
   view.lifecycle.unmount();
   chip.remove();
 });

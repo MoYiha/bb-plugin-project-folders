@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.19
+
+- **A chat handed off to a new thread shows its section again.** The new chat exists before its workspace does, so the very first lookup answered "no workspace yet" and the project chip stayed on the bare project name. The lookup now says it is not ready instead of failing, and the label asks again until the workspace arrives.
+- **The badge on a chat filed elsewhere names its machine**, not its folder: what matters about a chat sitting in another device's section is where it actually runs. The full path stays in the badge's tooltip.
+
 ## 0.4.18
 
 - **Moving a chat into a section on its own device now takes its working folder along.** Until BB exposes the directory switch to plugins ([get-bb/bb#3904](https://github.com/get-bb/bb/issues/3904)), the chat performs it: it receives one agent-only request and calls its own `update_environment_directory`. That spends one turn of the chat's model and needs a provider that has the tool.

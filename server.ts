@@ -164,14 +164,22 @@ export const rpcContract = defineRpcContract({
   },
   thread_section: {
     input: z.object({ threadId: z.string() }),
-    output: z
-      .object({
-        label: z.string(),
-        compactLabel: z.string(),
-        path: z.string(),
-        projectName: z.string(),
-      })
-      .nullable(),
+    output: z.object({
+      section: z
+        .object({
+          label: z.string(),
+          compactLabel: z.string(),
+          path: z.string(),
+          projectName: z.string(),
+        })
+        .nullable(),
+      /**
+       * The chat has no workspace yet — a thread handed off to a new one is
+       * created before its environment exists. Ask again instead of settling
+       * on the bare project name.
+       */
+      pending: z.boolean(),
+    }),
   },
   project_move: {
     input: z.object({
@@ -1805,13 +1813,18 @@ export default async function plugin(bb: BbPluginApi) {
       return result;
     },
     thread_section: async ({ threadId }) => {
-      const { f } = await locate(threadId);
+      const thread = await bb.sdk.threads.get({ threadId });
+      if (!thread.environmentId) return { section: null, pending: true };
+      const located = await locate(threadId).catch(() => null);
+      if (!located) return { section: null, pending: false };
+      const { f } = located;
       const all = folders();
-      if (!all.some((x) => x.id === f.id)) return null;
+      if (!all.some((x) => x.id === f.id))
+        return { section: null, pending: false };
       const project = (await bb.sdk.projects.list()).find(
         (p) => p.id === f.projectId,
       );
-      if (!project) return null;
+      if (!project) return { section: null, pending: false };
       const names: string[] = [];
       let current: Folder | undefined = f;
       const visited = new Set<string>();
@@ -1823,10 +1836,13 @@ export default async function plugin(bb: BbPluginApi) {
           : undefined;
       }
       return {
-        label: [project.name, ...names].join(" / "),
-        compactLabel: names[names.length - 1] ?? project.name,
-        path: f.path,
-        projectName: project.name,
+        section: {
+          label: [project.name, ...names].join(" / "),
+          compactLabel: names[names.length - 1] ?? project.name,
+          path: f.path,
+          projectName: project.name,
+        },
+        pending: false,
       };
     },
     project_move: (input) => {

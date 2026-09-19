@@ -314,7 +314,7 @@ Either way the old path stays as a link; unfinished moves are retried from **Unf
 
 A section on the chat's own device takes the chat's **working folder** with it, together with the chat's `.bb/chats/<id>` storage. BB has no plugin API for repointing an existing chat ([get-bb/bb#3904](https://github.com/get-bb/bb/issues/3904)), so the plugin asks the chat itself: the chat receives one agent-only request and calls its own `update_environment_directory`. That costs one turn of the chat's model and needs a provider that has the tool; until the chat answers, nothing has moved and the chat keeps working exactly as before. The storage follows once the chat reports its new directory.
 
-A section on **another device** only takes the place in the tree — a chat cannot change machine. Such a chat shows the folder it works in next to its name and offers **File back where it works** in its menu.
+A section on **another device** only takes the place in the tree — a chat cannot change machine. Such a chat is badged with the machine it runs on, keeps the full path in that badge's tooltip, and offers **File back where it works** in its menu.
 
 ## Files and chat history
 

@@ -26,22 +26,39 @@ export function ThreadSectionLabel({
   const rpc = useRpc<typeof rpcContract>();
   const [section, setSection] = useState<SectionLabel | null>(null);
   const requestVersion = useRef(0);
-  const refresh = useCallback(() => {
-    const version = ++requestVersion.current;
-    rpc.call("thread_section", { threadId }).then(
-      (value) => {
-        if (version === requestVersion.current) setSection(value);
-      },
-      () => {
-        if (version === requestVersion.current) setSection(null);
-      },
-    );
-    return () => {
-      ++requestVersion.current;
-    };
-  }, [rpc, threadId]);
-  useEffect(refresh, [refresh]);
-  useRealtime("changed", refresh);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * A chat handed off to a new thread exists before its workspace does, so the
+   * first answer is "not yet" and the chip would sit on the bare project name
+   * forever. Ask again a few times, backing off, until the workspace is there.
+   */
+  const refresh = useCallback(
+    (attempt = 0) => {
+      const version = ++requestVersion.current;
+      if (timer.current) clearTimeout(timer.current);
+      rpc.call("thread_section", { threadId }).then(
+        (value) => {
+          if (version !== requestVersion.current) return;
+          setSection(value.section);
+          if (value.pending && attempt < 5)
+            timer.current = setTimeout(
+              () => refresh(attempt + 1),
+              Math.min(1000 * 2 ** attempt, 8000),
+            );
+        },
+        () => {
+          if (version === requestVersion.current) setSection(null);
+        },
+      );
+      return () => {
+        ++requestVersion.current;
+        if (timer.current) clearTimeout(timer.current);
+      };
+    },
+    [rpc, threadId],
+  );
+  useEffect(() => refresh(), [refresh]);
+  useRealtime("changed", () => refresh());
   useEffect(() => {
     if (!section) return;
     const pane = marker.current?.closest<HTMLElement>(

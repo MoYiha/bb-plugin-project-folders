@@ -2079,11 +2079,11 @@ function Tree(props: PluginThreadListProps) {
           (r) => r.projectId === chat.projectId && r.hostId === chat.host?.id,
         );
     if (!folder) return undefined;
+    // The machine, not the folder: a chat filed into a section of another
+    // device is still running on its own one, and that is the fact the badge
+    // has to carry. The full path stays in the tooltip.
     return {
-      label:
-        folder.hostId === chat.host?.id
-          ? folder.name
-          : `${folder.name} · ${deviceName(folder.hostId)}`,
+      label: deviceName(chat.host?.id ?? folder.hostId),
       path: `${t("Работает в")} ${folder.path}`,
     };
   };

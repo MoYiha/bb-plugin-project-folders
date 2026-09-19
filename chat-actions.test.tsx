@@ -524,8 +524,12 @@ it("shows where a filed chat works and offers to file it back", async () => {
     },
   );
   const row = (await view.findByText("Filed chat")).closest(".pf-thread")!;
-  // The chat is listed under Other, and says it still works in Section.
-  expect(row.textContent).toContain("Section");
+  // Listed under Other, and named by the machine it really runs on; the
+  // folder itself is in the badge's tooltip.
+  expect(row.textContent).toContain("Mini");
+  expect(row.querySelector(".pf-host-badge")?.getAttribute("title")).toContain(
+    "/work/Section",
+  );
   fireEvent.contextMenu(await view.findByText("Filed chat"));
   fireEvent.click(await view.findByText("File back where it works"));
   await waitFor(() =>
@@ -624,5 +628,8 @@ it("keeps the title truncated when a chat shows the folder it works in", async (
   const badge = title.parentElement?.querySelector(".pf-host-badge");
   expect(badge).toBeTruthy();
   expect(title.nextElementSibling).toBe(badge);
+  // The machine the chat runs on, with its folder in the tooltip.
+  expect(badge?.textContent).toBe("Mini");
+  expect(badge?.getAttribute("title")).toContain("/work/Section");
   view.lifecycle.unmount();
 });
