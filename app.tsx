@@ -1699,7 +1699,9 @@ function ThreadRow({
               event.stopPropagation();
               beginRename();
             }}
-            className={thread.isUnread ? "pf-unread" : ""}
+            className={
+              "pf-thread-title" + (thread.isUnread ? " pf-unread" : "")
+            }
           >
             {thread.title || thread.titleFallback}
           </span>

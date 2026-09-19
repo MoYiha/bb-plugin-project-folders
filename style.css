@@ -92,7 +92,11 @@
   text-decoration: none;
   color: inherit;
 }
-.pf-thread a span:last-child {
+/* The title, by name: with a "works in" badge beside it, `:last-child` picked
+   the badge instead and the title wrapped over three lines. */
+.pf-thread a .pf-thread-title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

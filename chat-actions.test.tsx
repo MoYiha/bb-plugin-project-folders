@@ -537,3 +537,33 @@ it("opens the folder ellipsis on a phone-width viewport without crashing", async
   ).toBeTruthy();
   view.lifecycle.unmount();
 });
+
+it("keeps the title truncated when a chat shows the folder it works in", async () => {
+  // A chat filed away from its working folder carries a badge after the title.
+  // The title has to keep the truncation rules; when they were bound to the
+  // last span, the badge took them and long titles wrapped over three lines.
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [thread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder],
+          roots: [root],
+          errors: [],
+          // Filed at the project root while it works in the section.
+          places: { [thread.id]: "" },
+          bindings: { e1: "f1" },
+          machines: [{ id: "h1", name: "Mini", connected: true }],
+        }),
+      },
+    },
+  );
+  const title = await view.findByText("Example chat");
+  expect(title.className).toContain("pf-thread-title");
+  const badge = title.parentElement?.querySelector(".pf-host-badge");
+  expect(badge).toBeTruthy();
+  expect(title.nextElementSibling).toBe(badge);
+  view.lifecycle.unmount();
+});

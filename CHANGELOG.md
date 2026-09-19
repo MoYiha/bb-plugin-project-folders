@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.17
+
+- **A chat that shows the folder it works in keeps one line.** The badge after the title took the truncation rules meant for the title, so such a chat grew into a three-line block in the tree instead of ending in an ellipsis.
+
 ## 0.4.16
 
 - **The panel no longer crashes while pinning a provider.** BB's picker resolves its own catalog and reports the result back; this plugin answered with the inherited service tier again, the two never agreed, and React stopped the whole panel with "Maximum update depth exceeded" — after which the section tree stayed dead until the page was reloaded. A group that is switched on now reads only what it pins itself, and a group that is off ignores what the picker says.
