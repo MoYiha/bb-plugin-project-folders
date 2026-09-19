@@ -2013,6 +2013,8 @@ function Tree(props: PluginThreadListProps) {
   const [dropReason, setDropReason] = useState<string | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
+  /** The chat was asked to switch its own working folder; it answers in a turn. */
+  const [moveNotice, setMoveNotice] = useState("");
   const [selectedMove, setSelectedMove] = useState<{
     folder: Folder;
     root: boolean;
@@ -2095,11 +2097,27 @@ function Tree(props: PluginThreadListProps) {
     if (moveBusy || !target) return;
     setMoveBusy(true);
     setMoveError("");
+    setMoveNotice("");
     setDraggedChat(null);
     setDropTarget(null);
     setDropReason(null);
     try {
-      await rpc.call("thread_place", target);
+      // Same machine: the chat's working folder follows it. BB has no plugin
+      // API for that (get-bb/bb#3904), so the server asks the chat itself —
+      // it owns `update_environment_directory`. Another device can only take
+      // the place in the tree, because a chat cannot change machine.
+      const sameDevice = chat.host?.id === folder.hostId;
+      if (sameDevice) {
+        const moved = await rpc.call("thread_move", {
+          ...target,
+          hostId: folder.hostId,
+        });
+        setMoveNotice(
+          moved.asked
+            ? `${t("Чат сам переключает рабочую папку:")} ${moved.path}`
+            : "",
+        );
+      } else await rpc.call("thread_place", target);
       setMovingChat(null);
       setCollapseRecords((old) => {
         const next = {
@@ -2472,6 +2490,15 @@ function Tree(props: PluginThreadListProps) {
         <div role="alert" className="pf-error pf-move-notice">
           {moveError}
           <button aria-label={t("Отмена")} onClick={() => setMoveError("")}>
+            <Icon name="X" />
+          </button>
+        </div>
+      )}
+      {moveNotice && !moveError && (
+        <div role="status" className="pf-move-notice">
+          <Icon name="FolderSync" />
+          {moveNotice}
+          <button aria-label={t("Отмена")} onClick={() => setMoveNotice("")}>
             <Icon name="X" />
           </button>
         </div>

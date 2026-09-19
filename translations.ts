@@ -376,4 +376,7 @@ export const english = {
   "Он же есть в каталоге плагинов BB под именем":
     "It is also in the BB plugin catalog as",
   "Открыть страницу плагина": "Open the plugin page",
+
+  "Чат сам переключает рабочую папку:":
+    "The chat is switching its own working folder:",
 } as const;

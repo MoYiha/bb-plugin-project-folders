@@ -292,5 +292,6 @@
   "Плагин CLI Agents установлен. Агент выбирается у проекта или раздела: откройте его карточку и задайте агента рядом с моделью.": "O plugin CLI Agents está instalado. O agente é escolhido em um projeto ou seção: abra seu cartão e defina o agente ao lado do modelo.",
   "Чтобы новый чат сразу начинался нужным агентом Claude Code, Codex или OpenCode, поставьте плагин CLI Agents.": "Para que um novo chat comece com o agente certo do Claude Code, Codex ou OpenCode, instale o plugin CLI Agents.",
   "Он же есть в каталоге плагинов BB под именем": "Ele também está no catálogo de plugins do BB como",
-  "Открыть страницу плагина": "Abrir a página do plugin"
+  "Открыть страницу плагина": "Abrir a página do plugin",
+  "Чат сам переключает рабочую папку:": "O chat está mudando sua própria pasta de trabalho:"
 }

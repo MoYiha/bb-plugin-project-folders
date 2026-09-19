@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.18
+
+- **Moving a chat into a section on its own device now takes its working folder along.** Until BB exposes the directory switch to plugins ([get-bb/bb#3904](https://github.com/get-bb/bb/issues/3904)), the chat performs it: it receives one agent-only request and calls its own `update_environment_directory`. That spends one turn of the chat's model and needs a provider that has the tool.
+- Nothing moves until the chat answers: while the request is pending the chat keeps working in its old folder, and its own messages are not blocked. Once it reports the new directory, `.bb/chats/<id>` follows and the chat is listed by that folder — no "works in" badge left over.
+- A section on another device still takes only the place in the tree, because a chat cannot change machine.
+
 ## 0.4.17
 
 - **A chat that shows the folder it works in keeps one line.** The badge after the title took the truncation rules meant for the title, so such a chat grew into a three-line block in the tree instead of ending in an ellipsis.

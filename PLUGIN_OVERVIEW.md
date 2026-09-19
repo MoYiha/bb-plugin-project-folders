@@ -20,7 +20,7 @@ Archive a section with nested sections, files and chats into a hidden folder ins
 
 ## Devices and moves
 
-Keep a working copy of one project on several connected machines and switch between them with device tabs. The new-chat folder picker shows the project once; the composer's machine control chooses which copy to open. Move a whole project folder, move a section, or re-link a section whose folder was renamed outside BB; the old path stays as a link so existing chats keep working. Moves work within one device and disk volume. Moving a chat between sections needs a BB core patch.
+Keep a working copy of one project on several connected machines and switch between them with device tabs. The new-chat folder picker shows the project once; the composer's machine control chooses which copy to open. Move a whole project folder, move a section, or re-link a section whose folder was renamed outside BB; the old path stays as a link so existing chats keep working. Moves work within one device and disk volume. Moving a chat into a section on its own device takes its working folder along: the chat performs the switch itself in one turn, because BB has no plugin API for it yet.
 
 ## Settings
 

@@ -76,6 +76,10 @@ function mount(failMove = false) {
           if (failMove) throw new Error("Section not found.");
           return { ok: true };
         },
+        thread_move: () => {
+          if (failMove) throw new Error("Section not found.");
+          return { path: "/work/Section", asked: true };
+        },
       },
     },
   );
@@ -128,7 +132,7 @@ it("opens the chat action menu on right-click and offers native actions plus mov
   expect(await view.findByText("Pin")).toBeTruthy();
   view.lifecycle.unmount();
 });
-it("drops a chat onto a section through the filing RPC", async () => {
+it("drops a chat onto a section on its own device and moves its folder", async () => {
   const view = mount();
   const chat = (await view.findByText("Example chat")).closest(".pf-thread")!;
   const target = (await view.findByText("Section")).closest(".pf-heading")!;
@@ -144,9 +148,14 @@ it("drops a chat onto a section through the filing RPC", async () => {
   fireEvent.drop(target, { dataTransfer });
   await waitFor(() =>
     expect(
-      view.inspection.rpcCalls.some((call) => call.method === "thread_place"),
+      view.inspection.rpcCalls.some((call) => call.method === "thread_move"),
     ).toBe(true),
   );
+  // The chat is switching its own directory: say so instead of staying mute.
+  expect(await view.findByRole("status")).toBeTruthy();
+  expect(
+    view.inspection.rpcCalls.some((call) => call.method === "thread_place"),
+  ).toBe(false);
   view.lifecycle.unmount();
 });
 it("offers inline rename from the context menu and supports Escape", async () => {
@@ -208,9 +217,56 @@ it("selects a destination before explicitly moving from the menu", async () => {
     (b) => b.textContent === "Section",
   )!;
   fireEvent.click(section);
-  expect(
-    view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
-  ).toBe(false);
+  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
+    false,
+  );
+  fireEvent.click(
+    await view.findByRole("button", { name: "Move", exact: true }),
+  );
+  await waitFor(() =>
+    expect(
+      view.inspection.rpcCalls.some((c) => c.method === "thread_move"),
+    ).toBe(true),
+  );
+  view.lifecycle.unmount();
+});
+it("only files a chat into a section that lives on another device", async () => {
+  // A chat cannot change machine, so its folder stays where it works.
+  const remote = {
+    ...folder,
+    id: "f2",
+    hostId: "h2",
+    path: "/srv/project/Server",
+    name: "Server",
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [thread], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder, remote],
+          roots: [root, { ...root, hostId: "h2", path: "/srv/project" }],
+          bindings: {},
+          places: {},
+          errors: [],
+          machines: [
+            { id: "h1", name: "Mini", connected: true },
+            { id: "h2", name: "OVH", connected: true },
+          ],
+        }),
+        thread_place: () => ({ ok: true }),
+      },
+    },
+  );
+  fireEvent.contextMenu(await view.findByText("Example chat"));
+  fireEvent.click(await view.findByText("Move to section…"));
+  const dialog = await view.findByRole("dialog");
+  const remoteRow = Array.from(dialog.querySelectorAll("button")).find((b) =>
+    b.textContent?.startsWith("Server"),
+  )!;
+  fireEvent.click(remoteRow);
   fireEvent.click(
     await view.findByRole("button", { name: "Move", exact: true }),
   );
@@ -218,6 +274,9 @@ it("selects a destination before explicitly moving from the menu", async () => {
     expect(
       view.inspection.rpcCalls.some((c) => c.method === "thread_place"),
     ).toBe(true),
+  );
+  expect(view.inspection.rpcCalls.some((c) => c.method === "thread_move")).toBe(
+    false,
   );
   view.lifecycle.unmount();
 });

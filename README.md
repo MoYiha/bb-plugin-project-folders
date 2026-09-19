@@ -70,7 +70,7 @@ What you get from that:
 | Appearance          | 118 icons in 7 groups or any emoji, 12 colors or a custom one, 4 fill styles, 4 presets, color by level or by project, per-item looks with inheritance                              |
 | Archive             | Archive a section with nested sections, files and chats; restore it to the same path                                                                                                |
 | Devices             | One project with a working copy on each connected machine                                                                                                                           |
-| Moves               | Move a whole project, move or re-link a section, move a chat between sections (core patch)                                                                                          |
+| Moves               | Move a whole project, move or re-link a section, move a chat between sections — on its own device the chat's working folder goes with it                                            |
 | Settings            | One settings screen on the management page and in BB settings; shared by all devices                                                                                                |
 | Import & export     | Settings and looks as a JSON file                                                                                                                                                   |
 | Languages           | 11 interface languages, English by default                                                                                                                                          |
@@ -140,7 +140,7 @@ The plugin adds a thread list to BB's sidebar: projects, their sections and subs
 - **Auto-collapse** — a section with no chat activity for a set time (2 hours by default) collapses. It stays open while an agent is running in it or one of its chats is open. A section you collapse or expand by hand keeps your choice; a manually collapsed section stays collapsed even while an agent works inside.
 - **Short lists** — each project root, section and the No project group shows the newest chats up to the limit; **Show all** expands only that list.
 - **Pinned chats** stay on top of their list.
-- **Drag a chat** onto another section or the project root to move it (requires the core patch, see [Move and delete](#move-and-delete)).
+- **Drag a chat** onto another section or the project root to move it; on the same device its working folder follows (see [Move and delete](#move-and-delete)).
 
 ## Starting chats in the right folder
 
@@ -310,7 +310,11 @@ Either way the old path stays as a link; unfinished moves are retried from **Unf
 
 **Delete a project** — **Leave files in place** (default) only removes it from the tree; **Move files to the archive** relocates the folder to `<parent>/.bb/archive/projects/<id>/folder`. The project's BB chats are deleted. Nothing is removed from a Git remote.
 
-**Move a chat to another section** — **Move to section…** in a chat menu, or drag the chat onto any section or the project root of its project. This files the chat into that section: only its place in the tree changes, so it works between devices too, and a chat filed away from the folder it works in shows that folder next to its name and offers **File back where it works** in its menu. A group refuses a chat, because a group holds sections and has no folder of its own. The chat's working folder is never touched: changing it needs BB's directory-update API from the [companion core patch](docs/bb-native-thread-relocation.patch), and even that API keeps a chat on its machine.
+**Move a chat to another section** — **Move to section…** in a chat menu, or drag the chat onto any section or the project root of its project. A group refuses a chat, because a group holds sections and has no folder of its own.
+
+A section on the chat's own device takes the chat's **working folder** with it, together with the chat's `.bb/chats/<id>` storage. BB has no plugin API for repointing an existing chat ([get-bb/bb#3904](https://github.com/get-bb/bb/issues/3904)), so the plugin asks the chat itself: the chat receives one agent-only request and calls its own `update_environment_directory`. That costs one turn of the chat's model and needs a provider that has the tool; until the chat answers, nothing has moved and the chat keeps working exactly as before. The storage follows once the chat reports its new directory.
+
+A section on **another device** only takes the place in the tree — a chat cannot change machine. Such a chat shows the folder it works in next to its name and offers **File back where it works** in its menu.
 
 ## Files and chat history
 
@@ -354,7 +358,7 @@ bb project-folders sync <thread-id>
 - Connected macOS or Linux devices with local-path project sources. Windows paths are not supported. Live-tested on macOS.
 - No account, API key, paid service or external server.
 - **Stored by the plugin:** section records, order, rules modes, archives, move journals, preferences and looks — in the plugin database on the BB server. Only the language choice lives in the browser.
-- Moves work within one device and disk volume. Chat moves need the core patch. Some SDK surfaces are experimental and may need updates with future BB versions.
+- Moves work within one device and disk volume. A chat's working folder moves through the chat's own agent, so it needs a provider with the directory tool and spends one turn. Some SDK surfaces are experimental and may need updates with future BB versions.
 - Upgrading from 0.3.x: browser-only chat list settings and the old declarative AGENTS.md settings are migrated automatically; `bb plugin config project-folders` no longer lists the rules — use the settings screen.
 
 ## Development

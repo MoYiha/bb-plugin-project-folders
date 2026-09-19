@@ -21,12 +21,17 @@ async function setup({
     status,
   });
   const files = new Set(["/work/.bb/chats/t1"]);
+  const sent: string[] = [];
   let fail = failFiles;
   const h = createFakePluginHost({
     pluginId: "project-folders",
     sdk: {
       threads: {
         get: async () => thread,
+        send: async (input) => {
+          sent.push(JSON.stringify(input));
+          return {} as never;
+        },
         update: async (input) => {
           if (supported) {
             z.object({
@@ -86,6 +91,11 @@ async function setup({
     h,
     files,
     options,
+    sent,
+    /** What the chat's own agent does when it obeys the request. */
+    agentSwitchesDirectory: () => {
+      thread = { ...thread, environmentId: "e2" };
+    },
     current: () => thread,
     recover: () => {
       fail = false;
@@ -106,13 +116,42 @@ describe("native chat relocation", () => {
       await x.h.harness.lifecycle.dispose();
     }
   });
-  it("does not move files or leave a barrier when the core ignores an unsupported API field", async () => {
+  it("asks the chat to switch its own directory when core has no such API", async () => {
     const x = await setup({ supported: false });
     try {
-      await expect(x.moves.move(input)).rejects.toThrow("does not support");
+      const result = await x.moves.move(input);
+      expect(result).toMatchObject({ path: "/work/section", asked: true });
+      // Nothing moved yet: the chat still works in the old folder.
       expect(x.current().environmentId).toBe("e1");
       expect([...x.files]).toEqual(["/work/.bb/chats/t1"]);
+      // Nothing has moved, so the chat is not locked out of its own turns.
       expect(x.moves.blocked("t1")).toBe(false);
+      expect(x.moves.any()).toBe(true);
+      const request = x.sent.join("");
+      expect(request).toContain("update_environment_directory");
+      expect(request).toContain("/work/section");
+      expect(request).toContain("agent-only");
+      // Nothing happens while the chat has not switched.
+      expect(await x.moves.finish("t1")).toBe(false);
+      expect(x.moves.any()).toBe(true);
+      // The agent obeys: the storage follows and the barrier lifts.
+      x.agentSwitchesDirectory();
+      expect(await x.moves.finish("t1")).toBe(true);
+      expect([...x.files]).toEqual(["/work/section/.bb/chats/t1"]);
+      expect(x.moves.any()).toBe(false);
+    } finally {
+      await x.h.harness.lifecycle.dispose();
+    }
+  });
+  it("asks only once and leaves a chat alone when nothing is pending", async () => {
+    const x = await setup({ supported: false });
+    try {
+      await x.moves.move(input);
+      expect(x.sent).toHaveLength(1);
+      x.agentSwitchesDirectory();
+      await x.moves.finish("t1");
+      expect(await x.moves.finish("t1")).toBe(false);
+      expect(x.sent).toHaveLength(1);
     } finally {
       await x.h.harness.lifecycle.dispose();
     }

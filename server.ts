@@ -1,5 +1,5 @@
 import { moveHostContract } from "./move-contract";
-import { makeThreadMoves } from "./thread-move";
+import { makeThreadMoves, RELOCATE_MARKER } from "./thread-move";
 import { makeProjectMoves } from "./project-move";
 import { makeSectionMoves } from "./section-move";
 import { within } from "./move-files";
@@ -156,7 +156,11 @@ export type ComposerRequest = z.input<typeof requestSchema>;
 export const rpcContract = defineRpcContract({
   thread_move: {
     input: targetSchema.extend({ threadId: z.string().min(1) }),
-    output: z.object({ path: z.string() }),
+    output: z.object({
+      path: z.string(),
+      /** The chat was asked to switch its own directory and is doing it now. */
+      asked: z.boolean().default(false),
+    }),
   },
   thread_section: {
     input: z.object({ threadId: z.string() }),
@@ -1741,6 +1745,10 @@ export default async function plugin(bb: BbPluginApi) {
     },
     pendingExports: () => Promise.allSettled([...syncing.values()]),
     changed,
+    settled: (threadId) =>
+      void db
+        .prepare("DELETE FROM thread_places WHERE threadId=?")
+        .run(threadId),
   });
   const sectionMoves = makeSectionMoves(bb, {
     folders,
@@ -1757,7 +1765,12 @@ export default async function plugin(bb: BbPluginApi) {
     detached,
   });
   bb.experimental_hooks.on("message.dispatch", (ctx) => {
-    if (threadMoves.blocked(ctx.thread.id))
+    // The relocation request is the message that lifts the barrier: it carries
+    // the marker, so it is the one thing allowed through while one is up.
+    const relocating = JSON.stringify(ctx.input.blocks).includes(
+      RELOCATE_MARKER,
+    );
+    if (threadMoves.blocked(ctx.thread.id) && !relocating)
       return {
         action: "reject",
         message:
@@ -1773,7 +1786,7 @@ export default async function plugin(bb: BbPluginApi) {
       typeof inputs.path === "string"
         ? inputs.path
         : null);
-    return threadMoves.blocked(ctx.thread.id) ||
+    return (threadMoves.blocked(ctx.thread.id) && !relocating) ||
       moves.busy(ctx.project.id) ||
       sectionMoves.busyProject(ctx.project.id) ||
       archives.blocked(ctx.thread.id) ||
@@ -2954,6 +2967,7 @@ export default async function plugin(bb: BbPluginApi) {
   ] as const)
     bb.events.on(event, async ({ thread }) => {
       try {
+        await threadMoves.finish(thread.id);
         await locate(thread.id);
         await sync(thread.id);
         changed();
