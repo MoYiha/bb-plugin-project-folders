@@ -2013,3 +2013,45 @@ describe("rules from the CLI", () => {
     }
   });
 });
+
+it("names the section that already holds a folder instead of just refusing", async () => {
+  const h = await setup();
+  try {
+    const call = h.harness.behavior.callRpc;
+    await call("create", {
+      projectId: "p1",
+      folderId: null,
+      name: "Parser",
+      relativePath: "/srv/sites/muse",
+    });
+    // The same folder again: say who has it, and where that section lives.
+    await expect(
+      call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Parser again",
+        relativePath: "/srv/sites/muse",
+      }),
+    ).rejects.toThrow(/already the section .Parser. of .Test./);
+    // A folder above it: say which way the overlap goes.
+    await expect(
+      call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Sites",
+        relativePath: "/srv/sites",
+      }),
+    ).rejects.toThrow(/contains the section .Parser./);
+    // And a folder inside it.
+    await expect(
+      call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Inside",
+        relativePath: "/srv/sites/muse/data",
+      }),
+    ).rejects.toThrow(/is inside the section .Parser./);
+  } finally {
+    await h.harness.lifecycle.dispose();
+  }
+});

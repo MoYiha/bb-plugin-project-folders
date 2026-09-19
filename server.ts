@@ -1313,7 +1313,8 @@ export default async function plugin(bb: BbPluginApi) {
       throw new Error(
         "Choose a folder, not the disk root; .bb and .git are reserved.",
       );
-    for (const project of await bb.sdk.projects.list())
+    const projects = await bb.sdk.projects.list();
+    for (const project of projects)
       for (const s of project.sources)
         if (
           s.type === "local_path" &&
@@ -1323,8 +1324,17 @@ export default async function plugin(bb: BbPluginApi) {
           throw new Error(
             project.id === projectId
               ? "The folder overlaps the project folder: choose one inside the parent section or fully outside the project."
-              : "Another BB project uses this folder.",
+              : `The project “${project.name}” already works in this folder.`,
           );
+    // A refusal that does not say who holds the folder sends the user hunting
+    // through the tree: one folder is one section, and the one that has it is
+    // often in another project entirely.
+    const named = (f: Folder) => {
+      const owner = projects.find((x) => x.id === f.projectId)?.name;
+      return owner
+        ? `the section “${f.name}” of “${owner}”`
+        : `the section “${f.name}”`;
+    };
     for (const f of folders())
       if (
         !isGroup(f) &&
@@ -1333,8 +1343,8 @@ export default async function plugin(bb: BbPluginApi) {
       )
         throw new Error(
           f.path === p
-            ? "This path is already in the tree."
-            : "Choose a folder that is not inside another section and does not contain one.",
+            ? `This folder is already ${named(f)}.`
+            : `This folder ${within(p, f.path) ? "is inside" : "contains"} ${named(f)}. Choose one that is not inside another section and does not contain one.`,
         );
     return p;
   }
@@ -2577,8 +2587,9 @@ export default async function plugin(bb: BbPluginApi) {
             // one copy per device, so every copy is stamped.
             const merged = applyRuleBlocks(
               await readAgents(t),
-              (input.folderId ? input.sectionTemplate : input.projectTemplate) ??
-                "",
+              (input.folderId
+                ? input.sectionTemplate
+                : input.projectTemplate) ?? "",
               fileCustom,
             );
             if (merged !== null) await writeAgents(t, merged);
@@ -3286,9 +3297,7 @@ export default async function plugin(bb: BbPluginApi) {
             const mode = asked
               ? (modes[asked as keyof typeof modes] ??
                 (() => {
-                  throw new Error(
-                    "Mode is default, custom or own-file.",
-                  );
+                  throw new Error("Mode is default, custom or own-file.");
                 })())
               : current.mode;
             const template = await text("template", place.hostId, place.path);

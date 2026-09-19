@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.24
+
+- **A refused folder says who already holds it.** "This path is already in the tree" left you hunting: the folder is one section, and the section that has it is often in another project. The refusal now names it — "This folder is already the section “Parser” of “Clients”" — and an overlap says which way it goes, inside or containing. A folder taken by another project's own root names that project too.
+
 ## 0.4.23
 
 - **The machine badge appears only when the machines really differ.** Filing a chat into a section of its own device is an arrangement of the tree, not a mismatch, so those rows stay clean. A chat sitting in a section bound to another machine — the folder on the server, the chat on the laptop — still says which machine it runs on, with the folder in the tooltip.
