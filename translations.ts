@@ -379,4 +379,17 @@ export const english = {
 
   "Чат сам переключает рабочую папку:":
     "The chat is switching its own working folder:",
+
+  "Раздел больше не доступен здесь. Выберите другой.":
+    "That section is no longer available here. Choose another.",
+  "Сначала выберите проект и устройство.":
+    "Choose a project and a device first.",
+  "У проекта нет разделов на этом устройстве.":
+    "This project has no sections on this device.",
+  "Раздел проекта": "Project section",
+  "Выберите раздел проекта": "Choose a project section",
+  "Выберите раздел проекта.": "Choose a project section.",
+  "Чат начнёт работу в папке этого раздела.":
+    "The chat will start in this section's folder.",
+  "Чат начнётся в разделе:": "The chat will start in:",
 } as const;

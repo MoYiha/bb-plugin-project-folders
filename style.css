@@ -1741,3 +1741,28 @@
   width: 14px;
   height: 14px;
 }
+.pf-env-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+.pf-env-inputs .pf-select {
+  width: 100%;
+}
+.pf-env-inputs-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.pf-composer-section {
+  margin: 0;
+  padding: 2px 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.pf-composer-section span {
+  font-weight: 500;
+}

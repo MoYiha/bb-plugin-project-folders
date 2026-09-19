@@ -1,5 +1,6 @@
 import { moveHostContract } from "./move-contract";
 import { makeThreadMoves, RELOCATE_MARKER } from "./thread-move";
+import { SECTION_ENVIRONMENT_ID } from "./section-tree";
 import { makeProjectMoves } from "./project-move";
 import { makeSectionMoves } from "./section-move";
 import { within } from "./move-files";
@@ -2991,6 +2992,71 @@ export default async function plugin(bb: BbPluginApi) {
         bb.log.debug(`Chat export ${thread.id}: ${String(e)}`);
       }
     });
+  /**
+   * A place to run, offered to BB's own New thread screen. Without it the
+   * native composer knows projects only: it has a project picker and no idea
+   * that a project is a tree of folders, so a chat started there lands in the
+   * project root. With it, "Project section" appears in the environment picker
+   * and the plugin renders the section tree beside it.
+   *
+   * The folder belongs to the project, never to the environment: `ownsPath`
+   * stays false so retiring a chat's environment never touches a section.
+   */
+  const sectionEnvironmentSchema = z.object({ folderId: z.string().min(1) });
+  const sectionEnvironmentFolder = (
+    inputs: { folderId: string },
+    projectId: string,
+    hostId: string,
+  ): { folder: Folder } | { message: string } => {
+    const folder = folders().find((f) => f.id === inputs.folderId);
+    if (!folder) return { message: "This section no longer exists." };
+    if (folder.projectId !== projectId)
+      return { message: "This section belongs to another project." };
+    if (isGroup(folder))
+      return {
+        message:
+          "A group has no folder of its own. Choose a section inside it.",
+      };
+    if (folder.hostId !== hostId)
+      return {
+        message: "This section lives on another device. Pick that device.",
+      };
+    if (
+      moves.busy(folder.projectId) ||
+      sectionMoves.busyProject(folder.projectId)
+    )
+      return {
+        message: "The project or section is moving. Finish that first.",
+      };
+    if (archives.moving(folder.hostId, folder.path))
+      return { message: "This section is being archived." };
+    return { folder };
+  };
+  bb.experimental_environments.register({
+    id: SECTION_ENVIRONMENT_ID,
+    displayName: "Project section",
+    description: "Work in the folder of a section of this project.",
+    icon: "Folder",
+    requires: { projectCheckout: true },
+    inputs: sectionEnvironmentSchema,
+    validate: ({ project, host, inputs }) => {
+      const found = sectionEnvironmentFolder(inputs, project.id, host.id);
+      return "folder" in found
+        ? { action: "accept" as const }
+        : { action: "refuse" as const, message: found.message };
+    },
+    create: async ({ project, host, inputs }) => {
+      const found = sectionEnvironmentFolder(inputs, project.id, host.id);
+      if (!("folder" in found))
+        return { status: "failed" as const, message: found.message };
+      return {
+        status: "created" as const,
+        path: found.folder.path,
+        ownsPath: false,
+      };
+    },
+    remove: async () => ({ status: "removed" as const }),
+  });
   bb.cli.register({
     name: "project-folders",
     summary: "Project sections and chat history",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.20
+
+- **BB's own New thread screen can start a chat in a section.** The environment picker gains **Project section**, and the plugin draws the section tree of the chosen project and device beside it. Until now that screen knew projects only, so a chat started there — including one handed off to a new thread — landed in the project root.
+- **It also says where the chat will start.** A line under the composer names the section of the environment being reused, because BB's project chip names the project and stops there.
+- The section folder belongs to the project, never to the environment: retiring a chat never touches it.
+
 ## 0.4.19
 
 - **A chat handed off to a new thread shows its section again.** The new chat exists before its workspace does, so the very first lookup answered "no workspace yet" and the project chip stayed on the bare project name. The lookup now says it is not ready instead of failing, and the label asks again until the workspace arrives.

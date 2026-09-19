@@ -19,6 +19,7 @@
 - [Projects and sections](#projects-and-sections)
 - [The sidebar tree](#the-sidebar-tree)
 - [Starting chats in the right folder](#starting-chats-in-the-right-folder)
+- [BB's own New thread screen](#bbs-own-new-thread-screen)
 - [Settings](#settings)
 - [Chat list](#chat-list)
 - [Appearance](#appearance)
@@ -149,6 +150,14 @@ Pressing chat-plus on a project or section opens BB's standard composer on the m
 Inside an open chat, the project name on the composer's project control is replaced with the section path, so you always see where the agent works.
 
 Every chat started from BB also receives short instructions: store reports in `.bb/chats/<chat-id>/artifacts/`, notes in `notes/`, throwaway files in `tmp/`, never edit the exported `thread.json` or `history/`, and read the applicable `AGENTS.md` files including parent folders.
+
+## BB's own New thread screen
+
+The plugin's own new-chat surface is not the only way in. BB's New thread screen — including the one behind **Hand off to a new thread** — knows projects, not folders, so a chat started there used to land in the project root.
+
+Its environment picker now offers **Project section**: pick it, and the plugin draws the sections of the chosen project on the chosen device, indented as a tree. The chat starts in that section's folder. The folder belongs to the project, so retiring the chat's environment never touches it.
+
+A line under the composer names the section a reused environment belongs to, which is what a handed-off chat needs: BB's project chip says the project and nothing more.
 
 ## Settings
 

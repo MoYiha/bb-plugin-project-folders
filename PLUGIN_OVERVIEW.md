@@ -10,6 +10,10 @@ Projects and first- and second-level sections get AGENTS.md from a project or se
 
 A new chat starts with whatever BB remembers for the project. The plugin adds a place to pin that: the plugin as a whole, a project, or any section can set the provider and model with their reasoning level and service tier, the permission mode, and — with the CLI Agents plugin — the native Claude Code, Codex or OpenCode session agent. Each group is inherited on its own and the nearest place wins, so a section can take its project's model and still pin its own agent or refuse one. The values are seeds: the composer opens with them filled in and its own pickers still decide that chat.
 
+## Starting a chat from BB's own screen
+
+BB's New thread screen knows projects, not folders. The plugin adds **Project section** to its environment picker and draws the section tree beside it, so a chat started there — or handed off to a new thread — begins in the section folder you pick. A line under the composer names the section the chat will start in.
+
 ## Your own look
 
 Four ready-made styles: Standard, Monochrome, By level and By project. Per level, pick one of 118 icons in 7 groups or any emoji, one of 12 theme-aware colors or a custom color, and a fill: none, icon badge, left stripe or row background. Colors follow the level or the project. Any project or section can have its own icon, color, fill, chat sorting and chat limit, optionally inherited by nested sections. List density and nesting indent are adjustable.

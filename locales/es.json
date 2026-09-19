@@ -293,5 +293,13 @@
   "Чтобы новый чат сразу начинался нужным агентом Claude Code, Codex или OpenCode, поставьте плагин CLI Agents.": "Para que un chat nuevo empiece con el agente adecuado de Claude Code, Codex u OpenCode, instala el plugin CLI Agents.",
   "Он же есть в каталоге плагинов BB под именем": "También está en el catálogo de plugins de BB como",
   "Открыть страницу плагина": "Abrir la página del plugin",
-  "Чат сам переключает рабочую папку:": "El chat está cambiando su propia carpeta de trabajo:"
+  "Чат сам переключает рабочую папку:": "El chat está cambiando su propia carpeta de trabajo:",
+  "Раздел больше не доступен здесь. Выберите другой.": "Esa sección ya no está disponible aquí. Elige otra.",
+  "Сначала выберите проект и устройство.": "Elige primero un proyecto y un dispositivo.",
+  "У проекта нет разделов на этом устройстве.": "Este proyecto no tiene secciones en este dispositivo.",
+  "Раздел проекта": "Sección del proyecto",
+  "Выберите раздел проекта": "Elige una sección del proyecto",
+  "Выберите раздел проекта.": "Elige una sección del proyecto.",
+  "Чат начнёт работу в папке этого раздела.": "El chat empezará en la carpeta de esta sección.",
+  "Чат начнётся в разделе:": "El chat empezará en:"
 }

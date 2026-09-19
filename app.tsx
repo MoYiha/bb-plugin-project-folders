@@ -22,6 +22,11 @@ import {
 } from "./appearance";
 import { Help, RuleFields, type RuleDraft } from "./agents-apply";
 import { ExecutionEditor } from "./execution-ui";
+import {
+  ComposerSectionBanner,
+  SECTION_ENVIRONMENT_ID,
+  SectionEnvironmentInputs,
+} from "./section-environment";
 import type { PermissionMode, ReasoningLevel, ServiceTier } from "./execution";
 import {
   sortChats,
@@ -4274,5 +4279,20 @@ export default definePluginApp((app) => {
   app.slots.settingsSection({
     id: "settings",
     component: SettingsSection,
+  });
+  // The tree inside BB's own New thread screen: its environment picker renders
+  // this beside "Project section".
+  app.slots.experimental_environmentProviderInputs({
+    environmentProviderId: SECTION_ENVIRONMENT_ID,
+    component: SectionEnvironmentInputs,
+  });
+  // BB's own New thread screen names the project and stops there; this says
+  // which section folder the chat will actually start in.
+  app.composer.customize({
+    id: "section-line",
+    scopes: ["new-thread"],
+    banners: [
+      { id: "section", chrome: "bare", component: ComposerSectionBanner },
+    ],
   });
 });
