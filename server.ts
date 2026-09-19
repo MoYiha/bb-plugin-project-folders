@@ -1758,6 +1758,21 @@ export default async function plugin(bb: BbPluginApi) {
       void db
         .prepare("DELETE FROM thread_places WHERE threadId=?")
         .run(threadId),
+    file: (threadId, folderId) => {
+      const thread = db
+        .prepare("SELECT projectId FROM thread_places WHERE threadId=?")
+        .get(threadId) as { projectId: string } | undefined;
+      const projectId =
+        thread?.projectId ??
+        folders().find((f) => f.id === folderId)?.projectId ??
+        null;
+      if (!projectId) return;
+      db.prepare("INSERT OR REPLACE INTO thread_places VALUES (?,?,?)").run(
+        threadId,
+        projectId,
+        folderId,
+      );
+    },
   });
   const sectionMoves = makeSectionMoves(bb, {
     folders,

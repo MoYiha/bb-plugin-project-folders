@@ -73,7 +73,9 @@ async function setup({
   h.bb.storage.migrate(h.bb.storage.database(), [
     "CREATE TABLE thread_moves (threadId TEXT PRIMARY KEY, data TEXT NOT NULL)",
   ]);
+  const filed: (string | null)[] = [];
   const options = {
+    file: (_threadId: string, folderId: string | null) => filed.push(folderId),
     target: async () => ({
       id: "f1",
       projectId: "p1",
@@ -94,8 +96,13 @@ async function setup({
     sent,
     /** What the chat's own agent does when it obeys the request. */
     agentSwitchesDirectory: () => {
-      thread = { ...thread, environmentId: "e2" };
+      thread = { ...thread, environmentId: "e2", updatedAt: Date.now() + 1000 };
     },
+    /** A provider whose agent has no directory tool: the turn just ends. */
+    agentAnswersWithoutSwitching: () => {
+      thread = { ...thread, updatedAt: Date.now() + 1000 };
+    },
+    filed,
     current: () => thread,
     recover: () => {
       fail = false;
@@ -134,9 +141,11 @@ describe("native chat relocation", () => {
       // Nothing happens while the chat has not switched.
       expect(await x.moves.finish("t1")).toBe(false);
       expect(x.moves.any()).toBe(true);
+      // Listed where it was dropped from the start, whatever the agent does.
+      expect(x.filed).toEqual(["f1"]);
       // The agent obeys: the storage follows and the barrier lifts.
       x.agentSwitchesDirectory();
-      expect(await x.moves.finish("t1")).toBe(true);
+      expect(await x.moves.finish("t1")).toBe("moved");
       expect([...x.files]).toEqual(["/work/section/.bb/chats/t1"]);
       expect(x.moves.any()).toBe(false);
     } finally {
@@ -152,6 +161,22 @@ describe("native chat relocation", () => {
       await x.moves.finish("t1");
       expect(await x.moves.finish("t1")).toBe(false);
       expect(x.sent).toHaveLength(1);
+    } finally {
+      await x.h.harness.lifecycle.dispose();
+    }
+  });
+  it("keeps the chat where it was dropped when the agent cannot switch", async () => {
+    // Not every provider gives its agent the directory tool; Cursor Grok does
+    // not. The folder stays, the tree still shows the move, nothing hangs.
+    const x = await setup({ supported: false });
+    try {
+      await x.moves.move(input);
+      x.agentAnswersWithoutSwitching();
+      expect(await x.moves.finish("t1")).toBe("kept");
+      expect(x.filed).toEqual(["f1"]);
+      expect([...x.files]).toEqual(["/work/.bb/chats/t1"]);
+      expect(x.moves.any()).toBe(false);
+      expect(x.moves.blocked("t1")).toBe(false);
     } finally {
       await x.h.harness.lifecycle.dispose();
     }

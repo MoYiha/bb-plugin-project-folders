@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.21
+
+- **A moved chat is listed where you dropped it, whatever its agent can do.** The chat is filed into the destination the moment you move it, so the tree follows immediately; when its own agent then switches the working directory, the filing is dropped and the chat belongs to that section outright.
+- **A provider without the directory tool no longer leaves the move hanging.** Cursor Grok, for one, has no `update_environment_directory`: it failed the call and answered as if it had moved. The plugin now settles the move at the end of that turn — the folder stays, the chat keeps the badge naming the machine it runs on, and nothing is left pending. The request also tells the agent to say plainly that it has no such tool instead of confirming a move that did not happen.
+
 ## 0.4.20
 
 - **BB's own New thread screen can start a chat in a section.** The environment picker gains **Project section**, and the plugin draws the section tree of the chosen project and device beside it. Until now that screen knew projects only, so a chat started there — including one handed off to a new thread — landed in the project root.

@@ -22,7 +22,7 @@ const jobSchema = z.object({
  */
 export const RELOCATE_MARKER = "[project-folders:relocate]";
 export const relocationRequest = (to: string) =>
-  `${RELOCATE_MARKER} Your working directory has moved to ${to}. Call update_environment_directory with exactly that path, then reply with one short line naming the new directory. Do no other work in this turn; the files of this chat are being moved by Projects & Sections.`;
+  `${RELOCATE_MARKER} Projects & Sections moved this chat to the section at ${to}. Call the update_environment_directory tool with exactly that path so your working directory follows, then reply with one short line naming the new directory. If that tool is not available to you, reply with exactly "No update_environment_directory tool" and nothing else — do not claim the directory changed. Do no other work in this turn.`;
 export function makeThreadMoves(
   bb: BbPluginApi,
   options: {
@@ -37,6 +37,12 @@ export function makeThreadMoves(
     changed: () => void;
     /** The move landed: the chat is listed by its new folder, not by hand. */
     settled?: (threadId: string) => void;
+    /**
+     * List the chat under the destination while its folder has not followed
+     * yet. Not every provider has the directory tool, so the tree must show
+     * the move the user made even when the workspace cannot.
+     */
+    file?: (threadId: string, folderId: string | null) => void;
   },
 ) {
   const db = bb.storage.database();
@@ -144,6 +150,7 @@ export function makeThreadMoves(
             thread.id,
             JSON.stringify({ ...job, asked: Date.now() }),
           );
+          options.file?.(thread.id, input.folderId ?? null);
           await bb.sdk.threads.send({
             threadId: thread.id,
             // The chat is idle by now; "start" keeps this a turn of its own.
@@ -197,7 +204,9 @@ export function makeThreadMoves(
         },
       } as Parameters<typeof bb.sdk.threads.update>[0]);
       const next = updated.environmentId
-        ? await bb.sdk.environments.get({ environmentId: updated.environmentId })
+        ? await bb.sdk.environments.get({
+            environmentId: updated.environmentId,
+          })
         : null;
       return next?.path === request.path;
     } catch {
@@ -209,7 +218,14 @@ export function makeThreadMoves(
    * destination, the chat's own storage follows and the barrier lifts. Called
    * whenever a chat goes idle, so it costs nothing while nothing is pending.
    */
-  async function finish(threadId: string) {
+  /**
+   * Settles a move the chat was asked to finish, once its turn is over:
+   * "moved" when the chat really switched — its storage follows and the
+   * hand-filing is dropped; "kept" when it did not, which is the honest end
+   * for a provider whose agent has no directory tool. Either way the chat
+   * ends up listed where the user dropped it.
+   */
+  async function finish(threadId: string): Promise<"moved" | "kept" | false> {
     const saved = db
       .prepare("SELECT data FROM thread_moves WHERE threadId=?")
       .get(threadId) as { data: string } | undefined;
@@ -218,11 +234,17 @@ export function makeThreadMoves(
     if (!job.asked) return false;
     const thread = await bb.sdk.threads.get({ threadId });
     if (!thread.environmentId) return false;
+    // Wait for the turn the request started; only then is its answer final.
+    if (thread.status !== "idle" || (thread.updatedAt ?? 0) <= job.asked)
+      return false;
     const environment = await bb.sdk.environments.get({
       environmentId: thread.environmentId,
     });
-    if (environment.path !== job.to || environment.hostId !== job.hostId)
-      return false;
+    if (environment.path !== job.to || environment.hostId !== job.hostId) {
+      db.prepare("DELETE FROM thread_moves WHERE threadId=?").run(threadId);
+      options.changed();
+      return "kept";
+    }
     // Exports in flight write into the old storage folder: let them land.
     await options.pendingExports();
     const { existence } = await bb.sdk.hosts.pathsExist({
@@ -244,7 +266,7 @@ export function makeThreadMoves(
     db.prepare("DELETE FROM thread_moves WHERE threadId=?").run(threadId);
     options.settled?.(threadId);
     options.changed();
-    return true;
+    return "moved";
   }
   return { move, blocked, any, finish };
 }
