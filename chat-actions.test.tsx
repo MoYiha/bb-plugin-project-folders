@@ -490,7 +490,14 @@ it("files a chat from a section on another device into any section of its projec
   view.lifecycle.unmount();
 });
 it("shows where a filed chat works and offers to file it back", async () => {
-  const other = { ...folder, id: "f2", path: "/work/Other", name: "Other" };
+  // A section of the server, holding a chat that runs on the laptop.
+  const other = {
+    ...folder,
+    id: "f2",
+    hostId: "h2",
+    path: "/srv/project/Other",
+    name: "Other",
+  };
   const filed: PluginSidebarThread = {
     ...thread,
     id: "t3",
@@ -513,11 +520,14 @@ it("shows where a filed chat works and offers to file it back", async () => {
       rpc: {
         list: () => ({
           folders: [folder, other],
-          roots: [root],
+          roots: [root, { ...root, hostId: "h2", path: "/srv/project" }],
           bindings: { "env-sec": folder.id },
           places: { t3: other.id },
           errors: [],
-          machines: [{ id: "h1", name: "Mini", connected: true }],
+          machines: [
+            { id: "h1", name: "Mini", connected: true },
+            { id: "h2", name: "OVH", connected: true },
+          ],
         }),
         thread_place_clear: () => ({ ok: true }),
       },
@@ -601,10 +611,9 @@ it("opens the folder ellipsis on a phone-width viewport without crashing", async
   view.lifecycle.unmount();
 });
 
-it("keeps the title truncated when a chat shows the folder it works in", async () => {
-  // A chat filed away from its working folder carries a badge after the title.
-  // The title has to keep the truncation rules; when they were bound to the
-  // last span, the badge took them and long titles wrapped over three lines.
+it("marks a chat only when its section belongs to another machine", async () => {
+  // Same machine: moving a chat around the tree is an arrangement, not a
+  // mismatch, and needs no badge.
   const view = renderSlot(
     app.threadLists[0]!,
     { activeThreadId: null, onNavigate() {} },
@@ -614,11 +623,52 @@ it("keeps the title truncated when a chat shows the folder it works in", async (
         list: () => ({
           folders: [folder],
           roots: [root],
-          errors: [],
-          // Filed at the project root while it works in the section.
-          places: { [thread.id]: "" },
           bindings: { e1: "f1" },
+          places: { [thread.id]: "" },
+          errors: [],
           machines: [{ id: "h1", name: "Mini", connected: true }],
+        }),
+      },
+    },
+  );
+  const title = await view.findByText("Example chat");
+  expect(title.parentElement?.querySelector(".pf-host-badge")).toBeNull();
+  view.lifecycle.unmount();
+});
+it("keeps the title truncated when a chat shows the folder it works in", async () => {
+  const remote = {
+    ...folder,
+    id: "f9",
+    hostId: "h2",
+    path: "/srv/project/Server",
+    name: "Server",
+  };
+  // A chat filed away from its working folder carries a badge after the title.
+  // The title has to keep the truncation rules; when they were bound to the
+  // last span, the badge took them and long titles wrapped over three lines.
+  const active = {
+    ...thread,
+    updatedAt: Date.now(),
+    latestAttentionAt: Date.now(),
+    createdAt: Date.now(),
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [active], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder, remote],
+          roots: [root, { ...root, hostId: "h2", path: "/srv/project" }],
+          errors: [],
+          // Filed into a section of the server while it works on the laptop.
+          places: { [thread.id]: remote.id },
+          bindings: { e1: "f1" },
+          machines: [
+            { id: "h1", name: "Mini", connected: true },
+            { id: "h2", name: "OVH", connected: true },
+          ],
         }),
       },
     },

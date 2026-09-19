@@ -325,7 +325,7 @@ Either way the old path stays as a link; unfinished moves are retried from **Unf
 
 A section on the chat's own device takes the chat's **working folder** with it, together with the chat's `.bb/chats/<id>` storage. BB has no plugin API for repointing an existing chat ([get-bb/bb#3904](https://github.com/get-bb/bb/issues/3904)), so the plugin asks the chat itself: the chat receives one agent-only request and calls its own `update_environment_directory`. That costs one turn of the chat's model and needs a provider whose agent has that tool — Cursor Grok, for one, does not have it. The chat is filed into the destination straight away, so the tree shows the move at once; if the chat does switch, its `.bb/chats/<id>` storage follows and the filing is dropped. If it cannot, the folder simply stays and the chat keeps the badge naming the machine it runs on.
 
-A section on **another device** only takes the place in the tree — a chat cannot change machine. Such a chat is badged with the machine it runs on, keeps the full path in that badge's tooltip, and offers **File back where it works** in its menu.
+A section on **another device** only takes the place in the tree — a chat cannot change machine. That is the one case worth marking: the chat is badged with the machine it runs on, keeps the full path in the badge's tooltip, and offers **File back where it works** in its menu. Filing a chat inside its own device leaves the row unmarked.
 
 ## Files and chat history
 

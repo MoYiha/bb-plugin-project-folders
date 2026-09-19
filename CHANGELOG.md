@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.23
+
+- **The machine badge appears only when the machines really differ.** Filing a chat into a section of its own device is an arrangement of the tree, not a mismatch, so those rows stay clean. A chat sitting in a section bound to another machine — the folder on the server, the chat on the laptop — still says which machine it runs on, with the folder in the tooltip.
+
 ## 0.4.22
 
 - **An agent can set the rules of a project or a section, not just type into the file.** `bb project-folders rules show|set` writes the same record the card writes, so asking a chat for "rules for this section" now leaves the card on **Custom template** with the text in it, instead of on Default with an edit the next apply would overwrite. The plugin skill explains the modes, the inheritance and what section rules should contain.

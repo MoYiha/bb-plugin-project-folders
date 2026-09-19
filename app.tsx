@@ -2073,20 +2073,29 @@ function Tree(props: PluginThreadListProps) {
       return t("Чат остаётся в своём проекте.");
     return t("У группы нет своей папки: выберите раздел внутри неё.");
   };
-  /** The section a chat works in, when that is not where it is filed. */
+  /**
+   * The machine a chat runs on, when it sits in a section of another one.
+   *
+   * Filing a chat inside its own device is just an arrangement of the tree and
+   * needs no mark. A section bound to another machine is a real mismatch —
+   * the folder is on the server, the chat is on the laptop — so the badge
+   * names the machine the chat runs on and its tooltip the folder it works in.
+   */
   const worksIn = (chat: PluginSidebarThread) => {
-    if (data.places[chat.id] === undefined) return undefined;
+    const placedId = data.places[chat.id];
+    if (placedId === undefined) return undefined;
     const natural = data.bindings[chat.environment?.id ?? ""] ?? null;
-    if (natural === (data.places[chat.id] || null)) return undefined;
+    if (natural === (placedId || null)) return undefined;
+    const placed = placedId
+      ? data.folders.find((f) => f.id === placedId)
+      : null;
+    if (!placed || placed.hostId === chat.host?.id) return undefined;
     const folder = natural
       ? data.folders.find((f) => f.id === natural)
       : data.roots.find(
           (r) => r.projectId === chat.projectId && r.hostId === chat.host?.id,
         );
     if (!folder) return undefined;
-    // The machine, not the folder: a chat filed into a section of another
-    // device is still running on its own one, and that is the fact the badge
-    // has to carry. The full path stays in the tooltip.
     return {
       label: deviceName(chat.host?.id ?? folder.hostId),
       path: `${t("Работает в")} ${folder.path}`,
