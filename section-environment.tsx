@@ -231,8 +231,17 @@ export function SectionComposerAction() {
         .map((o) => ({ ...o, hostId, many: hosts.length > 1 })),
     );
   }, [tree, projectId]);
-  if (!projectId || options.length === 0) return null;
+  // Never render nothing: a control that vanishes when the composer has no
+  // project yet reads as a missing feature. It says what it is waiting for.
+  const unavailable = !projectId
+    ? t("Сначала выберите проект")
+    : !tree
+      ? t("Загрузка…")
+      : options.length === 0
+        ? t("У проекта нет разделов")
+        : "";
   const choose = async (folder: Folder) => {
+    if (!projectId) return;
     setBusy(true);
     setError("");
     try {
@@ -257,6 +266,19 @@ export function SectionComposerAction() {
       setBusy(false);
     }
   };
+  if (unavailable)
+    return (
+      <button
+        type="button"
+        className="pf-composer-pick"
+        disabled
+        title={unavailable}
+        aria-label={t("Раздел проекта")}
+      >
+        <Icon name="Folder" />
+        <span className="min-w-0 truncate">{t("Раздел")}</span>
+      </button>
+    );
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

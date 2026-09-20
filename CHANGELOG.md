@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- **The Section control no longer disappears.** It rendered nothing while the composer had no project yet, no sections on the chosen device, or the tree still loading — which read as a missing feature. It now always sits in the action row and says what it is waiting for.
+
 ## 0.5.0
 
 - **Pick the section right in BB's New thread screen.** A **Section** control now sits in the composer's action row, next to the model and the machine: choose a section and the composer's environment switches to that section's folder on its machine. Until now the tree was two clicks deep, inside the environment picker. Needs BB 0.43.3, whose composer lets a plugin set the pickers.

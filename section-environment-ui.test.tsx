@@ -179,9 +179,19 @@ describe("the section picker in BB's own composer", () => {
         },
       },
     );
+    // The control renders disabled while the tree loads; wait for the real one.
+    await waitFor(() =>
+      expect(
+        (
+          view.getByRole("button", {
+            name: "Project section",
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(false),
+    );
     // Radix opens a desktop menu on pointerdown, not on click.
     fireEvent.pointerDown(
-      await view.findByRole("button", { name: "Project section" }),
+      view.getByRole("button", { name: "Project section" }),
       { button: 0, ctrlKey: false, pointerType: "mouse" },
     );
     fireEvent.click(await view.findByRole("menuitem", { name: /Design/ }));

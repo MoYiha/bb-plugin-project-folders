@@ -392,4 +392,6 @@ export const english = {
   "Чат начнёт работу в папке этого раздела.":
     "The chat will start in this section's folder.",
   "Чат начнётся в разделе:": "The chat will start in:",
+  "Сначала выберите проект": "Choose a project first",
+  "У проекта нет разделов": "This project has no sections",
 } as const;

@@ -301,5 +301,7 @@
   "Выберите раздел проекта": "Elige una sección del proyecto",
   "Выберите раздел проекта.": "Elige una sección del proyecto.",
   "Чат начнёт работу в папке этого раздела.": "El chat empezará en la carpeta de esta sección.",
-  "Чат начнётся в разделе:": "El chat empezará en:"
+  "Чат начнётся в разделе:": "El chat empezará en:",
+  "Сначала выберите проект": "Elige primero un proyecto",
+  "У проекта нет разделов": "Este proyecto no tiene secciones"
 }
