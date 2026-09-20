@@ -155,7 +155,7 @@ Every chat started from BB also receives short instructions: store reports in `.
 
 The plugin's own new-chat surface is not the only way in. BB's New thread screen — including the one behind **Hand off to a new thread** — knows projects, not folders, so a chat started there used to land in the project root.
 
-Its environment picker now offers **Project section**: pick it, and the plugin draws the sections of the chosen project on the chosen device, indented as a tree. The chat starts in that section's folder. The folder belongs to the project, so retiring the chat's environment never touches it.
+Its action row now carries a **Section** control, next to the model and the machine: pick a section and the composer's environment switches to that section's folder on its machine. The same choice is available one level deeper, in the environment picker's **Project section** entry, which draws the sections of the chosen project and device as an indented tree. Either way the chat starts in that section's folder. The folder belongs to the project, so retiring the chat's environment never touches it.
 
 A line under the composer names the section a reused environment belongs to, which is what a handed-off chat needs: BB's project chip says the project and nothing more.
 

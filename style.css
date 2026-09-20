@@ -1766,3 +1766,27 @@
 .pf-composer-section span {
   font-weight: 500;
 }
+.pf-composer-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.pf-composer-pick:hover {
+  background: var(--state-hover);
+  color: var(--foreground);
+}
+.pf-composer-pick:disabled {
+  opacity: 0.6;
+}
+.pf-composer-pick svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}

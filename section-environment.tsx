@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  useComposer,
   useComposerView,
   useRealtime,
   useRpc,
   type PluginEnvironmentProviderInputsProps,
 } from "@get-bb/plugin-sdk/app";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
+import { Icon } from "./components/ui/icon";
 import type { Folder, rpcContract } from "./server";
 import {
   composerEnvironmentId,
   environmentLabel,
+  recallPick,
+  rememberPick,
   sectionOptions,
   SECTION_ENVIRONMENT_ID,
   type SectionTree,
@@ -39,7 +49,7 @@ export function SectionEnvironmentInputs({
   const chosen =
     value && typeof value === "object" && !Array.isArray(value)
       ? String((value as { folderId?: unknown }).folderId ?? "")
-      : "";
+      : (recallPick(projectId, hostId) ?? "");
   useEffect(() => {
     let live = true;
     rpc.call("list", null).then(
@@ -159,5 +169,129 @@ export function ComposerSectionBanner() {
     <p className="pf pf-composer-section" dir={direction()} title={found.path}>
       <span>{t("Чат начнётся в разделе:")}</span> {found.label}
     </p>
+  );
+}
+
+/**
+ * The section picker BB's own New thread screen gets from this plugin: a
+ * control in the composer's action row, next to the model and the machine.
+ *
+ * BB's composer knows projects, not folders, and its environment picker needs
+ * two clicks to reach ours. This is the one click: choose a section, and the
+ * composer's environment switches to "Project section" on that section's
+ * machine — `experimental_setSelection` applies it exactly as if the pickers
+ * had been used by hand.
+ */
+export function SectionComposerAction() {
+  useLanguage();
+  const rpc = useRpc<typeof rpcContract>();
+  const composer = useComposer();
+  const view = useComposerView();
+  const projectId =
+    view.scope.kind === "new-thread" ? view.scope.projectId : null;
+  const [tree, setTree] = useState<SectionTree | null>(null);
+  const [chosen, setChosen] = useState<Folder | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    rpc
+      .call("list", null)
+      .then((r) => live && setTree({ folders: r.folders, roots: r.roots }))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [rpc]);
+  // A sent message starts a fresh draft: the section goes with it.
+  useEffect(
+    () =>
+      composer.experimental_onSubmitted(() => {
+        setChosen(null);
+        rememberPick(null);
+      }),
+    [composer],
+  );
+  useEffect(() => {
+    setChosen(null);
+    rememberPick(null);
+  }, [projectId]);
+  const options = useMemo(() => {
+    if (!tree || !projectId) return [];
+    const hosts = [
+      ...new Set(
+        tree.roots
+          .filter((r) => r.projectId === projectId)
+          .map((r) => r.hostId),
+      ),
+    ];
+    return hosts.flatMap((hostId) =>
+      sectionOptions(tree, projectId, hostId)
+        .filter((o) => !isGroup(o.folder))
+        .map((o) => ({ ...o, hostId, many: hosts.length > 1 })),
+    );
+  }, [tree, projectId]);
+  if (!projectId || options.length === 0) return null;
+  const choose = async (folder: Folder) => {
+    setBusy(true);
+    setError("");
+    try {
+      await rpc.call("section_pick", {
+        projectId,
+        hostId: folder.hostId,
+        folderId: folder.id,
+      });
+      rememberPick({ projectId, hostId: folder.hostId, folderId: folder.id });
+      await composer.experimental_setSelection({
+        environment: {
+          type: "provider",
+          environmentProviderId: SECTION_ENVIRONMENT_ID,
+          machine: { type: "existing", hostId: folder.hostId },
+          inputs: { folderId: folder.id },
+        },
+      });
+      setChosen(folder);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="pf-composer-pick"
+          disabled={busy}
+          title={error || chosen?.path || t("Раздел проекта")}
+          aria-label={t("Раздел проекта")}
+        >
+          <Icon name="Folder" />
+          <span className="min-w-0 truncate">
+            {chosen?.name ?? t("Раздел")}
+          </span>
+          <Icon name="ChevronDown" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        collisionPadding={8}
+        className="max-h-80 overflow-auto min-w-56 max-w-[min(90vw,26rem)]"
+      >
+        {options.map(({ folder, depth, many }) => (
+          <DropdownMenuItem
+            key={folder.id}
+            style={depth > 0 ? { paddingLeft: 8 + depth * 16 } : undefined}
+            onSelect={() => void choose(folder)}
+          >
+            <Icon name="Folder" />
+            {folder.name}
+            {many && <span className="pf-menu-host">· {folder.hostId}</span>}
+            {chosen?.id === folder.id ? " ✓" : ""}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

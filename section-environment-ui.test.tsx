@@ -29,13 +29,14 @@ const nested = {
 const group = { ...root, id: "g1", name: "Group", kind: "group" as const };
 const remote = { ...root, id: "f3", hostId: "h2", name: "Server" };
 
+let app: Awaited<ReturnType<typeof loadPluginApp>>;
+beforeAll(async () => {
+  installTestMatchMedia();
+  app = await loadPluginApp(() => import("./app"));
+});
+afterEach(cleanup);
+
 describe("the control BB renders for it", () => {
-  let app: Awaited<ReturnType<typeof loadPluginApp>>;
-  beforeAll(async () => {
-    installTestMatchMedia();
-    app = await loadPluginApp(() => import("./app"));
-  });
-  afterEach(cleanup);
   it("keeps parents before children and counts the depth", () => {
     const options = sectionOptions(
       { folders: [nested, section, remote], roots: [root] },
@@ -149,5 +150,60 @@ describe("the line naming the section under BB's own composer", () => {
         },
       }),
     ).toBeNull();
+  });
+});
+
+describe("the section picker in BB's own composer", () => {
+  it("sets the composer's environment to that section's folder and machine", async () => {
+    const registration = app.composerCustomizations
+      .flatMap((c) => c.actions ?? [])
+      .find((a) => a.id === "section")!;
+    const view = renderSlot(
+      { id: "action", component: registration.component },
+      {},
+      {
+        composer: { scope: { kind: "new-thread", projectId: "p1" } },
+        rpc: {
+          list: () => ({
+            folders: [section, nested, remote],
+            roots: [root, { ...root, hostId: "h2", path: "/srv/project" }],
+            bindings: {},
+            places: {},
+            errors: [],
+            machines: [
+              { id: "h1", name: "Mac", connected: true },
+              { id: "h2", name: "OVH", connected: true },
+            ],
+          }),
+          section_pick: () => ({ ok: true }),
+        },
+      },
+    );
+    // Radix opens a desktop menu on pointerdown, not on click.
+    fireEvent.pointerDown(
+      await view.findByRole("button", { name: "Project section" }),
+      { button: 0, ctrlKey: false, pointerType: "mouse" },
+    );
+    fireEvent.click(await view.findByRole("menuitem", { name: /Design/ }));
+    await waitFor(() =>
+      expect(
+        view.inspection.rpcCalls.some((c) => c.method === "section_pick"),
+      ).toBe(true),
+    );
+    expect(
+      view.inspection.rpcCalls.find((c) => c.method === "section_pick")!.input,
+    ).toEqual({ projectId: "p1", hostId: "h1", folderId: "f2" });
+    await waitFor(() =>
+      expect(view.inspection.composer.selections).toHaveLength(1),
+    );
+    expect(view.inspection.composer.selections[0]).toEqual({
+      environment: {
+        type: "provider",
+        environmentProviderId: "section",
+        machine: { type: "existing", hostId: "h1" },
+        inputs: { folderId: "f2" },
+      },
+    });
+    view.lifecycle.unmount();
   });
 });

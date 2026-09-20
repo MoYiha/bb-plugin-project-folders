@@ -25,6 +25,7 @@ import { ExecutionEditor } from "./execution-ui";
 import {
   ComposerSectionBanner,
   SECTION_ENVIRONMENT_ID,
+  SectionComposerAction,
   SectionEnvironmentInputs,
 } from "./section-environment";
 import type { PermissionMode, ReasoningLevel, ServiceTier } from "./execution";
@@ -4095,7 +4096,13 @@ function Panel({ subPath }: PluginNavPanelProps) {
                   <Icon name="ChevronDown" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="max-h-80 overflow-auto min-w-64">
+              {/* Anchored to the chip's left edge: centred on a chip that sits
+                  at the composer's left edge, a wide tree hangs off-screen. */}
+              <DropdownMenuContent
+                align="start"
+                collisionPadding={8}
+                className="max-h-80 overflow-auto min-w-64 max-w-[min(90vw,26rem)]"
+              >
                 {visibleRoots.map((r) => sectionMenu(r))}
               </DropdownMenuContent>
             </DropdownMenu>,
@@ -4300,6 +4307,9 @@ export default definePluginApp((app) => {
   app.composer.customize({
     id: "section-line",
     scopes: ["new-thread"],
+    // One click to the section, next to the model and the machine, plus the
+    // line naming where a reused environment belongs.
+    actions: [{ id: "section", component: SectionComposerAction }],
     banners: [
       { id: "section", chrome: "bare", component: ComposerSectionBanner },
     ],

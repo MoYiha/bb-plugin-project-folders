@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- **Pick the section right in BB's New thread screen.** A **Section** control now sits in the composer's action row, next to the model and the machine: choose a section and the composer's environment switches to that section's folder on its machine. Until now the tree was two clicks deep, inside the environment picker. Needs BB 0.43.3, whose composer lets a plugin set the pickers.
+- **The folder menu under the composer no longer opens off-screen.** It was centred on a chip that sits at the composer's left edge, so a wide tree hung past it.
+- Rebuilt against the plugin SDK of BB 0.43.3.
+
 ## 0.4.24
 
 - **A refused folder says who already holds it.** "This path is already in the tree" left you hunting: the folder is one section, and the section that has it is often in another project. The refusal now names it — "This folder is already the section “Parser” of “Clients”" — and an overlap says which way it goes, inside or containing. A folder taken by another project's own root names that project too.

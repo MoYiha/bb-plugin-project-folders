@@ -449,6 +449,14 @@ export const rpcContract = defineRpcContract({
     input: z.object({ scope: executionScopeSchema, value: executionSchema }),
     output: z.object({ ok: z.literal(true) }),
   },
+  section_pick: {
+    input: z.object({
+      projectId: z.string().min(1),
+      hostId: z.string().min(1),
+      folderId: z.string().min(1),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
   execution_agents: {
     input: z.object({
       scope: executionScopeSchema,
@@ -2681,6 +2689,16 @@ export default async function plugin(bb: BbPluginApi) {
       changed();
       return { ok: true as const };
     },
+    section_pick: ({ projectId, hostId, folderId }) => {
+      const folder = folders().find((f) => f.id === folderId);
+      if (!folder || folder.projectId !== projectId || folder.hostId !== hostId)
+        throw new Error("This section is not on that device of this project.");
+      pendingSection.set(pendingKey(projectId, hostId), {
+        folderId,
+        at: Date.now(),
+      });
+      return { ok: true as const };
+    },
     execution_agents: async ({ scope, providerId }) => {
       const place = await executionPlace(scope);
       if (scope.kind === "global")
@@ -3031,13 +3049,31 @@ export default async function plugin(bb: BbPluginApi) {
    * The folder belongs to the project, never to the environment: `ownsPath`
    * stays false so retiring a chat's environment never touches a section.
    */
-  const sectionEnvironmentSchema = z.object({ folderId: z.string().min(1) });
+  /**
+   * The section is usually chosen in the control BB renders beside the
+   * provider. It can also be chosen from the composer's own action, which
+   * only switches the environment — the inputs control may never mount. That
+   * pick is remembered here for the moment between the click and the send.
+   */
+  const sectionEnvironmentSchema = z.object({
+    folderId: z.string().min(1).optional(),
+  });
+  const pendingSection = new Map<string, { folderId: string; at: number }>();
+  const pendingKey = (projectId: string, hostId: string) =>
+    `${projectId}:${hostId}`;
   const sectionEnvironmentFolder = (
-    inputs: { folderId: string },
+    inputs: { folderId?: string },
     projectId: string,
     hostId: string,
   ): { folder: Folder } | { message: string } => {
-    const folder = folders().find((f) => f.id === inputs.folderId);
+    const chosen =
+      inputs.folderId ??
+      pendingSection.get(pendingKey(projectId, hostId))?.folderId;
+    if (!chosen)
+      return {
+        message: "Choose a section of this project for the chat to work in.",
+      };
+    const folder = folders().find((f) => f.id === chosen);
     if (!folder) return { message: "This section no longer exists." };
     if (folder.projectId !== projectId)
       return { message: "This section belongs to another project." };
@@ -3078,6 +3114,7 @@ export default async function plugin(bb: BbPluginApi) {
       const found = sectionEnvironmentFolder(inputs, project.id, host.id);
       if (!("folder" in found))
         return { status: "failed" as const, message: found.message };
+      pendingSection.delete(pendingKey(project.id, host.id));
       return {
         status: "created" as const,
         path: found.folder.path,

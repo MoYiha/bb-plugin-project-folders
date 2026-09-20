@@ -84,3 +84,18 @@ export function composerEnvironmentId(
     return null;
   }
 }
+
+/**
+ * The section chosen from the composer's own action, kept for the inputs
+ * control BB renders beside the provider: the two live in different React
+ * trees and only meet through this.
+ */
+let picked: { projectId: string; hostId: string; folderId: string } | null =
+  null;
+export const rememberPick = (next: typeof picked) => {
+  picked = next;
+};
+export const recallPick = (projectId: string | null, hostId: string | null) =>
+  picked && picked.projectId === projectId && picked.hostId === hostId
+    ? picked.folderId
+    : null;
