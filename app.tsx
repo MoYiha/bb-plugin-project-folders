@@ -83,6 +83,13 @@ import {
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Icon } from "./components/ui/icon";
+import {
+  Content as TooltipContent,
+  Portal as TooltipPortal,
+  Provider as TooltipProvider,
+  Root as Tooltip,
+  Trigger as TooltipTrigger,
+} from "@radix-ui/react-tooltip";
 import "./style.css";
 type Target = { projectId: string; folderId: string | null };
 type Modal = {
@@ -1886,6 +1893,27 @@ function FolderHeading({
         <span>{folder.name}</span>
         {device && <span className="pf-host-badge">{device}</span>}
       </button>
+      {!group && folder.githubUrl && (
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                className="pf-icon"
+                href={folder.githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t("Открыть репозиторий GitHub")}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <Icon name="Github" />
+              </a>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent>{folder.githubUrl}</TooltipContent>
+            </TooltipPortal>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       {!group && (
         <button
           className="pf-icon"
@@ -2320,7 +2348,7 @@ function Tree(props: PluginThreadListProps) {
           unread={folderUnread && listSettings.boldUnread}
           highlighted={dropTarget === f.id}
           refused={dropTarget === f.id && !!dropReason}
-          rulesAllowed={root || (!group && level <= 2)}
+          rulesAllowed={root || !group}
           look={folderLook}
           group={group}
           device={(() => {
@@ -3244,7 +3272,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
-              {(root || (!group && level <= 2)) && (
+              {(root || !group) && (
                 <DropdownMenuItem
                   onSelect={() =>
                     setModal({
@@ -3377,9 +3405,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const selRoot = !!sel && (selectedKey?.includes("|") ?? false);
   const selLevel = sel && !selRoot ? levelOf(sel) : 0;
   const selGroup = !selRoot && isGroupFolder(sel);
-  const selRulesAllowed = !!sel && (selRoot || (!selGroup && selLevel <= 2));
+  const selRulesAllowed = !!sel && (selRoot || !selGroup);
   useEffect(() => {
-    if (!selectedNode || !(selRoot || (!selGroup && selLevel <= 2))) {
+    if (!selectedNode || !selRulesAllowed) {
       setRuleDraft(null);
       setRuleModeSaved(null);
       return;
@@ -3425,6 +3453,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
     selRoot,
     selGroup,
     selLevel,
+    selRulesAllowed,
     rpc,
   ]);
   const cardCopies = sel && selRoot ? projectCopies(sel.projectId) : [];
@@ -3458,7 +3487,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
     setCardClaudeDraft(null);
     setCardRuleError("");
     // Every project and section with rules shows its own AGENTS.md.
-    if (!sel || !(selRoot || selLevel <= 2)) return;
+    if (!sel || !selRulesAllowed) return;
     // A machine without a copy has no file to read yet.
     if (selRoot && !cardCopy) return;
     let live = true;
@@ -3488,7 +3517,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel?.projectId, sel?.id, selRoot, selLevel, cardHost, cardCopy, rpc]);
+  }, [sel?.projectId, sel?.id, selRoot, selRulesAllowed, cardHost, cardCopy, rpc]);
   const saveCardRules = async (file: "AGENTS.md" | "CLAUDE.md") => {
     if (!sel) return;
     const draft = file === "AGENTS.md" ? cardDraft : cardClaudeDraft;
@@ -3843,7 +3872,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
               <Icon name="SectionAdd" />
               {t("Новый раздел")}
             </Button>
-            {!selRoot && selLevel <= 2 && (
+            {!selRoot && !selGroup && (
               <Button
                 size="sm"
                 variant="ghost"

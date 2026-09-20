@@ -118,6 +118,7 @@ const folderSchema = z.object({
   sort: z.number().optional(),
   /** A group only arranges the tree: it has no folder, chats or rules. */
   kind: z.enum(["folder", "group"]).optional(),
+  githubUrl: z.string().nullable().optional(),
 });
 export type Folder = z.infer<typeof folderSchema>;
 const targetSchema = z.object({
@@ -575,7 +576,7 @@ export default async function plugin(bb: BbPluginApi) {
     agents_template: {
       type: "string",
       label: "Шаблон разделов",
-      description: `Вписывается в конец AGENTS.md новых разделов и подразделов (уровни 1–2) между служебными метками ${AGENTS_BLOCK_START} и ${AGENTS_BLOCK_END}. Раздел может задать свой шаблон в диалоге «Правила»; текст выше меток не меняется.`,
+      description: `Вписывается в конец AGENTS.md новых разделов любой глубины между служебными метками ${AGENTS_BLOCK_START} и ${AGENTS_BLOCK_END}. Раздел может задать свой шаблон в диалоге «Правила»; текст выше меток не меняется.`,
       experimental_multiline: true,
       experimental_schema: z.string().max(20000),
       default: defaultAgentsTemplate,
@@ -701,6 +702,66 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
   const isGroup = (f: object | null | undefined) =>
     !!f && (f as { kind?: string }).kind === "group";
+  const GITHUB_CACHE_TTL_MS = 6 * 60 * 1000;
+  const githubCache = new Map<string, { url: string | null; at: number }>();
+  const githubRefreshing = new Set<string>();
+  const githubCacheKey = (hostId: string, folderPath: string) =>
+    `${hostId}\0${folderPath}`;
+  const forgetGithub = (hostId: string, folderPath: string) => {
+    githubCache.delete(githubCacheKey(hostId, folderPath));
+  };
+  const withGithubUrl = (f: Folder): Folder => {
+    if (isGroup(f)) return { ...f, githubUrl: null };
+    const hit = githubCache.get(githubCacheKey(f.hostId, f.path));
+    return { ...f, githubUrl: hit?.url ?? null };
+  };
+  const refreshGithubHost = async (hostId: string, paths: string[]) => {
+    try {
+      const result = await bb.hosts
+        .experimental_client({ contract: moveHostContract })
+        .call("github_remotes", { paths }, { hostId });
+      const now = Date.now();
+      const seen = new Set<string>();
+      for (const row of result.remotes) {
+        seen.add(row.path);
+        githubCache.set(githubCacheKey(hostId, row.path), {
+          url: row.url,
+          at: now,
+        });
+      }
+      for (const folderPath of paths) {
+        if (seen.has(folderPath)) continue;
+        githubCache.set(githubCacheKey(hostId, folderPath), {
+          url: null,
+          at: now,
+        });
+      }
+    } catch {
+      /* list must stay available when a host read fails */
+    }
+  };
+  const scheduleGithubRefresh = (
+    connected: Set<string>,
+    items: Folder[],
+  ) => {
+    const byHost = new Map<string, string[]>();
+    const now = Date.now();
+    for (const f of items) {
+      if (isGroup(f) || !connected.has(f.hostId)) continue;
+      const hit = githubCache.get(githubCacheKey(f.hostId, f.path));
+      if (hit && now - hit.at < GITHUB_CACHE_TTL_MS) continue;
+      const list = byHost.get(f.hostId) ?? [];
+      if (!list.includes(f.path)) list.push(f.path);
+      byHost.set(f.hostId, list);
+    }
+    for (const [hostId, paths] of byHost) {
+      if (!paths.length || githubRefreshing.has(hostId)) continue;
+      githubRefreshing.add(hostId);
+      void refreshGithubHost(hostId, paths).finally(() =>
+        githubRefreshing.delete(hostId),
+      );
+    }
+  };
   /** Where custom rules apply: the AGENTS.md files, BB sessions, or both. */
   type RuleTarget = "file" | "session" | "both";
   type FolderRule = {
@@ -736,29 +797,7 @@ export default async function plugin(bb: BbPluginApi) {
   ) =>
     !!rule?.custom?.trim() &&
     (rule.customTarget ?? "file") !== (channel === "file" ? "session" : "file");
-  /**
-   * Levels: project root is 0; a section under it is 1, its subsection 2.
-   * Groups do not count, so grouping never costs a section its rules.
-   * Rules exist for levels 1–2 only.
-   */
-  const folderLevel = (f: Folder) => {
-    let level = isGroup(f) ? 0 : 1;
-    let parent = f.parentId
-      ? (folders().find((x) => x.id === f.parentId) as Folder | undefined)
-      : undefined;
-    const visited = new Set<string>();
-    while (parent && !visited.has(parent.id)) {
-      visited.add(parent.id);
-      if (!isGroup(parent)) level++;
-      parent = parent.parentId
-        ? (folders().find((x) => x.id === parent!.parentId) as
-            Folder | undefined)
-        : undefined;
-    }
-    return level;
-  };
-  const rulesAllowed = (f: Folder | null) =>
-    f === null || (!isGroup(f) && folderLevel(f) <= 2);
+  const rulesAllowed = (f: Folder | null) => f === null || !isGroup(f);
   /** The nearest ancestor with a real folder (the group itself excluded); null is the project root. */
   const folderAnchor = (f: Folder | null): Folder | null => {
     let cur = f;
@@ -1397,9 +1436,9 @@ export default async function plugin(bb: BbPluginApi) {
   }
   async function seedAgents(folder: Folder, parent: Folder | null) {
     const { agents_auto_create, agents_template, agents_custom } = shared;
-    // A new section under the root is level 1; its subsections are level 2. Deeper levels get no rules.
+    // A new section at any depth gets the sections template. Groups never
+    // reach this function: group_create inserts a group row and does not seed.
     if (!agents_auto_create) return;
-    if (parent !== null && folderLevel(parent) >= 2) return;
     // An existing AGENTS.md belongs to the user: adopt the folder untouched.
     if ((await readAgents(folder)) !== null) {
       await ensureClaudeStub(folder);
@@ -1516,6 +1555,7 @@ export default async function plugin(bb: BbPluginApi) {
     await seedAgents(folder, input.folderId ? node : null).catch((e) =>
       bb.log.warn(`AGENTS.md template for ${folder.path}: ${String(e)}`),
     );
+    forgetGithub(folder.hostId, folder.path);
     changed();
     return folder;
   }
@@ -1884,6 +1924,8 @@ export default async function plugin(bb: BbPluginApi) {
         throw new Error("Finish pending chat moves first.");
       if (sectionMoves.busyProject(input.projectId))
         throw new Error("Finish pending section moves first.");
+      for (const f of folders().filter((f) => f.projectId === input.projectId))
+        forgetGithub(f.hostId, f.path);
       return moves.move(input);
     },
     pending_moves: async () => moves.list().filter((m) => !m.complete),
@@ -2025,6 +2067,8 @@ export default async function plugin(bb: BbPluginApi) {
     section_move: (input) => {
       if (threadMoves.any())
         throw new Error("Finish pending chat moves first.");
+      const before = folders().find((f) => f.id === input.folderId);
+      if (before) forgetGithub(before.hostId, before.path);
       return sectionMoves.move(input);
     },
     pending_section_moves: async () =>
@@ -2051,6 +2095,8 @@ export default async function plugin(bb: BbPluginApi) {
         );
       if (threadMoves.any())
         throw new Error("Finish pending chat moves first.");
+      const archived = folders().find((f) => f.id === folderId);
+      if (archived) forgetGithub(archived.hostId, archived.path);
       return archives.archive(folderId);
     },
     restore: ({ id }) => {
@@ -2086,12 +2132,21 @@ export default async function plugin(bb: BbPluginApi) {
         .prepare("SELECT threadId, folderId FROM thread_places")
         .all() as { threadId: string; folderId: string | null }[])
         places[row.threadId] = row.folderId ?? "";
+      const machines = await bb.sdk.hosts.list();
+      const listedFolders = fs.map(withGithubUrl);
+      const listedRoots = (await roots()).map(withGithubUrl);
+      scheduleGithubRefresh(
+        new Set(
+          machines.filter((h) => h.status === "connected").map((h) => h.id),
+        ),
+        [...listedFolders, ...listedRoots],
+      );
       return {
-        folders: fs,
-        roots: await roots(),
+        folders: listedFolders,
+        roots: listedRoots,
         bindings,
         places,
-        machines: (await bb.sdk.hosts.list()).map((h) => ({
+        machines: machines.map((h) => ({
           id: h.id,
           name: h.name,
           connected: h.status === "connected",
@@ -2327,6 +2382,14 @@ export default async function plugin(bb: BbPluginApi) {
       )
         throw new Error("This folder is already connected as a project.");
       const oldRoot = source.path;
+      forgetGithub(input.hostId, oldRoot);
+      for (const f of folders())
+        if (
+          f.projectId === project.id &&
+          f.hostId === input.hostId &&
+          withinTree(f.path, oldRoot)
+        )
+          forgetGithub(f.hostId, f.path);
       const remap = (q: string) =>
         withinTree(q, oldRoot) ? p + q.slice(oldRoot.length) : q;
       await bb.sdk.projects.sources.update({
@@ -2458,6 +2521,7 @@ export default async function plugin(bb: BbPluginApi) {
           projectId: f.projectId,
           name: input.name,
         });
+      if (!isGroup(f)) forgetGithub(f.hostId, f.path);
       changed();
       return { ok: true };
     },
@@ -2471,7 +2535,7 @@ export default async function plugin(bb: BbPluginApi) {
       const f = await target(input);
       if (!rulesAllowed(input.folderId ? f : null))
         throw new Error(
-          "Rules are available only for projects and sections of the first two levels.",
+          "Rules are available only for projects and sections, not groups.",
         );
       const p = path.join(f.path, "AGENTS.md");
       const folderOverride = input.folderId ? folderRule(f.id) : undefined;
@@ -2528,7 +2592,7 @@ export default async function plugin(bb: BbPluginApi) {
       const f = await target(input);
       if (!rulesAllowed(input.folderId ? f : null))
         throw new Error(
-          "Rules are available only for projects and sections of the first two levels.",
+          "Rules are available only for projects and sections, not groups.",
         );
       const file = input.file ?? "AGENTS.md";
       const r = await bb.sdk.files.write({
@@ -2546,7 +2610,7 @@ export default async function plugin(bb: BbPluginApi) {
       const f = await target(input);
       if (!rulesAllowed(input.folderId ? f : null))
         throw new Error(
-          "Rules are available only for projects and sections of the first two levels.",
+          "Rules are available only for projects and sections, not groups.",
         );
       const custom = input.custom ?? "";
       const customTarget = input.customTarget ?? "file";
@@ -2806,7 +2870,7 @@ export default async function plugin(bb: BbPluginApi) {
         });
       }
       for (const f of folders()) {
-        if (isGroup(f) || folderLevel(f) > 2) continue;
+        if (isGroup(f)) continue;
         if ((await ruleMode(f, false)) === "manual") continue;
         targets.push({
           folder: f,

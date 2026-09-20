@@ -25,8 +25,9 @@ the card writes, and it writes the file too.
 | `custom` | Свой шаблон / Custom template | This place has its own template, its own custom rules and its own startup instruction. Saving stamps the template into this folder's `AGENTS.md` between the plugin's markers. |
 | `own-file` | Свой файл / Own file | The file belongs to the user. The plugin writes nothing there and Apply skips the folder. |
 
-Rules exist for a project and for sections of levels 1–2. A level-3 section has
-no rules of its own; it inherits the nearest one above.
+Rules exist for a project and for a section of any depth. Groups have no
+rules. Inheritance is nearest ancestor, then the project, then the shared
+templates.
 
 ## What is written where
 

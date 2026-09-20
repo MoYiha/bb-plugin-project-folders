@@ -94,7 +94,7 @@ A **project** is a BB project with a folder on a device. A **section** is a subf
 
 - **New project** — choose a connected device, a name and a folder. The folder picker can create a folder on that device. When auto-create is on, the project gets an `AGENTS.md` with the project template.
 - **New section** — from the project or section **⋯** menu, from a right-click on its heading, or from the section card. Create a new subfolder or pick an existing one. A nested section can also live on another device where the project has a folder.
-- **Levels** — the project root is level 0, its sections level 1, their subsections level 2, and anything deeper level 3+. Levels decide which rules template applies and which default look is used.
+- **Levels** — the project root is level 0, its sections level 1, their subsections level 2, and anything deeper level 3+. Levels decide the default look. The project root uses the project rules template; a section of any depth uses the sections template.
 - **Rename** — changes only the label; the directory path stays.
 - **Change path** — moves a section to a new folder or re-links it to a folder renamed outside BB (see [Move and delete](#move-and-delete)).
 - **Order** — drag projects and sections up or down on the management page, or use **Move up / Move down** in the row menu. The order is stored in the plugin database and used everywhere.
@@ -107,7 +107,7 @@ A **group** arranges sections in the tree without a folder of its own — for ex
 - **New group** — from any project, section or group **⋯** menu, or from a card. Only a name is needed.
 - **New section** inside a group creates its folder where the group sits: in the nearest real folder above, or in the project root. A group can hold sections from other devices too (see below).
 - **Move to group…** (section menu, card, or drag a row onto a group on the management page) changes only the place in the tree; the folder, files and chats stay where they are. A section can move between groups that share its parent folder; a section on another device or outside its parent folder can move to any group or section of its project.
-- Groups have no chats and no rules and do not count as a level, so a section inside a group keeps its level 1 or 2 rules. Their default icon differs from sections and can be styled like any section.
+- Groups have no chats and no rules and do not count as a level, so a section inside a group keeps the rules of its own depth. Their default icon differs from sections and can be styled like any section.
 - **Delete group** works on an empty group. Archiving a section also archives the groups inside it and restores them with it.
 
 ### A section in a folder outside the project
@@ -254,7 +254,7 @@ Rules are plain `AGENTS.md` files in the project and section folders, so BB agen
 
 Text above the markers is never touched; changing a template rewrites the same block in place.
 
-**Per project and per section** — a project or a level 1–2 section card, and its **Working rules** dialog, has three tabs; the open tab is what the folder uses once saved:
+**Per project and per section** — a project or any section card, and its **Working rules** dialog, has three tabs; the open tab is what the folder uses once saved:
 
 - **Default** — the shared templates.
 - **Custom template** — its own template (for a project: a project template and a template for new sections inside it), its own custom rules and target, its own startup instruction. The nearest override wins down the tree.
@@ -262,7 +262,7 @@ Text above the markers is never touched; changing a template rewrites the same b
 
 A chat can set all of this too: `bb project-folders rules show|set <project-id> <folder-id-or-dash>` writes the same record this card writes, which is how an agent asked for "rules for this section" leaves it on **Custom template** rather than typing into the file behind the plugin's back. Saving a custom template writes it into that place's `AGENTS.md` straight away.
 
-Level 3+ sections get no rules. An existing `AGENTS.md` without the plugin markers is treated as yours: the folder opens on **Own file** and nothing is injected. Saving detects concurrent edits and refuses to overwrite a changed file. When a project has copies on several devices, rules are written to every copy.
+An existing `AGENTS.md` without the plugin markers is treated as yours: the folder opens on **Own file** and nothing is injected. Saving detects concurrent edits and refuses to overwrite a changed file. When a project has copies on several devices, rules are written to every copy.
 
 ## Provider, model and agent
 

@@ -556,6 +556,58 @@ it("lists the plugin settings sections in the tree sidebar and opens them", asyn
   view.lifecycle.unmount();
 });
 
+it("offers Rules on a third-level section and not on a group", async () => {
+  const l1 = { ...root, id: "f1", parentId: null, path: "/work/a", name: "L1" };
+  const l2 = { ...root, id: "f2", parentId: "f1", path: "/work/a/b", name: "L2" };
+  const l3 = { ...root, id: "f3", parentId: "f2", path: "/work/a/b/c", name: "L3" };
+  const group = {
+    ...root,
+    id: "g1",
+    parentId: null,
+    name: "Apps",
+    path: "@group/g1",
+    kind: "group",
+  };
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: {
+        ...rpc,
+        list: () => ({
+          folders: [l1, l2, l3, group],
+          roots: [root],
+          bindings: {},
+          errors: [],
+          machines: [{ id: "h1", name: "Mac Mini", connected: true }],
+        }),
+        rules_read: () => ({
+          mode: "default",
+          template: "",
+          suggestedSection: "",
+          projectTemplate: "",
+          suggestedProject: "",
+          custom: "",
+          customTarget: "file",
+          startup: "",
+          content: "",
+          claude: "",
+        }),
+      },
+    },
+  );
+  await view.findByText("L3");
+  view.getByText("L3").click();
+  await view.findByText("/work/a/b/c");
+  const details = view.baseElement.querySelector(".pf-details")!;
+  expect(details.textContent).toContain("Rules");
+  view.getByText("Apps").click();
+  await view.findByText(/creates no folder/);
+  const groupCard = view.baseElement.querySelector(".pf-details")!;
+  expect(groupCard.textContent).not.toContain("Rules");
+  view.lifecycle.unmount();
+});
+
 it("shows a group as a folderless card with group actions", async () => {
   const group = {
     ...root,
@@ -699,5 +751,63 @@ it("loads the rules of a card opened by deep link, before the tree arrives", asy
   );
   await view.findByText("/work/Section");
   expect(await view.findByRole("tab", { name: "Default" })).toBeTruthy();
+  view.lifecycle.unmount();
+});
+
+it("shows a GitHub icon left of new-chat only when githubUrl is set", async () => {
+  const withRepo = {
+    ...section,
+    githubUrl: "https://github.com/VKirill/bb-plugin-project-folders",
+  };
+  const plain = {
+    ...section,
+    id: "f2",
+    name: "Plain",
+    path: "/work/Plain",
+    githubUrl: null,
+  };
+  const group = {
+    ...root,
+    id: "g1",
+    name: "Group",
+    path: "@group/g1",
+    kind: "group" as const,
+    githubUrl: null,
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [withRepo, plain, group],
+          roots: [{ ...root, githubUrl: null }],
+          bindings: {},
+          errors: [],
+          machines: [{ id: "h1", name: "Mac Mini", connected: true }],
+        }),
+      },
+    },
+  );
+  await view.findByText("Section");
+  const link = view.baseElement.querySelector(
+    'a[href="https://github.com/VKirill/bb-plugin-project-folders"]',
+  );
+  expect(link).toBeTruthy();
+  expect(link?.getAttribute("target")).toBe("_blank");
+  expect(link?.getAttribute("rel")).toContain("noopener");
+  expect(link?.getAttribute("rel")).toContain("noreferrer");
+  const heading = link?.closest(".pf-heading");
+  const plus = heading?.querySelector('button[aria-label="New chat: Section"]');
+  expect(plus).toBeTruthy();
+  expect(
+    heading &&
+      [...heading.children].indexOf(link as HTMLElement) <
+        [...heading.children].indexOf(plus as HTMLElement),
+  ).toBe(true);
+  expect(view.baseElement.querySelectorAll("a.pf-icon")).toHaveLength(1);
+  expect(view.getByText("Group")).toBeTruthy();
+  expect(view.getByText("Plain")).toBeTruthy();
   view.lifecycle.unmount();
 });

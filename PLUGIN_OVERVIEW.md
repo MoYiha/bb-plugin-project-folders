@@ -4,7 +4,7 @@ A sidebar tree of projects, sections and subsections that are real folders on yo
 
 ## Rules beside the work
 
-Projects and first- and second-level sections get AGENTS.md from a project or sections template when they are created. The plugin writes only between its own markers at the end of the file and never touches your text above them. Each project or section can use the shared template, its own template, or its own hand-written file. Custom rules can go into AGENTS.md and CLAUDE.md, into the instructions of chats started from BB, or both. A startup instruction adds a one-shot request to the first message of every new chat. Apply to existing sections rewrites every managed block at once.
+Projects and sections of any depth get AGENTS.md from a project or sections template when they are created. The plugin writes only between its own markers at the end of the file and never touches your text above them. Each project or section can use the shared template, its own template, or its own hand-written file. Custom rules can go into AGENTS.md and CLAUDE.md, into the instructions of chats started from BB, or both. A startup instruction adds a one-shot request to the first message of every new chat. Apply to existing sections rewrites every managed block at once.
 
 ## Provider, model and agent
 

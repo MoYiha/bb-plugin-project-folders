@@ -37,4 +37,12 @@ export const moveHostContract = defineRpcContract({
       moved: z.boolean(),
     }),
   },
+  github_remotes: {
+    input: z.object({ paths: z.array(z.string()) }).strict(),
+    output: z.object({
+      remotes: z.array(
+        z.object({ path: z.string(), url: z.string().nullable() }),
+      ),
+    }),
+  },
 });

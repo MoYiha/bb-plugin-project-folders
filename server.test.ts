@@ -808,7 +808,7 @@ describe("AGENTS.md template", () => {
     }
   });
 
-  it("seeds subsections from a custom section template and stops at level three", async () => {
+  it("seeds subsections from a custom section template at any depth", async () => {
     const h = await setup();
     try {
       await setAgents(h, { agents_template: "Общий шаблон" });
@@ -831,46 +831,199 @@ describe("AGENTS.md template", () => {
       expect(String((l2Write as { content: string }).content)).toContain(
         "Правила ветки L1",
       );
-      const before = agentsWrites(h).length;
       const l3 = (await h.harness.behavior.callRpc("create", {
         projectId: "p1",
         folderId: l2.id,
         name: "L3",
         relativePath: "l3",
       })) as { id: string };
+      const l3Write = h.writes.find(
+        (w) => String(w.path) === "/work/l1/l2/l3/AGENTS.md",
+      );
+      expect(String((l3Write as { content: string }).content)).toContain(
+        "<!-- bb-project-folders:agents:start -->",
+      );
+      expect(String((l3Write as { content: string }).content)).toContain(
+        "Правила ветки L1",
+      );
+      const read = (await h.harness.behavior.callRpc("rules_read", {
+        projectId: "p1",
+        folderId: l3.id,
+      })) as { mode: string; path: string };
+      expect(read.path).toBe("/work/l1/l2/l3/AGENTS.md");
+      await h.harness.behavior.callRpc("rules_save", {
+        projectId: "p1",
+        folderId: l3.id,
+        content: "level-3-rules",
+        sha: null,
+      });
       expect(
-        h.writes.some((w) => String(w.path) === "/work/l1/l2/l3/AGENTS.md"),
+        h.writes.some(
+          (w) =>
+            String(w.path) === "/work/l1/l2/l3/AGENTS.md" &&
+            String((w as { content?: string }).content) === "level-3-rules",
+        ),
+      ).toBe(true);
+      void l3;
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("applies the template to a level-3 section without AGENTS.md and skips a hand-written one", async () => {
+    const h = await setup();
+    try {
+      await setAgents(h, { agents_template: "Шаблон разделов" });
+      const l1 = (await createSection(h, "L1")) as { id: string };
+      const l2 = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: l1.id,
+        name: "L2",
+        relativePath: "l2",
+      })) as { id: string };
+      await setAgents(h, { agents_auto_create: false });
+      const missing = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: l2.id,
+        name: "Missing",
+        relativePath: "missing",
+      })) as { id: string };
+      const manual = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: l2.id,
+        name: "Manual",
+        relativePath: "manual",
+      })) as { id: string };
+      expect(
+        h.writes.some((w) =>
+          String(w.path).endsWith("/l1/l2/missing/AGENTS.md"),
+        ),
       ).toBe(false);
-      expect(agentsWrites(h)).toHaveLength(before);
-      await expect(
-        h.harness.behavior.callRpc("rules_read", {
-          projectId: "p1",
-          folderId: l3.id,
-        }),
-      ).rejects.toThrow(/first two levels/);
-      await expect(
-        h.harness.behavior.callRpc("rules_save", {
-          projectId: "p1",
-          folderId: l3.id,
-          content: "x",
-          sha: null,
-        }),
-      ).rejects.toThrow(/first two levels/);
       h.harness.inspection.sdk.stub("files.read", async (args) => {
-        if (String(args.path).endsWith("/work/l1/AGENTS.md"))
-          return { content: "# Свои\n", sha256: "old" };
+        const p = String(args.path);
+        if (p.endsWith("/l1/l2/manual/AGENTS.md"))
+          return { content: "# Свои правила\n", sha256: "old" };
         throw new Error("ENOENT: no such file or directory");
       });
+      const before = agentsWrites(h).length;
       const result = (await h.harness.behavior.callRpc(
         "agents_apply",
         null,
       )) as { updated: number; unchanged: number; failed: number };
-      expect(result.updated).toBe(3);
-      const l1Apply = h.writes
-        .filter((w) => String(w.path).endsWith("AGENTS.md"))
-        .map((w) => String((w as { content: string }).content))
-        .find((c) => c.includes("Правила ветки L1"));
-      expect(l1Apply).toBeTruthy();
+      expect(result.failed).toBe(0);
+      const after = agentsWrites(h).slice(before);
+      expect(
+        after.some((w) => String(w.path) === "/work/l1/l2/missing/AGENTS.md"),
+      ).toBe(true);
+      expect(
+        after.some((w) => String(w.path) === "/work/l1/l2/manual/AGENTS.md"),
+      ).toBe(false);
+      expect(
+        String(
+          (
+            after.find(
+              (w) => String(w.path) === "/work/l1/l2/missing/AGENTS.md",
+            ) as { content: string }
+          ).content,
+        ),
+      ).toContain("<!-- bb-project-folders:agents:start -->");
+      void missing;
+      void manual;
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("allows rules_read and rules_save on a level-3 section and still refuses a group", async () => {
+    const h = await setup();
+    const call = h.harness.behavior.callRpc;
+    try {
+      const l1 = (await createSection(h, "L1")) as { id: string };
+      const l2 = (await call("create", {
+        projectId: "p1",
+        folderId: l1.id,
+        name: "L2",
+        relativePath: "l2",
+      })) as { id: string };
+      const l3 = (await call("create", {
+        projectId: "p1",
+        folderId: l2.id,
+        name: "L3",
+        relativePath: "l3",
+      })) as { id: string };
+      const read = (await call("rules_read", {
+        projectId: "p1",
+        folderId: l3.id,
+      })) as { path: string };
+      expect(read.path).toBe("/work/l1/l2/l3/AGENTS.md");
+      await call("rules_save", {
+        projectId: "p1",
+        folderId: l3.id,
+        content: "ok",
+        sha: null,
+      });
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: l2.id,
+        name: "Apps",
+      })) as { id: string };
+      await expect(
+        call("rules_read", { projectId: "p1", folderId: group.id }),
+      ).rejects.toThrow(/group/i);
+      await expect(
+        call("rules_save", {
+          projectId: "p1",
+          folderId: group.id,
+          content: "x",
+          sha: null,
+        }),
+      ).rejects.toThrow(/group/i);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("does not seed a group under a level-2 section, but seeds a section inside that group", async () => {
+    const h = await setup();
+    const call = h.harness.behavior.callRpc;
+    try {
+      await setAgents(h, { agents_template: "Шаблон разделов" });
+      const l1 = (await createSection(h, "L1")) as { id: string };
+      const l2 = (await call("create", {
+        projectId: "p1",
+        folderId: l1.id,
+        name: "L2",
+        relativePath: "l2",
+      })) as { id: string };
+      const beforeGroup = h.writes.length;
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: l2.id,
+        name: "Apps",
+      })) as { id: string; path: string };
+      expect(h.writes).toHaveLength(beforeGroup);
+      expect(h.writes.some((w) => String(w.path).includes("@group"))).toBe(
+        false,
+      );
+      const nested = (await call("create", {
+        projectId: "p1",
+        folderId: group.id,
+        hostId: "h1",
+        name: "Nested",
+        relativePath: "nested",
+      })) as { id: string; parentId: string | null; path: string };
+      expect(nested.parentId).toBe(group.id);
+      expect(nested.path).toBe("/work/l1/l2/nested");
+      const nestedWrite = h.writes.find(
+        (w) => String(w.path) === "/work/l1/l2/nested/AGENTS.md",
+      );
+      expect(nestedWrite).toBeTruthy();
+      expect(String((nestedWrite as { content: string }).content)).toContain(
+        "<!-- bb-project-folders:agents:start -->",
+      );
+      expect(String((nestedWrite as { content: string }).content)).toContain(
+        "Шаблон разделов",
+      );
     } finally {
       await h.harness.lifecycle.dispose();
     }
@@ -2054,4 +2207,136 @@ it("names the section that already holds a folder instead of just refusing", asy
   } finally {
     await h.harness.lifecycle.dispose();
   }
+});
+
+describe("githubUrl on list", () => {
+  type Listed = {
+    folders: { path: string; kind?: string; githubUrl: string | null }[];
+    roots: { path: string; githubUrl: string | null }[];
+  };
+  async function waitFor(cond: () => boolean) {
+    const start = Date.now();
+    while (!cond()) {
+      if (Date.now() - start > 1500) throw new Error("timed out");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  it("fills githubUrl from one host batch and keeps the cache for the TTL", async () => {
+    const calls: { method: string; paths: string[] }[] = [];
+    const h = createFakePluginHost({
+      pluginId: "project-folders",
+      agentSkillIds: ["project-folders"],
+      experimental_hostEntry: true,
+      experimental_callHostRpc: async (call) => {
+        if (call.method !== "github_remotes")
+          throw new Error(`unexpected ${call.method}`);
+        const paths = (call.input as { paths: string[] }).paths;
+        calls.push({ method: call.method, paths });
+        return {
+          remotes: paths.map((folderPath) => ({
+            path: folderPath,
+            url:
+              folderPath === "/work"
+                ? "https://github.com/acme/demo"
+                : folderPath === "/work/Site"
+                  ? "https://github.com/acme/site"
+                  : null,
+          })),
+        };
+      },
+      sdk: {
+        projects: { list: async () => [root] as never },
+        hosts: {
+          list: async () =>
+            [{ id: "h1", name: "Mac", status: "connected" }] as never,
+        },
+        files: {
+          mkdir: async () => ({}) as never,
+          read: async () => {
+            throw new Error("ENOENT: no such file or directory");
+          },
+          write: async () => ({
+            outcome: "written",
+            sha256: "sha",
+            sizeBytes: 1,
+          }),
+        },
+        environments: { list: async () => [] },
+      },
+    });
+    await plugin(h.bb);
+    const call = h.harness.behavior.callRpc;
+    try {
+      await call("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Site",
+        relativePath: "Site",
+      });
+      const group = (await call("group_create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Apps",
+      })) as { path: string };
+      const first = (await call("list", null)) as Listed;
+      expect(first.roots[0]?.githubUrl).toBeNull();
+      expect(first.folders.find((f) => f.path === group.path)?.githubUrl).toBeNull();
+      await waitFor(() => calls.length === 1);
+      expect(calls[0]?.paths.includes("/work")).toBe(true);
+      expect(calls[0]?.paths.includes("/work/Site")).toBe(true);
+      expect(calls[0]?.paths.some((p) => p.startsWith("@group/"))).toBe(false);
+      const second = (await call("list", null)) as Listed;
+      expect(second.roots[0]?.githubUrl).toBe("https://github.com/acme/demo");
+      expect(
+        second.folders.find((f) => f.path === "/work/Site")?.githubUrl,
+      ).toBe("https://github.com/acme/site");
+      expect(
+        second.folders.find((f) => f.path === group.path)?.githubUrl,
+      ).toBeNull();
+      await call("list", null);
+      expect(calls).toHaveLength(1);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+  it("does not query a disconnected host and still returns list", async () => {
+    let calls = 0;
+    const h = createFakePluginHost({
+      pluginId: "project-folders",
+      agentSkillIds: ["project-folders"],
+      experimental_hostEntry: true,
+      experimental_callHostRpc: async () => {
+        calls += 1;
+        throw new Error("host should stay idle");
+      },
+      sdk: {
+        projects: { list: async () => [root] as never },
+        hosts: {
+          list: async () =>
+            [{ id: "h1", name: "Mac", status: "offline" }] as never,
+        },
+        files: {
+          mkdir: async () => ({}) as never,
+          read: async () => {
+            throw new Error("ENOENT");
+          },
+          write: async () => ({
+            outcome: "written",
+            sha256: "sha",
+            sizeBytes: 1,
+          }),
+        },
+        environments: { list: async () => [] },
+      },
+    });
+    await plugin(h.bb);
+    try {
+      const list = (await h.harness.behavior.callRpc("list", null)) as Listed;
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      expect(list.roots[0]?.githubUrl).toBeNull();
+      expect(calls).toBe(0);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
 });

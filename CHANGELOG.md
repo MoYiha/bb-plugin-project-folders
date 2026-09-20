@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4
+
+- **A section with a GitHub remote shows a small GitHub mark left of +.** The plugin reads `.git` and `origin` on the section's machine (HTTPS or `git@github.com:`), then lists `githubUrl` on folders and roots. Groups stay unmarked. The first list may omit the mark until the host batch returns; a click opens the repo and does not expand the row.
+- **Section rules are no longer capped at two levels.** Creating a section or applying the template writes `AGENTS.md` at any depth (groups still skip). The Rules card and apply list follow the same rule: nearest ancestor, then the project, then the shared template.
+
 ## 0.5.3
 
 - **The chip keeps naming the section it applied.** Choosing a section sets its project, which remounts every plugin surface in the composer — so the chip fell back to the project name a moment after choosing, as the live check on the hub showed. The chosen place now lives in a store the surfaces share, kept in the tab and published to all of them, and a pick that belongs to the project being switched to survives the switch.

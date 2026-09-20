@@ -44,6 +44,7 @@
   "В архив": "Archivieren",
   "Удалить…": "Löschen…",
   "Новый чат": "Neuer Chat",
+  "Открыть репозиторий GitHub": "GitHub-Repository öffnen",
   "Без проекта": "Ohne Projekt",
   "Новый чат без проекта": "Neuer Chat ohne Projekt",
   "Управление разделами": "Bereiche verwalten",
@@ -107,12 +108,11 @@
   "Плагин не вписывает в эти файлы ничего: ни шаблон, ни свои правила.": "Das Plugin schreibt nichts in diese Dateien: weder Vorlage noch eigene Regeln.",
   "Шаблон берётся из настроек плагина.": "Die Vorlage stammt aus den Plugin-Einstellungen.",
   "Этот шаблон получают новые подразделы и команда «Применить к существующим разделам» для этого раздела.": "Neue Unterabschnitte und „Auf vorhandene Abschnitte anwenden“ verwenden diese Vorlage für diesen Abschnitt.",
-  "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.": "Abschnitte der ersten und zweiten Ebene können im Regeln-Dialog eine eigene Vorlage festlegen. Abschnitte der dritten Ebene erhalten keine Regeln.",
+  "Раздел любого уровня может задать свой шаблон в диалоге «Правила». У групп правил нет.": "Ein Abschnitt beliebiger Tiefe kann im Dialog „Regeln“ eine eigene Vorlage festlegen. Gruppen haben keine Regeln.",
   "Шаблон проектов": "Projekt-Regelvorlage",
   "Шаблон разделов": "Abschnitts-Regelvorlage",
   "Сдвинуть вверх": "Nach oben",
   "Сдвинуть вниз": "Nach unten",
-  "Проекты получают шаблон проектов, разделы уровней 1–2 — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.": "Projekte erhalten die Projekt-Regelvorlage, Abschnitte der Ebenen 1–2 die Abschnitts-Regelvorlage. Der Text wird an das Ende von AGENTS.md zwischen Dienstmarken angehängt; Text oberhalb der Marken bleibt unverändert.",
   "Свои правила": "Eigene Regeln",
   "Куда применять": "Wo es gilt",
   "В файл": "In die Datei",
@@ -304,5 +304,6 @@
   "Чат начнёт работу в папке этого раздела.": "Der Chat startet im Ordner dieses Abschnitts.",
   "Чат начнётся в разделе:": "Der Chat startet in:",
   "Сначала выберите проект": "Zuerst ein Projekt wählen",
-  "У проекта нет разделов": "Dieses Projekt hat keine Abschnitte"
+  "У проекта нет разделов": "Dieses Projekt hat keine Abschnitte",
+  "Проекты получают шаблон проектов, разделы любого уровня — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.": "Projekte erhalten die Projektvorlage, Abschnitte beliebiger Tiefe die Abschnittsvorlage. Der Text wird an das Ende von AGENTS.md zwischen Dienstmarken angehängt; Text oberhalb der Marken bleibt unverändert."
 }

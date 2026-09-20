@@ -67,6 +67,7 @@ export const english = {
   "В архив": "Archive",
   "Удалить…": "Delete…",
   "Новый чат": "New chat",
+  "Открыть репозиторий GitHub": "Open GitHub repository",
   "Без проекта": "No project",
   "Новый чат без проекта": "New chat without a project",
   "Управление разделами": "Manage sections",
@@ -98,8 +99,8 @@ export const english = {
   "Свернуть список": "Show fewer",
   Настройки: "Settings",
   "Правила AGENTS.md по умолчанию": "Default AGENTS.md rules",
-  "Разделы первого и второго уровня могут иметь свой шаблон — он задаётся в их диалоге «Правила». Разделы третьего уровня правил не получают.":
-    "First and second level sections can define their own template in their Rules dialog. Third-level sections get no rules.",
+  "Раздел любого уровня может задать свой шаблон в диалоге «Правила». У групп правил нет.":
+    "A section of any depth can set its own template in its Rules dialog. Groups have no rules.",
   "Автосоздание AGENTS.md": "Auto-create AGENTS.md",
   "Шаблон проектов": "Project rules template",
   "Шаблон разделов": "Sections rules template",
@@ -114,8 +115,8 @@ export const english = {
     "The template comes from the plugin settings.",
   "Этот шаблон получают новые подразделы и команда «Применить к существующим разделам» для этого раздела.":
     "New subsections and Apply to existing sections use this template for this section.",
-  "Проекты получают шаблон проектов, разделы уровней 1–2 — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.":
-    "Projects get the project template, sections of levels 1–2 the sections template. The text is appended to the end of AGENTS.md between service markers; content above the markers is never changed.",
+  "Проекты получают шаблон проектов, разделы любого уровня — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.":
+    "Projects get the project template, sections of any depth the sections template. The text is appended to the end of AGENTS.md between service markers; content above the markers is never changed.",
   "Применить к существующим разделам": "Apply to existing sections",
   "Применяю…": "Applying…",
   Обновлено: "Updated",
