@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- **The section tree is in BB's project chip now.** Pressing **New thread** in the sidebar opened a chip with a flat list of projects: the sections were only in the plugin's own screen or behind the composer's **Section** control, which BB folds into the `⋯` overflow when the action row is full. The chip now opens the whole tree — projects with their sections under them, every device — and picking a place sets both the project and the environment. The separate **Section** control stands down while the chip is in charge, so the row is not asked for the same choice twice; if BB's chip cannot be found, the control is still there.
+
 ## 0.5.1
 
 - **The Section control no longer disappears.** It rendered nothing while the composer had no project yet, no sections on the chosen device, or the tree still loading — which read as a missing feature. It now always sits in the action row and says what it is waiting for.

@@ -12,7 +12,7 @@ A new chat starts with whatever BB remembers for the project. The plugin adds a 
 
 ## Starting a chat from BB's own screen
 
-BB's New thread screen knows projects, not folders. The plugin adds **Project section** to its environment picker and draws the section tree beside it, so a chat started there — or handed off to a new thread — begins in the section folder you pick. A line under the composer names the section the chat will start in.
+BB's New thread screen knows projects, not folders. The plugin puts the section tree into its project chip, adds **Project section** to its environment picker and draws the tree beside it, so a chat started there — or handed off to a new thread — begins in the section folder you pick. A line under the composer names the section the chat will start in.
 
 ## Your own look
 

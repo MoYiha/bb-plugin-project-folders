@@ -78,6 +78,7 @@ export const english = {
   "разделов ·": "sections ·",
   чатов: "chats",
   Правила: "Rules",
+  "Проект или раздел": "Project or section",
   "Проекты и разделы": "Projects & Sections",
   "Разделы — папки проекта. Переписка и служебные материалы хранятся в скрытой папке":
     "Sections are project folders. Chat history and supporting files are stored in the hidden folder",

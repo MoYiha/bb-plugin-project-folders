@@ -23,6 +23,11 @@ import {
 import { Help, RuleFields, type RuleDraft } from "./agents-apply";
 import { ExecutionEditor } from "./execution-ui";
 import {
+  ComposerProjectChip,
+  chipTakeover,
+  takeableProjectControl,
+} from "./composer-chip";
+import {
   ComposerSectionBanner,
   SECTION_ENVIRONMENT_ID,
   SectionComposerAction,
@@ -2787,39 +2792,16 @@ function Panel({ subPath }: PluginNavPanelProps) {
   useEffect(() => {
     const owner = composeRef.current;
     if (!owner) return;
-    let original: HTMLElement | null = null;
-    let slot: HTMLElement | null = null;
-    let previousDisplay = "";
-    const restore = () => {
-      if (original) original.style.display = previousDisplay;
-      slot?.remove();
-      original = null;
-      slot = null;
-    };
-    const attach = () => {
-      const button = Array.from(
-        owner.querySelectorAll<HTMLElement>("[data-promptbox-project-control]"),
-      ).find((el) => !el.closest(".pf-native-project-slot"));
-      if (button === original) return;
-      restore();
-      if (!button) {
-        setProjectSlot(null);
-        return;
-      }
-      original = button;
-      previousDisplay = button.style.display;
-      slot = document.createElement("span");
-      slot.className = "pf-native-project-slot inline-flex min-w-0";
-      button.before(slot);
-      button.style.display = "none";
-      setProjectSlot({ node: slot, className: button.className });
-    };
-    attach();
-    const observer = new MutationObserver(attach);
+    const takeover = chipTakeover(
+      () => takeableProjectControl(owner),
+      setProjectSlot,
+    );
+    takeover.sync();
+    const observer = new MutationObserver(() => takeover.sync());
     observer.observe(owner, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
-      restore();
+      takeover.release();
     };
   }, [subPath, data.folders.length, data.roots.length]);
   useLanguage();
@@ -4311,6 +4293,9 @@ export default definePluginApp((app) => {
     // line naming where a reused environment belongs.
     actions: [{ id: "section", component: SectionComposerAction }],
     banners: [
+      // Renders nothing of its own: it puts the tree into BB's project chip,
+      // where the choice of place belongs.
+      { id: "project-chip", chrome: "bare", component: ComposerProjectChip },
       { id: "section", chrome: "bare", component: ComposerSectionBanner },
     ],
   });

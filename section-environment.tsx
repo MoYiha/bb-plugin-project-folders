@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "./components/ui/dropdown-menu";
 import { Icon } from "./components/ui/icon";
+import { useChipTaken } from "./composer-chip";
 import type { Folder, rpcContract } from "./server";
 import {
   composerEnvironmentId,
@@ -184,6 +185,9 @@ export function ComposerSectionBanner() {
  */
 export function SectionComposerAction() {
   useLanguage();
+  // With the tree inside BB's project chip this action would offer the same
+  // choice a second time and crowd the action row into BB's overflow menu.
+  const chipTaken = useChipTaken();
   const rpc = useRpc<typeof rpcContract>();
   const composer = useComposer();
   const view = useComposerView();
@@ -266,6 +270,7 @@ export function SectionComposerAction() {
       setBusy(false);
     }
   };
+  if (chipTaken) return null;
   if (unavailable)
     return (
       <button
