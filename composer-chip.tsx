@@ -8,6 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import {
+  experimental_useSidebarThreads,
   useComposer,
   useComposerView,
   useRealtime,
@@ -23,7 +24,9 @@ import { Icon } from "./components/ui/icon";
 import type { Folder, rpcContract } from "./server";
 import {
   chipEntries,
+  currentPick,
   placeLabel,
+  subscribePick,
   rememberPick,
   SECTION_ENVIRONMENT_ID,
   type ChipEntry,
@@ -162,6 +165,11 @@ export function ComposerProjectChip() {
   const [error, setError] = useState("");
   const projectId =
     view.scope.kind === "new-thread" ? view.scope.projectId : null;
+  const { projects } = experimental_useSidebarThreads();
+  // A pick made here remounts this component (it applies a project), and a
+  // pick made in the composer's own Section action happens elsewhere entirely,
+  // so the chip follows the store rather than its own state alone.
+  const pick = useSyncExternalStore(subscribePick, currentPick, currentPick);
   const load = useCallback(() => {
     rpc
       .call("list", null)
@@ -212,20 +220,29 @@ export function ComposerProjectChip() {
       }),
     [composer],
   );
-  const entries = useMemo(() => (tree ? chipEntries(tree) : []), [tree]);
+  const entries = useMemo(
+    () => (tree ? chipEntries(tree, projects) : []),
+    [tree, projects],
+  );
   const current = useMemo(() => {
     if (chosen) return chosen;
+    // Applying a project remounts this component, so the section survives in
+    // the pick the plugin remembers, not in state.
+    const section = pick
+      ? entries.find((e) => e.folder?.id === pick.folderId)
+      : undefined;
     return (
+      section ??
       entries.find((e) => e.kind === "project" && e.projectId === projectId) ??
       null
     );
-  }, [chosen, entries, projectId]);
+  }, [chosen, entries, pick, projectId]);
   const choose = async (entry: ChipEntry) => {
-    const folder: Folder = entry.folder;
+    const folder = entry.folder;
     setBusy(true);
     setError("");
     try {
-      if (entry.kind === "section") {
+      if (entry.kind === "section" && folder) {
         await rpc.call("section_pick", {
           projectId: entry.projectId,
           hostId: folder.hostId,
@@ -239,22 +256,34 @@ export function ComposerProjectChip() {
       } else rememberPick(null);
       await composer.experimental_setSelection({
         projectId: entry.projectId,
-        environment:
-          entry.kind === "section"
-            ? {
-                type: "provider",
-                environmentProviderId: SECTION_ENVIRONMENT_ID,
-                machine: { type: "existing", hostId: folder.hostId },
-                inputs: { folderId: folder.id },
-              }
-            : {
-                // The project root, the way the plugin's own New chat screen
-                // starts one: BB's checkout provider pointed at the folder.
-                type: "provider",
-                environmentProviderId: "project-checkout",
-                machine: { type: "existing", hostId: folder.hostId },
-                inputs: { path: folder.path },
-              },
+        // A project BB knows and the plugin has no folder for keeps BB's own
+        // environment: there is nothing here to point it at.
+        ...(folder
+          ? {
+              environment:
+                entry.kind === "section"
+                  ? {
+                      type: "provider" as const,
+                      environmentProviderId: SECTION_ENVIRONMENT_ID,
+                      machine: {
+                        type: "existing" as const,
+                        hostId: folder.hostId,
+                      },
+                      inputs: { folderId: folder.id },
+                    }
+                  : {
+                      // The project root, the way the plugin's own New chat
+                      // screen starts one: BB's checkout provider at the folder.
+                      type: "provider" as const,
+                      environmentProviderId: "project-checkout",
+                      machine: {
+                        type: "existing" as const,
+                        hostId: folder.hostId,
+                      },
+                      inputs: { path: folder.path },
+                    },
+            }
+          : {}),
       });
       setChosen(entry);
     } catch (e) {
@@ -263,8 +292,19 @@ export function ComposerProjectChip() {
       setBusy(false);
     }
   };
-  const label =
-    current && tree ? placeLabel(tree, current) : t("Проект или раздел");
+  const name = (entry: ChipEntry) =>
+    entry.personal
+      ? t("Без проекта")
+      : entry.kind === "project"
+        ? entry.projectName
+        : (entry.folder?.name ?? entry.projectName);
+  const label = !current
+    ? t("Проект или раздел")
+    : current.personal
+      ? t("Без проекта")
+      : tree
+        ? placeLabel(tree, current)
+        : current.projectName;
   return (
     <>
       <span ref={marker} hidden aria-hidden="true" />
@@ -278,7 +318,7 @@ export function ComposerProjectChip() {
                 data-promptbox-project-control=""
                 disabled={busy}
                 aria-label={t("Проекты и разделы")}
-                title={error || current?.folder.path || label}
+                title={error || current?.folder?.path || label}
               >
                 <Icon name="Folder" />
                 <span className="min-w-0 truncate">{label}</span>
@@ -292,19 +332,22 @@ export function ComposerProjectChip() {
               collisionPadding={8}
               className="max-h-80 overflow-auto min-w-64 max-w-[min(90vw,26rem)]"
             >
-              {entries.map((entry) =>
-                entry.kind === "group" ? (
+              {entries.map((entry) => {
+                const key = entry.folder
+                  ? `${entry.projectId}:${entry.folder.id}`
+                  : entry.projectId;
+                return entry.kind === "group" ? (
                   <div
-                    key={entry.folder.id}
+                    key={key}
                     className="pf-menu-group"
                     style={{ paddingLeft: 8 + entry.depth * 16 }}
                   >
                     <Icon name="Layers" />
-                    {entry.folder.name}
+                    {name(entry)}
                   </div>
                 ) : (
                   <DropdownMenuItem
-                    key={entry.folder.id}
+                    key={key}
                     style={
                       entry.depth > 0
                         ? { paddingLeft: 8 + entry.depth * 16 }
@@ -312,14 +355,15 @@ export function ComposerProjectChip() {
                     }
                     onSelect={() => void choose(entry)}
                   >
-                    <Icon name="Folder" />
-                    {entry.kind === "project"
-                      ? entry.projectName
-                      : entry.folder.name}
-                    {current?.folder.id === entry.folder.id ? " ✓" : ""}
+                    <Icon name={entry.personal ? "MessageSquare" : "Folder"} />
+                    {name(entry)}
+                    {current?.projectId === entry.projectId &&
+                    (current?.folder?.id ?? null) === (entry.folder?.id ?? null)
+                      ? " ✓"
+                      : ""}
                   </DropdownMenuItem>
-                ),
-              )}
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>,
           slot.node,

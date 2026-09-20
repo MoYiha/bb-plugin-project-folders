@@ -86,28 +86,91 @@ export function composerEnvironmentId(
 }
 
 /**
- * The section chosen from the composer's own action, kept for the inputs
- * control BB renders beside the provider: the two live in different React
- * trees and only meet through this.
+ * The section chosen from the composer's own action or from the chip, kept
+ * for the inputs control BB renders beside the provider and for the chip
+ * itself: they live in different React trees and only meet through this.
+ *
+ * It outlives them both, in the tab's own storage. Applying a project
+ * remounts every plugin surface in the composer, and that is exactly when the
+ * pick has just been made — a choice kept only in a component would be
+ * forgotten by the act of applying it.
  */
-let picked: { projectId: string; hostId: string; folderId: string } | null =
-  null;
-export const rememberPick = (next: typeof picked) => {
-  picked = next;
+type ComposerPick = { projectId: string; hostId: string; folderId: string };
+const PICK_KEY = "pf.composer.pick";
+let picked: ComposerPick | null = null;
+let loaded = false;
+const pickWatchers = new Set<() => void>();
+const tabStorage = () => {
+  try {
+    return globalThis.sessionStorage ?? null;
+  } catch {
+    return null;
+  }
 };
-export const recallPick = (projectId: string | null, hostId: string | null) =>
-  picked && picked.projectId === projectId && picked.hostId === hostId
-    ? picked.folderId
+export const rememberPick = (next: ComposerPick | null) => {
+  picked = next;
+  loaded = true;
+  try {
+    if (next) tabStorage()?.setItem(PICK_KEY, JSON.stringify(next));
+    else tabStorage()?.removeItem(PICK_KEY);
+  } catch {
+    // A tab that refuses storage still has the value for this page's life.
+  }
+  for (const fn of Array.from(pickWatchers)) fn();
+};
+/**
+ * The pick as a store, because every surface that shows it is somewhere else:
+ * the chip in BB's project control, the action in the composer's row, the
+ * inputs control in BB's environment picker. A write has to reach all three,
+ * and the same value has to outlive them — applying a project remounts every
+ * plugin surface in the composer, and that is exactly when the pick was just
+ * made. Hence the tab's storage underneath, read once and then kept, so the
+ * snapshot stays the same object between renders.
+ */
+export const currentPick = (): ComposerPick | null => {
+  if (picked || loaded) return picked;
+  loaded = true;
+  try {
+    const raw = tabStorage()?.getItem(PICK_KEY);
+    const value = raw ? (JSON.parse(raw) as Partial<ComposerPick>) : null;
+    picked =
+      typeof value?.projectId === "string" &&
+      typeof value?.hostId === "string" &&
+      typeof value?.folderId === "string"
+        ? (value as ComposerPick)
+        : null;
+  } catch {
+    picked = null;
+  }
+  return picked;
+};
+export const subscribePick = (onChange: () => void) => {
+  pickWatchers.add(onChange);
+  return () => {
+    pickWatchers.delete(onChange);
+  };
+};
+export const recallPick = (projectId: string | null, hostId: string | null) => {
+  const pick = currentPick();
+  return pick && pick.projectId === projectId && pick.hostId === hostId
+    ? pick.folderId
     : null;
+};
 
 /** A row of the chip menu: a project, one of its sections, or a group label. */
 export type ChipEntry = {
-  folder: Folder;
+  /** Null for a project BB knows and the plugin has no folder for. */
+  folder: Folder | null;
   depth: number;
   projectId: string;
   projectName: string;
   kind: "project" | "section" | "group";
+  /** BB's implicit project: choosing it means "don't work in a project". */
+  personal?: boolean;
 };
+
+/** A project as BB's sidebar lists it. */
+export type ChipProject = { id: string; name: string; isPersonal: boolean };
 
 /**
  * Every project and every section under it, parents before children, with the
@@ -115,47 +178,75 @@ export type ChipEntry = {
  * it lists projects and stops there, so a chat started from the New thread
  * screen could only ever land in a project root.
  *
+ * `projects` is BB's own list, and it decides which projects are offered and
+ * in which order: replacing the chip must not hide a project the plugin has
+ * no folder for, least of all BB's implicit "don't work in a project". The
+ * plugin's tree only adds the sections underneath. Without that list the tree
+ * speaks for itself.
+ *
  * Sections of a project on another device belong to the same project and stay
  * in the list — the device is part of the section, not a separate project.
  */
-export function chipEntries(tree: SectionTree): ChipEntry[] {
+export function chipEntries(
+  tree: SectionTree,
+  projects: readonly ChipProject[] = [],
+): ChipEntry[] {
   const out: ChipEntry[] = [];
-  const projects = tree.roots.filter(
+  const roots = tree.roots.filter(
     (r, i) => tree.roots.findIndex((x) => x.projectId === r.projectId) === i,
   );
-  for (const root of projects) {
-    out.push({
-      folder: root,
-      depth: 0,
-      projectId: root.projectId,
-      projectName: root.name,
-      kind: "project",
-    });
+  const sections = (projectId: string, name: string) => {
     const walk = (parentId: string | null, depth: number) => {
       for (const folder of tree.folders
         .filter(
-          (f) =>
-            f.projectId === root.projectId && (f.parentId ?? null) === parentId,
+          (f) => f.projectId === projectId && (f.parentId ?? null) === parentId,
         )
         .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))) {
         out.push({
           folder,
           depth,
-          projectId: root.projectId,
-          projectName: root.name,
+          projectId,
+          projectName: name,
           kind: folder.kind === "group" ? "group" : "section",
         });
         walk(folder.id, depth + 1);
       }
     };
     walk(null, 1);
+  };
+  const listed = projects.length
+    ? projects.map((p) => ({
+        projectId: p.id,
+        name: roots.find((r) => r.projectId === p.id)?.name ?? p.name,
+        root: roots.find((r) => r.projectId === p.id) ?? null,
+        personal: p.isPersonal,
+      }))
+    : [];
+  for (const root of roots)
+    if (!listed.some((p) => p.projectId === root.projectId))
+      listed.push({
+        projectId: root.projectId,
+        name: root.name,
+        root,
+        personal: false,
+      });
+  for (const project of listed) {
+    out.push({
+      folder: project.root,
+      depth: 0,
+      projectId: project.projectId,
+      projectName: project.name,
+      kind: "project",
+      ...(project.personal ? { personal: true } : {}),
+    });
+    if (project.root) sections(project.projectId, project.name);
   }
   return out;
 }
 
 /** What the chip says about the chosen place: "Project / Section / Subsection". */
 export function placeLabel(tree: SectionTree, entry: ChipEntry): string {
-  if (entry.kind === "project") return entry.projectName;
+  if (entry.kind === "project" || !entry.folder) return entry.projectName;
   const names: string[] = [];
   const seen = new Set<string>();
   for (

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { installTestMatchMedia } from "./test-match-media";
-import { chipEntries, placeLabel } from "./section-tree";
+import { chipEntries, placeLabel, rememberPick } from "./section-tree";
 
 const root = {
   id: "p1",
@@ -61,6 +61,7 @@ function nativeChip() {
 }
 afterEach(() => {
   cleanup();
+  rememberPick(null);
   for (const el of Array.from(
     document.querySelectorAll("[data-promptbox-project-control]"),
   ))
@@ -76,12 +77,30 @@ const actionSlot = () =>
     .flatMap((c) => c.actions ?? [])
     .find((a) => a.id === "section")!;
 
-const renderChip = () =>
+const sidebarProjects = [
+  { id: "p1", name: "Project", isPersonal: false },
+  { id: "p2", name: "Notes", isPersonal: false },
+  { id: "personal", name: "Personal", isPersonal: true },
+];
+
+const renderChip = (projectId: string | null = "p1") =>
   renderSlot(
     { id: "chip", component: chipSlot().component },
     {},
     {
-      composer: { scope: { kind: "new-thread", projectId: "p1" } },
+      composer: { scope: { kind: "new-thread", projectId } },
+      sidebarThreads: { projects: sidebarProjects, status: "ready" },
+      rpc: { list, section_pick: () => ({ ok: true }) },
+    },
+  );
+
+const renderAction = (projectId: string | null = "p1") =>
+  renderSlot(
+    { id: "action", component: actionSlot().component },
+    {},
+    {
+      composer: { scope: { kind: "new-thread", projectId } },
+      sidebarThreads: { projects: sidebarProjects, status: "ready" },
       rpc: { list, section_pick: () => ({ ok: true }) },
     },
   );
@@ -111,6 +130,26 @@ describe("the tree behind BB's project chip", () => {
       ["section", "Server", 1],
     ]);
   });
+  it("keeps every project BB offers, in BB's order, with sections under them", () => {
+    const entries = chipEntries(tree, [
+      { id: "p0", name: "Notes", isPersonal: false },
+      { id: "p1", name: "Project", isPersonal: false },
+      { id: "personal", name: "Personal", isPersonal: true },
+    ]);
+    expect(
+      entries.map((e) => [e.kind, e.projectId, e.folder?.name ?? null]),
+    ).toEqual([
+      // A project the plugin has no folder for is still a place to work.
+      ["project", "p0", null],
+      ["project", "p1", "Project"],
+      ["section", "p1", "Website"],
+      ["section", "p1", "Design"],
+      ["group", "p1", "Apps"],
+      ["section", "p1", "Server"],
+      ["project", "personal", null],
+    ]);
+    expect(entries.at(-1)?.personal).toBe(true);
+  });
   it("names the place the way the chip has to say it", () => {
     const entries = chipEntries(tree);
     expect(placeLabel(tree, entries[0])).toBe("Project");
@@ -126,7 +165,14 @@ describe("the chip in BB's own New thread composer", () => {
     await openChip(view);
     expect(
       (await view.findAllByRole("menuitem")).map((i) => i.textContent?.trim()),
-    ).toEqual(["Project ✓", "Website", "Design", "Server"]);
+    ).toEqual([
+      "Project ✓",
+      "Website",
+      "Design",
+      "Server",
+      "Notes",
+      "No project",
+    ]);
     // A group holds sections and has no folder a chat could run in.
     expect(view.getByText("Apps").getAttribute("role")).not.toBe("menuitem");
     view.lifecycle.unmount();
@@ -181,6 +227,57 @@ describe("the chip in BB's own New thread composer", () => {
     expect(
       view.inspection.rpcCalls.some((c) => c.method === "section_pick"),
     ).toBe(false);
+    view.lifecycle.unmount();
+  });
+  it("still names the section after applying it remounted the composer", async () => {
+    nativeChip();
+    // No project yet: choosing a section is what sets one, and that is the
+    // switch which remounts every plugin surface in the composer.
+    const chip = renderChip(null);
+    const action = renderAction(null);
+    await openChip(chip);
+    fireEvent.click(await chip.findByRole("menuitem", { name: /Design/ }));
+    await waitFor(() =>
+      expect(chip.inspection.composer.selections).toHaveLength(1),
+    );
+    chip.lifecycle.unmount();
+    action.lifecycle.unmount();
+    const back = renderChip("p1");
+    const backAction = renderAction("p1");
+    await waitFor(() =>
+      expect(
+        back.getByRole("button", { name: "Projects & Sections" }).textContent,
+      ).toContain("Project / Website / Design"),
+    );
+    back.lifecycle.unmount();
+    backAction.lifecycle.unmount();
+  });
+  it("follows a section picked in the composer's own action", async () => {
+    nativeChip();
+    const view = renderChip();
+    await waitFor(() =>
+      view.getByRole("button", { name: "Projects & Sections" }),
+    );
+    // The action lives in another React tree; the pick is what they share.
+    act(() => rememberPick({ projectId: "p1", hostId: "h1", folderId: "f2" }));
+    await waitFor(() =>
+      expect(
+        view.getByRole("button", { name: "Projects & Sections" }).textContent,
+      ).toContain("Project / Website / Design"),
+    );
+    view.lifecycle.unmount();
+  });
+  it("hands a project it has no folder for to BB untouched", async () => {
+    nativeChip();
+    const view = renderChip();
+    await openChip(view);
+    fireEvent.click(await view.findByRole("menuitem", { name: /No project/ }));
+    await waitFor(() =>
+      expect(view.inspection.composer.selections).toHaveLength(1),
+    );
+    expect(view.inspection.composer.selections[0]).toEqual({
+      projectId: "personal",
+    });
     view.lifecycle.unmount();
   });
   it("leaves the action row alone while it owns the chip", async () => {

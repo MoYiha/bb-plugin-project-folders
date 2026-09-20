@@ -17,6 +17,7 @@ import { useChipTaken } from "./composer-chip";
 import type { Folder, rpcContract } from "./server";
 import {
   composerEnvironmentId,
+  currentPick,
   environmentLabel,
   recallPick,
   rememberPick,
@@ -216,9 +217,13 @@ export function SectionComposerAction() {
       }),
     [composer],
   );
+  // Switching to another project drops a section of the old one. A pick that
+  // belongs to the project being switched *to* is the reason for the switch —
+  // the chip applies the section's project — and has to survive it.
   useEffect(() => {
     setChosen(null);
-    rememberPick(null);
+    const pick = currentPick();
+    if (pick && pick.projectId !== projectId) rememberPick(null);
   }, [projectId]);
   const options = useMemo(() => {
     if (!tree || !projectId) return [];

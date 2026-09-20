@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.3
+
+- **The chip keeps naming the section it applied.** Choosing a section sets its project, which remounts every plugin surface in the composer — so the chip fell back to the project name a moment after choosing, as the live check on the hub showed. The chosen place now lives in a store the surfaces share, kept in the tab and published to all of them, and a pick that belongs to the project being switched to survives the switch.
+- **Every project BB offers is in the chip, in BB's order** — including **No project** and a project the plugin has no folder for. Replacing BB's chip must not take a place to work away; the plugin's tree only adds the sections underneath.
+
 ## 0.5.2
 
 - **The section tree is in BB's project chip now.** Pressing **New thread** in the sidebar opened a chip with a flat list of projects: the sections were only in the plugin's own screen or behind the composer's **Section** control, which BB folds into the `⋯` overflow when the action row is full. The chip now opens the whole tree — projects with their sections under them, every device — and picking a place sets both the project and the environment. The separate **Section** control stands down while the chip is in charge, so the row is not asked for the same choice twice; if BB's chip cannot be found, the control is still there.
