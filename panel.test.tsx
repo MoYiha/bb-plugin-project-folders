@@ -758,6 +758,7 @@ it("shows a GitHub icon left of new-chat only when githubUrl is set", async () =
   const withRepo = {
     ...section,
     githubUrl: "https://github.com/VKirill/bb-plugin-project-folders",
+    githubPrivate: true,
   };
   const plain = {
     ...section,
@@ -798,6 +799,7 @@ it("shows a GitHub icon left of new-chat only when githubUrl is set", async () =
   expect(link?.getAttribute("target")).toBe("_blank");
   expect(link?.getAttribute("rel")).toContain("noopener");
   expect(link?.getAttribute("rel")).toContain("noreferrer");
+  expect(link?.classList.contains("pf-github-private")).toBe(true);
   const heading = link?.closest(".pf-heading");
   const plus = heading?.querySelector('button[aria-label="New chat: Section"]');
   expect(plus).toBeTruthy();

@@ -69,6 +69,7 @@ export const prefsSchema = z.object({
     limit: z.number().int().min(1).max(100),
     autoCollapseInactive: z.boolean(),
     inactiveHours: z.number().min(0.25).max(720),
+    hideIdleHours: z.number().min(0).max(720),
     boldUnread: z.boolean(),
   }),
   view: z.object({
@@ -94,6 +95,7 @@ export const defaultPrefs: Prefs = {
     limit: 10,
     autoCollapseInactive: true,
     inactiveHours: 2,
+    hideIdleHours: 48,
     boldUnread: true,
   },
   view: { density: "comfortable", indent: 8 },

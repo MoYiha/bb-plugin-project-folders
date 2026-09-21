@@ -36,6 +36,7 @@ import {
 import type { PermissionMode, ReasoningLevel, ServiceTier } from "./execution";
 import {
   sortChats,
+  visibleChats,
   isSectionCollapsed,
   parseCollapseState,
   placeOf,
@@ -1898,18 +1899,30 @@ function FolderHeading({
           <Tooltip>
             <TooltipTrigger asChild>
               <a
-                className="pf-icon"
+                className={
+                  folder.githubPrivate
+                    ? "pf-icon pf-github pf-github-private"
+                    : "pf-icon pf-github"
+                }
                 href={folder.githubUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={t("Открыть репозиторий GitHub")}
+                aria-label={
+                  folder.githubPrivate
+                    ? t("Открыть приватный репозиторий GitHub")
+                    : t("Открыть репозиторий GitHub")
+                }
                 onClick={(event) => event.stopPropagation()}
               >
                 <Icon name="Github" />
               </a>
             </TooltipTrigger>
             <TooltipPortal>
-              <TooltipContent>{folder.githubUrl}</TooltipContent>
+              <TooltipContent>
+                {folder.githubPrivate
+                  ? t("Приватный репозиторий GitHub")
+                  : folder.githubUrl}
+              </TooltipContent>
             </TooltipPortal>
           </Tooltip>
         </TooltipProvider>
@@ -2257,7 +2270,18 @@ function Tree(props: PluginThreadListProps) {
     limit = listSettings.limit,
   ) => {
     const sorted = sortChats(ts, sort, language);
-    const shown = expanded[group] ? sorted : sorted.slice(0, limit);
+    const listOpts = {
+      limit,
+      hideIdleMs: listSettings.hideIdleHours * 60 * 60 * 1000,
+      activeThreadId: props.activeThreadId,
+    };
+    const shown = visibleChats(sorted, {
+      ...listOpts,
+      expanded: !!expanded[group],
+    });
+    const hasHidden =
+      visibleChats(sorted, { ...listOpts, expanded: false }).length <
+      sorted.length;
     return (
       <>
         {shown.map((thread) => (
@@ -2285,7 +2309,7 @@ function Tree(props: PluginThreadListProps) {
             }}
           />
         ))}
-        {sorted.length > limit && (
+        {hasHidden && (
           <button
             className="pf-show-more"
             aria-expanded={!!expanded[group]}

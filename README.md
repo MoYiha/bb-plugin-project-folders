@@ -139,7 +139,7 @@ The plugin adds a thread list to BB's sidebar: projects, their sections and subs
 - **⋯ menu or right-click** on a heading: New project, New section, Configure (opens its card on the management page), Appearance, Chat sorting, Move, Working rules, Rename, Change path, Delete or Archive.
 - **Unread** — a project or section name turns bold when any chat anywhere below it is unread (can be turned off).
 - **Auto-collapse** — a section with no chat activity for a set time (2 hours by default) collapses. It stays open while an agent is running in it or one of its chats is open. A section you collapse or expand by hand keeps your choice; a manually collapsed section stays collapsed even while an agent works inside.
-- **Short lists** — each project root, section and the No project group shows the newest chats up to the limit; **Show all** expands only that list.
+- **Short lists** — each project root, section and the No project group shows the newest chats up to the limit and chats opened in the last 48 hours; **Show all** expands only that list.
 - **Pinned chats** stay on top of their list.
 - **Drag a chat** onto another section or the project root to move it; on the same device its working folder follows (see [Move and delete](#move-and-delete)).
 
@@ -180,6 +180,7 @@ Settings (except the language) are stored on the BB server, so every device and 
 
 - **Chat sorting** — Recent activity (default), Alphabetical or Newest first. Activity uses BB's update and attention timestamps, so a new message moves a chat up. Also available from any heading's **⋯ → Chat sorting**.
 - **Chats per section** — 1–100 (default 10). The rest open with **Show all**.
+- **Hide chats without a visit, hours** — 0–720 (default 48). Chats nobody opened for longer than this also hide under **Show all**. Zero turns the age rule off. Pinned, unread, busy and the open chat stay in the short list.
 
 **Section collapsing**
 

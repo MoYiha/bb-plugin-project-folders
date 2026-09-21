@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  githubPrivateForUrl,
   githubRemotes,
   githubUrlForPath,
   parseGithubRemote,
@@ -74,4 +75,41 @@ it("reads origin from a folder with a GitHub remote and skips missing git", asyn
     { path: worktree, url: "https://github.com/VKirill/demo" },
   ]);
   expect(await githubUrlForPath(missing)).toBeNull();
+});
+
+it("walks up to the checkout when the section is a nested folder", async () => {
+  const repo = await root();
+  await mkdir(path.join(repo, ".git"));
+  await writeFile(
+    path.join(repo, ".git", "config"),
+    `[remote "origin"]\n\turl = https://github.com/VKirill/nested.git\n`,
+  );
+  const nested = path.join(repo, "src", "app");
+  await mkdir(nested, { recursive: true });
+  expect(await githubUrlForPath(nested)).toBe(
+    "https://github.com/VKirill/nested",
+  );
+});
+
+it("treats an anonymous GitHub 404 as private and 200 as public", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const href = String(input);
+    if (href.endsWith("/acme/hidden"))
+      return new Response("Not Found", { status: 404 });
+    if (href.endsWith("/acme/open"))
+      return new Response("{}", { status: 200 });
+    return new Response("no", { status: 403 });
+  }) as typeof fetch;
+  try {
+    expect(await githubPrivateForUrl("https://github.com/acme/hidden")).toBe(
+      true,
+    );
+    expect(await githubPrivateForUrl("https://github.com/acme/open")).toBe(
+      false,
+    );
+    expect(await githubPrivateForUrl("https://github.com/acme/other")).toBeNull();
+  } finally {
+    globalThis.fetch = original;
+  }
 });

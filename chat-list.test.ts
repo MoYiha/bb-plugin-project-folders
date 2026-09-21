@@ -4,6 +4,9 @@ import {
   parseSettings,
   parseCollapseState,
   getThreadActivity,
+  getThreadAccess,
+  isChatKeptVisible,
+  visibleChats,
   isThreadBusy,
   collectFolderThreads,
   isSectionInactive,
@@ -118,6 +121,68 @@ describe("auto-collapsing inactive sections", () => {
       sec1: { collapsed: true, at: 1000 },
       sec2: { collapsed: false, at: 2000 },
     });
+  });
+
+  it("hides chats idle longer than 48 hours under the remaining list", () => {
+    const now = 200_000_000_000;
+    const day = 24 * 60 * 60 * 1000;
+    const hideIdleMs = 48 * 60 * 60 * 1000;
+    const recent = {
+      id: "recent",
+      projectId: "p1",
+      lastReadAt: now - day,
+      updatedAt: now - day,
+      createdAt: now - 10 * day,
+    };
+    const idle = {
+      id: "idle",
+      projectId: "p1",
+      lastReadAt: now - 3 * day,
+      updatedAt: now - 3 * day,
+      createdAt: now - 10 * day,
+    };
+    const pinned = { ...idle, id: "pin", isPinned: true };
+    const unread = { ...idle, id: "unread", isUnread: true };
+    const busy = { ...idle, id: "busy", status: "active" };
+    const open = { ...idle, id: "open" };
+
+    expect(getThreadAccess(recent)).toBe(now - day);
+    expect(
+      isChatKeptVisible(idle, { hideIdleMs, now }),
+    ).toBe(false);
+    expect(
+      isChatKeptVisible(recent, { hideIdleMs, now }),
+    ).toBe(true);
+    expect(isChatKeptVisible(pinned, { hideIdleMs, now })).toBe(true);
+    expect(isChatKeptVisible(unread, { hideIdleMs, now })).toBe(true);
+    expect(isChatKeptVisible(busy, { hideIdleMs, now })).toBe(true);
+    expect(
+      isChatKeptVisible(open, { hideIdleMs, now, activeThreadId: "open" }),
+    ).toBe(true);
+    expect(isChatKeptVisible(idle, { hideIdleMs: 0, now })).toBe(true);
+
+    expect(
+      visibleChats([recent, idle, pinned], {
+        expanded: false,
+        limit: 10,
+        hideIdleMs,
+        now,
+      }).map((c) => c.id),
+    ).toEqual(["recent", "pin"]);
+    expect(
+      visibleChats([recent, idle], {
+        expanded: true,
+        limit: 10,
+        hideIdleMs,
+        now,
+      }).map((c) => c.id),
+    ).toEqual(["recent", "idle"]);
+    expect(
+      visibleChats(
+        [recent, { ...recent, id: "r2" }, idle],
+        { expanded: false, limit: 1, hideIdleMs, now },
+      ).map((c) => c.id),
+    ).toEqual(["recent"]);
   });
 
   it("calculates thread activity from updatedAt, latestAttentionAt, and createdAt", () => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.5
+
+- **Chats nobody opened for 48 hours hide under Show all.** Each section still respects the count limit; pinned, unread, busy and the open chat stay in the short list. The hours are a chat-list setting (0 turns the age rule off).
+- **The GitHub mark follows a nested folder and refreshes after the host lookup.** Walking up finds `.git` under a section that is not the repo root. After the host batch fills the cache the tree republishes, so a newly pointed section does not stay unmarked. An anonymous GitHub lookup paints a private (or missing) repo as a black cat.
+
 ## 0.5.4
 
 - **A section with a GitHub remote shows a small GitHub mark left of +.** The plugin reads `.git` and `origin` on the section's machine (HTTPS or `git@github.com:`), then lists `githubUrl` on folders and roots. Groups stay unmarked. The first list may omit the mark until the host batch returns; a click opens the repo and does not expand the row.

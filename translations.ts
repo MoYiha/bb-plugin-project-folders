@@ -68,6 +68,8 @@ export const english = {
   "Удалить…": "Delete…",
   "Новый чат": "New chat",
   "Открыть репозиторий GitHub": "Open GitHub repository",
+  "Открыть приватный репозиторий GitHub": "Open private GitHub repository",
+  "Приватный репозиторий GitHub": "Private GitHub repository",
   "Без проекта": "No project",
   "Новый чат без проекта": "New chat without a project",
   "Управление разделами": "Manage sections",
@@ -90,6 +92,7 @@ export const english = {
   "По алфавиту": "Alphabetical",
   "Сначала новые": "Newest first",
   "Чатов в каждом разделе": "Chats per section",
+  "Скрывать чаты без обращения, часов": "Hide chats without a visit, hours",
   "Сворачивать разделы без активности больше 2 часов":
     "Collapse sections inactive for over 2 hours",
   "Сворачивать неактивные (> 2 часов)": "Collapse inactive (> 2 hours)",
@@ -306,6 +309,8 @@ export const english = {
   "Настройки плагина": "Plugin settings",
   "Остальные открываются кнопкой «Показать все».":
     "The rest open with Show all.",
+  "Чаты, к которым не заходили дольше этого времени, прячутся под «Показать все». Ноль — не скрывать по сроку. Закреплённые, непрочитанные и работающие чаты остаются.":
+    "Chats nobody opened for longer than this hide under Show all. Zero turns the age rule off. Pinned, unread and busy chats stay visible.",
   "Отдельное оформление": "Individual looks",
   "Перенос настроек и оформления через файл.":
     "Move settings and appearance with a file.",

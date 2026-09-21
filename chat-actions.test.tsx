@@ -45,10 +45,10 @@ const thread: PluginSidebarThread = {
     workspaceDisplayKind: null,
   },
   host: { id: "h1", name: "Mini" },
-  createdAt: 1,
-  updatedAt: 1,
-  lastReadAt: 1,
-  latestAttentionAt: 1,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  lastReadAt: Date.now(),
+  latestAttentionAt: Date.now(),
 };
 const root = {
   id: "p1",
@@ -123,6 +123,38 @@ it("opens the section menu on right-click with archive instead of delete", async
   expect(view.getByRole("menuitem", { name: /^Archive$/ })).toBeTruthy();
   expect(view.queryByRole("menuitem", { name: /New project/ })).toBeNull();
   expect(view.queryByRole("menuitem", { name: /^Delete$/ })).toBeNull();
+  view.lifecycle.unmount();
+});
+it("hides a chat idle for over 48 hours under Show all", async () => {
+  const idleAgo = Date.now() - 49 * 60 * 60 * 1000;
+  const idle: PluginSidebarThread = {
+    ...thread,
+    id: "idle-t1",
+    title: "Old idle chat",
+    createdAt: idleAgo,
+    updatedAt: idleAgo,
+    lastReadAt: idleAgo,
+    latestAttentionAt: idleAgo,
+  };
+  const view = renderSlot(
+    app.threadLists[0]!,
+    { activeThreadId: null, onNavigate() {} },
+    {
+      sidebarThreads: { threads: [thread, idle], projects: [] },
+      rpc: {
+        list: () => ({
+          folders: [folder],
+          roots: [root],
+          bindings: {},
+          errors: [],
+        }),
+      },
+    },
+  );
+  expect(await view.findByText("Example chat")).toBeTruthy();
+  expect(view.queryByText("Old idle chat")).toBeNull();
+  fireEvent.click(view.getByRole("button", { name: /Show all/ }));
+  expect(await view.findByText("Old idle chat")).toBeTruthy();
   view.lifecycle.unmount();
 });
 it("opens the chat action menu on right-click and offers native actions plus move", async () => {

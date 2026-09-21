@@ -37,6 +37,19 @@
   width: 18px;
   height: 18px;
 }
+.pf-github {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+.pf-github svg {
+  width: 14px;
+  height: 14px;
+}
+.pf-github-private,
+.pf-github-private svg {
+  color: #111;
+}
 .pf-label {
   display: flex;
   align-items: center;

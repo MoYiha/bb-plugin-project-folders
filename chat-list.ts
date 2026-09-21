@@ -80,6 +80,7 @@ export type ChatThread = {
   indicator?: string;
   hasPendingInteraction?: boolean;
   isUnread?: boolean;
+  isPinned?: boolean;
   isArchived?: boolean;
   status?: string;
   activity?: {
@@ -125,6 +126,55 @@ export function parseCollapseState(
   } catch {
     return {};
   }
+}
+
+/** Last time anyone opened the chat or it produced activity. */
+export function getThreadAccess(thread: {
+  updatedAt?: number;
+  latestAttentionAt?: number;
+  createdAt?: number;
+  lastReadAt?: number | null;
+}): number {
+  return Math.max(
+    thread.updatedAt ?? 0,
+    thread.latestAttentionAt ?? 0,
+    thread.createdAt ?? 0,
+    thread.lastReadAt ?? 0,
+  );
+}
+
+export function isChatKeptVisible(
+  thread: ChatThread,
+  params: {
+    hideIdleMs: number;
+    now?: number;
+    activeThreadId?: string | null;
+  },
+): boolean {
+  const { hideIdleMs, now = Date.now(), activeThreadId } = params;
+  if (hideIdleMs <= 0) return true;
+  if (thread.isPinned) return true;
+  if (thread.isUnread) return true;
+  if (activeThreadId && thread.id === activeThreadId) return true;
+  if (isThreadBusy(thread)) return true;
+  return now - getThreadAccess(thread) <= hideIdleMs;
+}
+
+/** Chats shown before «Show all»: recent enough, then the per-section limit. */
+export function visibleChats<T extends ChatThread>(
+  sorted: readonly T[],
+  params: {
+    expanded: boolean;
+    limit: number;
+    hideIdleMs: number;
+    now?: number;
+    activeThreadId?: string | null;
+  },
+): T[] {
+  if (params.expanded) return [...sorted];
+  return sorted
+    .filter((thread) => isChatKeptVisible(thread, params))
+    .slice(0, params.limit);
 }
 
 export function getThreadActivity(thread: {

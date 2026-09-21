@@ -1,3 +1,4 @@
+import { githubPrivateForUrl } from "./github-remote";
 import { moveHostContract } from "./move-contract";
 import { makeThreadMoves, RELOCATE_MARKER } from "./thread-move";
 import { SECTION_ENVIRONMENT_ID } from "./section-tree";
@@ -119,6 +120,7 @@ const folderSchema = z.object({
   /** A group only arranges the tree: it has no folder, chats or rules. */
   kind: z.enum(["folder", "group"]).optional(),
   githubUrl: z.string().nullable().optional(),
+  githubPrivate: z.boolean().nullable().optional(),
 });
 export type Folder = z.infer<typeof folderSchema>;
 const targetSchema = z.object({
@@ -703,19 +705,28 @@ export default async function plugin(bb: BbPluginApi) {
   const isGroup = (f: object | null | undefined) =>
     !!f && (f as { kind?: string }).kind === "group";
   const GITHUB_CACHE_TTL_MS = 6 * 60 * 1000;
-  const githubCache = new Map<string, { url: string | null; at: number }>();
+  const githubCache = new Map<
+    string,
+    { url: string | null; private: boolean | null; at: number }
+  >();
   const githubRefreshing = new Set<string>();
+  let notifyGithubChange = () => {};
   const githubCacheKey = (hostId: string, folderPath: string) =>
     `${hostId}\0${folderPath}`;
   const forgetGithub = (hostId: string, folderPath: string) => {
     githubCache.delete(githubCacheKey(hostId, folderPath));
   };
   const withGithubUrl = (f: Folder): Folder => {
-    if (isGroup(f)) return { ...f, githubUrl: null };
+    if (isGroup(f)) return { ...f, githubUrl: null, githubPrivate: null };
     const hit = githubCache.get(githubCacheKey(f.hostId, f.path));
-    return { ...f, githubUrl: hit?.url ?? null };
+    return {
+      ...f,
+      githubUrl: hit?.url ?? null,
+      githubPrivate: hit?.url ? (hit.private ?? null) : null,
+    };
   };
   const refreshGithubHost = async (hostId: string, paths: string[]) => {
+    let dirty = false;
     try {
       const result = await bb.hosts
         .experimental_client({ contract: moveHostContract })
@@ -724,21 +735,46 @@ export default async function plugin(bb: BbPluginApi) {
       const seen = new Set<string>();
       for (const row of result.remotes) {
         seen.add(row.path);
-        githubCache.set(githubCacheKey(hostId, row.path), {
+        const key = githubCacheKey(hostId, row.path);
+        const prev = githubCache.get(key);
+        githubCache.set(key, {
           url: row.url,
+          private: prev?.url === row.url ? (prev.private ?? null) : null,
           at: now,
         });
+        if (prev?.url !== row.url) dirty = true;
       }
       for (const folderPath of paths) {
         if (seen.has(folderPath)) continue;
-        githubCache.set(githubCacheKey(hostId, folderPath), {
-          url: null,
-          at: now,
-        });
+        const key = githubCacheKey(hostId, folderPath);
+        const prev = githubCache.get(key);
+        githubCache.set(key, { url: null, private: null, at: now });
+        if (prev?.url) dirty = true;
+      }
+      if (!process.env.VITEST) {
+        const urls = [
+          ...new Set(
+            [...githubCache.values()]
+              .map((hit) => hit.url)
+              .filter((url): url is string => !!url),
+          ),
+        ];
+        await Promise.all(
+          urls.map(async (url) => {
+            const hidden = await githubPrivateForUrl(url);
+            if (hidden == null) return;
+            for (const [key, hit] of githubCache) {
+              if (hit.url !== url || hit.private === hidden) continue;
+              githubCache.set(key, { ...hit, private: hidden });
+              dirty = true;
+            }
+          }),
+        );
       }
     } catch {
       /* list must stay available when a host read fails */
     }
+    return dirty;
   };
   const scheduleGithubRefresh = (
     connected: Set<string>,
@@ -757,9 +793,11 @@ export default async function plugin(bb: BbPluginApi) {
     for (const [hostId, paths] of byHost) {
       if (!paths.length || githubRefreshing.has(hostId)) continue;
       githubRefreshing.add(hostId);
-      void refreshGithubHost(hostId, paths).finally(() =>
-        githubRefreshing.delete(hostId),
-      );
+      void refreshGithubHost(hostId, paths)
+        .then((dirty) => {
+          if (dirty) notifyGithubChange();
+        })
+        .finally(() => githubRefreshing.delete(hostId));
     }
   };
   /** Where custom rules apply: the AGENTS.md files, BB sessions, or both. */
@@ -1396,6 +1434,7 @@ export default async function plugin(bb: BbPluginApi) {
     return p;
   }
   const changed = () => bb.realtime.publish("changed", {});
+  notifyGithubChange = changed;
   const agentsFile = (f: Folder) => path.join(f.path, "AGENTS.md");
   const isMissing = (e: unknown) =>
     /not.found|ENOENT|does not exist/i.test(String(e));

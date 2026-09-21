@@ -78,12 +78,48 @@ async function originAtGitDir(gitdir: string): Promise<string | null> {
   }
 }
 
+/** Walk toward the filesystem root so a section inside a checkout still finds origin. */
 export async function githubUrlForPath(folderPath: string): Promise<string | null> {
   try {
     if (!folderPath) return null;
-    const dir = await gitDir(folderPath);
-    if (!dir) return null;
-    return parseGithubRemote(await originAtGitDir(dir));
+    let current = path.resolve(folderPath);
+    const root = path.parse(current).root;
+    for (let i = 0; i < 16; i++) {
+      const dir = await gitDir(current);
+      if (dir) return parseGithubRemote(await originAtGitDir(dir));
+      if (current === root) return null;
+      const parent = path.dirname(current);
+      if (parent === current) return null;
+      current = parent;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when GitHub hides the repo from an anonymous request (private or missing). */
+export async function githubPrivateForUrl(
+  url: string,
+): Promise<boolean | null> {
+  const parsed = url.match(/^https:\/\/github\.com\/([^/]+)\/([^/]+)$/i);
+  if (!parsed?.[1] || !parsed[2]) return null;
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${parsed[1]}/${parsed[2]}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "bb-plugin-project-folders",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        signal: AbortSignal.timeout(4000),
+      },
+    );
+    if (res.status === 200) return false;
+    if (res.status === 404) return true;
+    return null;
   } catch {
     return null;
   }

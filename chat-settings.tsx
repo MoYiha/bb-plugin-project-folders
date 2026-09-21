@@ -121,6 +121,22 @@ export function ChatSettings() {
             onCommit={(limit) => update({ limit })}
           />
         </SettingRow>
+        <SettingRow
+          label={t("Скрывать чаты без обращения, часов")}
+          hint={t(
+            "Чаты, к которым не заходили дольше этого времени, прячутся под «Показать все». Ноль — не скрывать по сроку. Закреплённые, непрочитанные и работающие чаты остаются.",
+          )}
+          htmlFor="pf-set-idle"
+        >
+          <NumberInput
+            id="pf-set-idle"
+            value={settings.hideIdleHours}
+            min={0}
+            max={720}
+            step={1}
+            onCommit={(hideIdleHours) => update({ hideIdleHours })}
+          />
+        </SettingRow>
       </SettingsGroup>
       <SettingsGroup title={t("Сворачивание разделов")}>
         <SettingRow
