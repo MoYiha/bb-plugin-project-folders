@@ -321,7 +321,6 @@
   "Все": "Alle",
   "Только выбранные: {n}": "Nur ausgewählte: {n}",
   "Все, кроме: {n}": "Alle außer: {n}",
-  "Личные правила BB": "Persönliche BB-Regeln",
   "Подключать": "Einbeziehen",
   "Не подключать": "Weglassen",
   "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.": "Gilt für neue Sitzungen. Claude Code und Codex beachten alle Gruppen, OpenCode alles außer CLI-Plugins, Cursor nur BB-Plugins.",
@@ -335,5 +334,9 @@
   "Какие плагины, навыки и MCP получает сессия агента.": "Welche Plugins, Skills und MCP eine Agentensitzung erhält.",
   "По умолчанию для всех проектов": "Standard für alle Projekte",
   "Действует, пока проект или раздел не задал своё. Группа «Наследовать» оставляет обычную загрузку BB.": "Gilt, bis ein Projekt oder Bereich etwas Eigenes festlegt. Eine Gruppe auf „Erben“ behält das übliche Laden von BB.",
-  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "Was eine hier gestartete Agentensitzung lädt: BB-Plugins, Skills, MCP-Server und CLI-Plugins. Eine Gruppe ohne eigenen Wert wird geerbt: vom nächsten Bereich darüber, dann vom Projekt, dann von den Plugin-Einstellungen."
+  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "Was eine hier gestartete Agentensitzung lädt: BB-Plugins, Skills, MCP-Server und CLI-Plugins. Eine Gruppe ohne eigenen Wert wird geerbt: vom nächsten Bereich darüber, dann vom Projekt, dann von den Plugin-Einstellungen.",
+  "Общие инструкции BB": "Allgemeine BB-Anweisungen",
+  "Файл {path}: BB добавляет его текст в каждую сессию.": "Datei {path}: BB fügt ihren Text jeder Sitzung hinzu.",
+  "Сейчас этого файла нет, выключать нечего.": "Diese Datei gibt es gerade nicht, es gibt nichts abzuschalten.",
+  "по умолчанию BB": "BB-Standard"
 }

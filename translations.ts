@@ -417,7 +417,6 @@ export const english = {
   Все: "All",
   "Только выбранные: {n}": "Only selected: {n}",
   "Все, кроме: {n}": "All except: {n}",
-  "Личные правила BB": "Personal BB rules",
   Подключать: "Include",
   "Не подключать": "Leave out",
   "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.":
@@ -436,4 +435,10 @@ export const english = {
     "Applies until a project or section sets its own. An “Inherit” group keeps BB's usual loading.",
   "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.":
     "What an agent session started here loads: BB plugins, skills, MCP servers and CLI plugins. A group without its own value is inherited: the nearest section above, then the project, then the plugin settings.",
+  "Общие инструкции BB": "BB-wide instructions",
+  "Файл {path}: BB добавляет его текст в каждую сессию.":
+    "File {path}: BB adds its text to every session.",
+  "Сейчас этого файла нет, выключать нечего.":
+    "The file does not exist right now, so there is nothing to turn off.",
+  "по умолчанию BB": "BB default",
 } as const;

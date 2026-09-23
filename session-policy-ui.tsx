@@ -18,6 +18,7 @@ import { Input } from "./components/ui/input";
 
 type Loaded = {
   own: SessionPolicy;
+  userInstructionsFile: { path: string; exists: boolean };
   inherited: ResolvedSessionPolicy;
   effective: ResolvedSessionPolicy;
 };
@@ -74,7 +75,7 @@ const groupMeta = (group: SessionPolicyGroup) =>
   })[group];
 
 function originLabel(origin: PolicyOrigin | undefined, scope: ExecutionScope) {
-  if (!origin) return t("как в BB");
+  if (!origin) return t("по умолчанию BB");
   if (origin.scope === "global") return t("из настроек плагина");
   if (origin.scope === "project") return t("из проекта");
   return scope.kind === "folder" && origin.folderId === scope.folderId
@@ -178,16 +179,21 @@ export function SessionPolicyEditor({ scope }: { scope: ExecutionScope }) {
       ))}
       <div className="pf-exec-row">
         <div className="pf-exec-text pf-exec-text-switchless">
-          <span>{t("Личные правила BB")}</span>
+          <span>{t("Общие инструкции BB")}</span>
           <span className="pf-exec-from">
-            {draft.userInstructions === undefined
-              ? originLabel(inheritedInstructions?.origin, scope)
-              : ""}
+            {t("Файл {path}: BB добавляет его текст в каждую сессию.").replace(
+              "{path}",
+              state.userInstructionsFile.path,
+            )}
+            {!state.userInstructionsFile.exists &&
+              ` ${t("Сейчас этого файла нет, выключать нечего.")}`}
+            {draft.userInstructions === undefined &&
+              ` · ${originLabel(inheritedInstructions?.origin, scope)}`}
           </span>
         </div>
         <select
           className="pf-select"
-          aria-label={t("Личные правила BB")}
+          aria-label={t("Общие инструкции BB")}
           disabled={busy}
           value={
             draft.userInstructions === undefined

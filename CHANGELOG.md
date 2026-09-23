@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+
+- **The session switch for `<dataDir>/AGENTS.md` says what it is.** “Personal BB rules” is now **BB-wide instructions**, with the file's path on the BB server and a note when the file does not exist. Groups with no rule anywhere read **BB default** instead of “as in BB”.
+
 ## 0.6.0
 
 - **Session context, on BB builds that support it.** A new settings section and a block on every project and section card choose which BB plugins, skills, MCP servers and CLI plugins an agent session loads, and whether personal `<dataDir>/AGENTS.md` rules apply. Groups inherit one at a time from the section above, the project and the plugin. The rules reach core through the experimental `bb.agents.experimental_vkSessionPolicy`; the editor lists names found on the section's machine. On stock BB the API is absent, the UI stays hidden and nothing is sent.

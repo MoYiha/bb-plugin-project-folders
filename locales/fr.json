@@ -321,7 +321,6 @@
   "Все": "Tous",
   "Только выбранные: {n}": "Seulement la sélection : {n}",
   "Все, кроме: {n}": "Tous sauf : {n}",
-  "Личные правила BB": "Règles personnelles BB",
   "Подключать": "Inclure",
   "Не подключать": "Ne pas inclure",
   "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.": "S’applique aux nouvelles sessions. Claude Code et Codex respectent tous les groupes, OpenCode tout sauf les plugins du CLI, Cursor seulement les plugins BB.",
@@ -335,5 +334,9 @@
   "Какие плагины, навыки и MCP получает сессия агента.": "Quels plugins, compétences et MCP reçoit la session de l’agent.",
   "По умолчанию для всех проектов": "Par défaut pour tous les projets",
   "Действует, пока проект или раздел не задал своё. Группа «Наследовать» оставляет обычную загрузку BB.": "S’applique tant que le projet ou la section n’a pas fixé le sien. Un groupe sur « Hériter » garde le chargement habituel de BB.",
-  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "Ce que charge une session d’agent lancée ici : plugins BB, compétences, serveurs MCP et plugins du CLI. Un groupe sans valeur propre est hérité : la section la plus proche au-dessus, puis le projet, puis les réglages du plugin."
+  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "Ce que charge une session d’agent lancée ici : plugins BB, compétences, serveurs MCP et plugins du CLI. Un groupe sans valeur propre est hérité : la section la plus proche au-dessus, puis le projet, puis les réglages du plugin.",
+  "Общие инструкции BB": "Instructions générales de BB",
+  "Файл {path}: BB добавляет его текст в каждую сессию.": "Fichier {path} : BB ajoute son texte à chaque session.",
+  "Сейчас этого файла нет, выключать нечего.": "Ce fichier n’existe pas pour l’instant, il n’y a rien à désactiver.",
+  "по умолчанию BB": "par défaut de BB"
 }

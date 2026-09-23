@@ -1,4 +1,6 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type Database from "better-sqlite3";
 import { moveHostContract } from "./move-contract";
 import { within } from "./move-files";
@@ -147,8 +149,12 @@ export function makeSessionPolicies(args: {
         scope.kind === "global"
           ? []
           : layers(place.folder, scope.projectId, true);
+      // The BB-wide instructions file the "user instructions" switch governs:
+      // shown by path, and flagged when there is nothing to switch off.
+      const file = path.join(bb.server.experimental_dataDir, "AGENTS.md");
       return {
         own,
+        userInstructionsFile: { path: file, exists: existsSync(file) },
         inherited: resolveSessionPolicy(parents),
         effective: resolveSessionPolicy([
           { origin: origin(scope), value: own },

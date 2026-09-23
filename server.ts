@@ -466,6 +466,7 @@ export const rpcContract = defineRpcContract({
     input: z.object({ scope: executionScopeSchema }),
     output: z.object({
       own: sessionPolicySchema,
+      userInstructionsFile: z.object({ path: z.string(), exists: z.boolean() }),
       inherited: resolvedSessionPolicySchema,
       effective: resolvedSessionPolicySchema,
     }),

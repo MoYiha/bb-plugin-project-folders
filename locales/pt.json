@@ -321,7 +321,6 @@
   "Все": "Todos",
   "Только выбранные: {n}": "Só os escolhidos: {n}",
   "Все, кроме: {n}": "Todos exceto: {n}",
-  "Личные правила BB": "Regras pessoais do BB",
   "Подключать": "Incluir",
   "Не подключать": "Não incluir",
   "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.": "Vale para novas sessões. Claude Code e Codex respeitam todos os grupos, OpenCode tudo menos os plugins da CLI, Cursor só os plugins do BB.",
@@ -335,5 +334,9 @@
   "Какие плагины, навыки и MCP получает сессия агента.": "Quais plugins, habilidades e MCP a sessão do agente recebe.",
   "По умолчанию для всех проектов": "Padrão para todos os projetos",
   "Действует, пока проект или раздел не задал своё. Группа «Наследовать» оставляет обычную загрузку BB.": "Vale enquanto o projeto ou a seção não definir o seu. Um grupo em “Herdar” mantém o carregamento normal do BB.",
-  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "O que uma sessão de agente iniciada aqui carrega: plugins do BB, habilidades, servidores MCP e plugins da CLI. Um grupo sem valor próprio é herdado: a seção mais próxima acima, depois o projeto, depois as configurações do plugin."
+  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.": "O que uma sessão de agente iniciada aqui carrega: plugins do BB, habilidades, servidores MCP e plugins da CLI. Um grupo sem valor próprio é herdado: a seção mais próxima acima, depois o projeto, depois as configurações do plugin.",
+  "Общие инструкции BB": "Instruções gerais do BB",
+  "Файл {path}: BB добавляет его текст в каждую сессию.": "Arquivo {path}: o BB adiciona o texto dele a cada sessão.",
+  "Сейчас этого файла нет, выключать нечего.": "Esse arquivo não existe agora, não há nada para desligar.",
+  "по умолчанию BB": "padrão do BB"
 }
