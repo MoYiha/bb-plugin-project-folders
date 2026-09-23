@@ -781,6 +781,25 @@ describe("AGENTS.md template", () => {
     }
   });
 
+  it("rules_read returns file text when files.read yields a string", async () => {
+    const h = await setup();
+    try {
+      h.harness.inspection.sdk.stub("files.read", async (args) => {
+        if (String(args.path).endsWith("CLAUDE.md"))
+          return "# Claude from string\n";
+        return "# Agents from string\n";
+      });
+      const read = (await h.harness.behavior.callRpc("rules_read", {
+        projectId: "p1",
+        folderId: null,
+      })) as { content: string; claude: string | null };
+      expect(read.content).toBe("# Agents from string\n");
+      expect(read.claude).toBe("# Claude from string\n");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
   it("writes nothing when a folder is kept on its own file", async () => {
     const h = await setup();
     try {

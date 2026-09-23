@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.6
+
+- **Working rules no longer dump the file over the chat.** Right-click → Working rules put `CLAUDE.md` in an unbounded preview. The Own file tab now edits `AGENTS.md` and `CLAUDE.md` in capped fields, and `rules_read` accepts either a string or `{ content }` from `files.read`.
+
 ## 0.5.5
 
 - **Chats nobody opened for 48 hours hide under Show all.** Each section still respects the count limit; pinned, unread, busy and the open chat stay in the short list. The hours are a chat-list setting (0 turns the age rule off).

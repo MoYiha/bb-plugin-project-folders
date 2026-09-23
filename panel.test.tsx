@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeAll, afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { loadPluginApp, renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { installTestMatchMedia, setCompactViewport } from "./test-match-media";
 let app: Awaited<ReturnType<typeof loadPluginApp>>;
@@ -318,6 +318,57 @@ it("switches the project between inherited and custom rules with the mode tabs",
   ]);
   view.getByRole("tab", { name: "Own file" }).click();
   await view.findByRole("textbox", { name: /AGENTS.md contents/ });
+  view.lifecycle.unmount();
+});
+
+it("loads AGENTS.md and CLAUDE.md in the rules dialog Own file tab", async () => {
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: {
+        ...rpc,
+        rules_read: () =>
+          Promise.resolve({
+            content: "dialog agents",
+            claude: "dialog claude",
+            sha: null,
+            path: "/work/Section/AGENTS.md",
+            mode: "manual",
+            template: "",
+            projectTemplate: "",
+            custom: "",
+            customTarget: "session" as const,
+            startup: "",
+            suggestedSection: "",
+            suggestedProject: "",
+          }),
+        rules_save: () => Promise.resolve({ ok: true as const }),
+        rules_settings_save: () => Promise.resolve({ ok: true as const }),
+      },
+    },
+  );
+  await view.findByText("Project");
+  view.getByText("Section").click();
+  fireEvent.click(await view.findByRole("button", { name: "Rules" }));
+  const dialog = await view.findByRole("dialog");
+  await within(dialog).findByRole("tab", { name: "Own file" });
+  expect(
+    (
+      within(dialog).getByRole("textbox", {
+        name: "AGENTS.md contents",
+      }) as HTMLTextAreaElement
+    ).value,
+  ).toBe("dialog agents");
+  expect(
+    (
+      within(dialog).getByRole("textbox", { name: "CLAUDE.md" }) as HTMLTextAreaElement
+    ).value,
+  ).toBe("dialog claude");
+  fireEvent.click(within(dialog).getByRole("tab", { name: "Custom template" }));
+  expect(
+    within(dialog).queryByRole("textbox", { name: "AGENTS.md contents" }),
+  ).toBe(null);
   view.lifecycle.unmount();
 });
 

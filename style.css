@@ -484,7 +484,7 @@
 .pf-root-copies + .pf-details-actions {
   margin-top: 14px;
 }
-.pf-agents-preview {
+.pf-file-editors {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -493,21 +493,14 @@
   border-radius: 8px;
   margin-bottom: 12px;
 }
-.pf-agents-preview > p {
+.pf-file-editors > p {
   margin: 0;
 }
-.pf-agents-preview summary {
-  cursor: pointer;
-  font-weight: 500;
-}
-.pf-agents-preview .pf-rules-preview {
-  max-height: 260px;
+.pf-file-editors .pf-rules {
+  max-height: 240px;
   overflow: auto;
-  white-space: pre-wrap;
-  font-size: 12px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--accent);
+  resize: vertical;
+  field-sizing: fixed;
 }
 .pf-side-row.pf-drop-above {
   box-shadow: inset 0 2px 0 0 var(--ink);
@@ -611,6 +604,8 @@
 }
 .pf-dialog {
   max-width: 520px;
+  max-height: min(85vh, 720px);
+  overflow: auto;
 }
 .pf-field {
   display: block;

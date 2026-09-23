@@ -557,12 +557,22 @@ function FolderDialog({
           files: projectFiles,
         });
       else {
-        await rpc.call("rules_save", {
+        const at = {
           ...modal.target,
+          ...(rulesHost ? { hostId: rulesHost } : {}),
+        };
+        await rpc.call("rules_save", {
+          ...at,
           content,
           sha,
-          ...(rulesHost ? { hostId: rulesHost } : {}),
         });
+        if (claude !== null)
+          await rpc.call("rules_save", {
+            ...at,
+            content: claude,
+            sha: null,
+            file: "CLAUDE.md",
+          });
         if (dialogRules)
           await rpc.call("rules_settings_save", {
             projectId: modal.target.projectId,
@@ -867,23 +877,6 @@ function FolderDialog({
                     ))}
                   </div>
                 )}
-                <p className="pf-folder-path">
-                  {(ruleCopies?.find((c) => c.hostId === rulesHost)?.path ??
-                    modal.folder.path) + "/AGENTS.md"}
-                </p>
-                <textarea
-                  className="pf-rules"
-                  aria-label={t("Правила AGENTS.md")}
-                  rows={10}
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                />
-                {claude !== null && (
-                  <div className="mt-3">
-                    <p className="pf-agents-hint">CLAUDE.md</p>
-                    <pre className="pf-rules-preview">{claude}</pre>
-                  </div>
-                )}
                 {dialogRules && (
                   <div className="pf-agents-override">
                     <RuleFields
@@ -893,6 +886,37 @@ function FolderDialog({
                       }
                       showProject={!modal.target.folderId}
                       namePrefix="pf-dialog"
+                      fileSlot={
+                        loading ? (
+                          <p className="pf-agents-hint">{t("Загрузка…")}</p>
+                        ) : (
+                          <div className="pf-file-editors">
+                            <p className="pf-folder-path">
+                              {ruleCopies?.find((c) => c.hostId === rulesHost)
+                                ?.path ?? modal.folder.path}
+                            </p>
+                            <textarea
+                              className="pf-rules"
+                              aria-label={t("Содержимое AGENTS.md")}
+                              rows={10}
+                              value={content}
+                              onChange={(e) => setContent(e.target.value)}
+                            />
+                            {claude !== null && (
+                              <label className="pf-field">
+                                CLAUDE.md
+                                <textarea
+                                  className="pf-rules"
+                                  aria-label="CLAUDE.md"
+                                  rows={8}
+                                  value={claude}
+                                  onChange={(e) => setClaude(e.target.value)}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        )
+                      }
                     />
                     <p className="pf-agents-hint">
                       {t(
@@ -3600,7 +3624,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
   };
   // AGENTS.md and CLAUDE.md of the selected copy: the files the agents read.
   const fileEditors = (
-    <div className="pf-agents-preview" key={cardHost}>
+    <div className="pf-file-editors" key={cardHost}>
       <label className="pf-field">
         AGENTS.md · {machineName(cardHost)}
         {cardDraft === null ? (

@@ -2580,18 +2580,7 @@ export default async function plugin(bb: BbPluginApi) {
       const folderOverride = input.folderId ? folderRule(f.id) : undefined;
       const projectOverride = projectRule(f.projectId);
       const s = shared;
-      let content: string | null = null;
-      try {
-        content = (
-          await bb.sdk.files.read({
-            hostId: f.hostId,
-            path: p,
-            rootPath: f.path,
-          })
-        ).content;
-      } catch (e) {
-        if (!isMissing(e)) throw e;
-      }
+      const content = await readAgents(f);
       const mode = await ruleMode(f, !input.folderId, content);
       const storedSection =
         folderOverride?.template ?? projectOverride?.sectionTemplate ?? "";
@@ -3409,12 +3398,15 @@ export default async function plugin(bb: BbPluginApi) {
             if (inline !== undefined) return inline;
             const file = flag(`${name}-file`);
             if (file === undefined) return undefined;
-            const read = await bb.sdk.files.read({
+            const raw: unknown = await bb.sdk.files.read({
               hostId,
               path: file,
               rootPath: root,
             });
-            return read.content;
+            return typeof raw === "string"
+              ? raw
+              : ((raw as { content?: string } | undefined)?.content ??
+                  undefined);
           };
           const sub = args[1] === "set" ? "set" : "show";
           const at = {
