@@ -46,10 +46,28 @@ export async function sessionInventory(
   const claudeSettings = await readJson(
     path.join(home, ".claude", "settings.json"),
   );
+  const installed = asObject(
+    (
+      await readJson(
+        path.join(home, ".claude", "plugins", "installed_plugins.json"),
+      )
+    ).plugins,
+  );
   for (const [id, on] of Object.entries(
     asObject(claudeSettings.enabledPlugins),
-  ))
-    if (on === true) add(plugins, id, "claude");
+  )) {
+    if (on !== true) continue;
+    add(plugins, id, "claude");
+    // Servers an enabled Claude plugin ships: its .mcp.json.
+    const installs = installed[id];
+    const installPath = Array.isArray(installs)
+      ? asObject(installs[0]).installPath
+      : undefined;
+    if (typeof installPath !== "string") continue;
+    const shipped = await readJson(path.join(installPath, ".mcp.json"));
+    for (const name of Object.keys(asObject(shipped.mcpServers)))
+      add(mcp, name, "claude");
+  }
 
   const codexHome = process.env.CODEX_HOME || path.join(home, ".codex");
   const codexConfig = await readText(path.join(codexHome, "config.toml"));

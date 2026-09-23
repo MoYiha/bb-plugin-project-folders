@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.3
+
+- **MCP servers of Claude plugins are offered in the editor.** The machine inventory reads the `.mcp.json` of every enabled Claude plugin (agentmemory, winnow…). With BB core `vk.5` an allow list can keep such a server on its own.
+
 ## 0.6.2
 
 - **Cursor honors the MCP group too.** With the matching BB core (`vk.4`) a Cursor (and Grok) session drops MCP servers the rules exclude; the hint next to the editor says so.
