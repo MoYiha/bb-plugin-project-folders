@@ -1,5 +1,9 @@
 import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
+import {
+  sessionInventoryInput,
+  sessionInventoryOutput,
+} from "./session-inventory";
 export const moveInput = z
   .object({ source: z.string().min(1), destination: z.string().min(1) })
   .strict();
@@ -36,6 +40,10 @@ export const moveHostContract = defineRpcContract({
       destination: z.string(),
       moved: z.boolean(),
     }),
+  },
+  session_inventory: {
+    input: sessionInventoryInput,
+    output: sessionInventoryOutput,
   },
   github_remotes: {
     input: z.object({ paths: z.array(z.string()) }).strict(),

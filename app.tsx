@@ -21,6 +21,10 @@ import {
   useFolderLook,
 } from "./appearance";
 import { Help, RuleFields, type RuleDraft } from "./agents-apply";
+import {
+  SessionPolicyEditor,
+  useSessionPolicyAvailable,
+} from "./session-policy-ui";
 import { ExecutionEditor } from "./execution-ui";
 import {
   ComposerProjectChip,
@@ -2842,6 +2846,7 @@ function ArchiveList({ bare = false }: { bare?: boolean }) {
 }
 function Panel({ subPath }: PluginNavPanelProps) {
   const { rpc, data, error, refresh } = useTree();
+  const sessionPolicyAvailable = useSessionPolicyAvailable();
   const [submitError, setSubmitError] = useState("");
   const composeRef = useRef<HTMLDivElement>(null);
   const [projectSlot, setProjectSlot] = useState<{
@@ -3565,7 +3570,15 @@ function Panel({ subPath }: PluginNavPanelProps) {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sel?.projectId, sel?.id, selRoot, selRulesAllowed, cardHost, cardCopy, rpc]);
+  }, [
+    sel?.projectId,
+    sel?.id,
+    selRoot,
+    selRulesAllowed,
+    cardHost,
+    cardCopy,
+    rpc,
+  ]);
   const saveCardRules = async (file: "AGENTS.md" | "CLAUDE.md") => {
     if (!sel) return;
     const draft = file === "AGENTS.md" ? cardDraft : cardClaudeDraft;
@@ -4120,6 +4133,29 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 />
               </h3>
               <ExecutionEditor
+                scope={
+                  selRoot
+                    ? { kind: "project", projectId: sel.projectId }
+                    : {
+                        kind: "folder",
+                        projectId: sel.projectId,
+                        folderId: sel.id,
+                      }
+                }
+              />
+            </div>
+          )}
+          {sel && !selGroup && sessionPolicyAvailable && (
+            <div className="pf-agents-rule">
+              <h3>
+                {t("Контекст сессии")}
+                <Help
+                  text={t(
+                    "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.",
+                  )}
+                />
+              </h3>
+              <SessionPolicyEditor
                 scope={
                   selRoot
                     ? { kind: "project", projectId: sel.projectId }

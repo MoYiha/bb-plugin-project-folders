@@ -25,6 +25,7 @@
 - [Appearance](#appearance)
 - [AGENTS.md rules](#agentsmd-rules)
 - [Provider, model and agent](#provider-model-and-agent)
+- [Session context](#session-context)
 - [Section archive](#section-archive)
 - [Import and export](#import-and-export)
 - [Language](#language)
@@ -68,6 +69,7 @@ What you get from that:
 | New chats           | Chat-plus button per project or section; the composer gets a project/section picker                                                                                                 |
 | Rules               | AGENTS.md templates for projects and sections, per-project and per-section overrides, own-file mode, custom rules into files or into BB sessions, a one-shot startup instruction    |
 | Provider and agent  | Pin the provider, model, reasoning level, service tier, permission mode and — with CLI Agents — the session agent on the plugin, a project or any section; inherited group by group |
+| Session context     | Experimental core only: narrow the BB plugins, skills, MCP servers and CLI plugins a session loads, per plugin, project or section                                                  |
 | Appearance          | 118 icons in 7 groups or any emoji, 12 colors or a custom one, 4 fill styles, 4 presets, color by level or by project, per-item looks with inheritance                              |
 | Archive             | Archive a section with nested sections, files and chats; restore it to the same path                                                                                                |
 | Devices             | One project with a working copy on each connected machine                                                                                                                           |
@@ -278,6 +280,24 @@ Any place in the tree can pin what its chats start with — the plugin as a whol
 The three groups are inherited one at a time, and the nearest place wins: a section can take its project's model and still pin its own agent, or set **No agent** to refuse the one its project pinned. A group left off falls through to the section above, then the project, then the plugin, then BB's own remembered choice. Nothing is written to disk, and nothing changes BB's defaults.
 
 They are seeds, not locks. The composer opens with them filled in, and its own controls still win for that one chat. A pinned agent is bound to the chat it was created for, so two chats started at the same moment never take each other's agent, and an agent chosen by hand in the composer wins over the pinned one. When a pinned agent cannot be applied — the machine is offline, the agent was renamed, CLI Agents is off — the chat is not created and the message says which place pinned what. Switching the composer to a CLI without session agents is not an error: the agent simply does not apply, because it belongs to its own CLI.
+
+## Session context
+
+> [!NOTE]
+> Experimental. This needs a BB build with the VK session-policy extension (`bb.agents.experimental_vkSessionPolicy`). On stock BB the section is hidden and the plugin sends nothing.
+
+By default an agent session loads everything installed: every BB plugin's instructions and tools, a few hundred skills, every MCP server of the CLI. A section for copywriting does not need the SEO toolkit, and a research section does not need Discord.
+
+The plugin (**Settings → Session context**), a project and any section, on its card, can narrow four groups:
+
+- **BB plugins** — their instructions, agent tools and skills.
+- **Skills** — by name, BB skills and the CLI's own ones; a trailing `*` matches a prefix (`lane-stack:*`).
+- **MCP servers** — the ones the CLI loads from its settings on the machine.
+- **CLI plugins** — Claude Code and Codex plugins.
+
+Each group is **Inherit**, **All**, **Only selected** or **All except selected**. The editor offers names found on the section's machine; any other name can be typed in. **Personal BB rules** turns the `<dataDir>/AGENTS.md` instructions on or off. Groups are inherited one at a time, like the provider and model: the nearest section, then the project, then the plugin. **All** lifts a restriction a parent set.
+
+How far a rule reaches depends on the CLI: Claude Code and Codex honor every group, OpenCode everything except CLI plugins, Cursor (and Grok models run through it) only BB plugins. The rules apply when a session is built, so a running chat picks them up on its next session start.
 
 ## Section archive
 

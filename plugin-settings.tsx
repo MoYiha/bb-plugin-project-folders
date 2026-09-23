@@ -6,12 +6,17 @@ import { AppearanceSettings, TransferSettings } from "./appearance";
 import { AgentsMarkersHint, AgentsRulesEditor } from "./agents-apply";
 import { ExecutionSettings } from "./execution-ui";
 import { SettingRow, SettingsGroup } from "./settings-ui";
+import {
+  SessionPolicyEditor,
+  useSessionPolicyAvailable,
+} from "./session-policy-ui";
 
 export const SETTINGS_SECTIONS = [
   "list",
   "appearance",
   "rules",
   "execution",
+  "session",
   "archive",
   "transfer",
   "language",
@@ -42,6 +47,11 @@ const meta = (section: SettingsSection) =>
       title: t("Провайдер и агент"),
       hint: t("С чего начинается новый чат, если проект и раздел молчат."),
     },
+    session: {
+      icon: "Layers",
+      title: t("Контекст сессии"),
+      hint: t("Какие плагины, навыки и MCP получает сессия агента."),
+    },
     archive: {
       icon: "Archive",
       title: t("Архив разделов"),
@@ -69,9 +79,13 @@ export function SettingsNav({
   onChange: (section: SettingsSection) => void;
   variant: "rail" | "side";
 }) {
+  // Session context rules need an experimental BB core; hide them elsewhere.
+  const sessionPolicyAvailable = useSessionPolicyAvailable();
   return (
     <ul className={`pf-snav pf-snav-${variant}`} role="list">
-      {SETTINGS_SECTIONS.map((id) => {
+      {SETTINGS_SECTIONS.filter(
+        (id) => id !== "session" || sessionPolicyAvailable,
+      ).map((id) => {
         const m = meta(id);
         return (
           <li key={id}>
@@ -132,6 +146,16 @@ export function SettingsPane({
           )}
         >
           <ExecutionSettings />
+        </SettingsGroup>
+      )}
+      {section === "session" && (
+        <SettingsGroup
+          title={t("По умолчанию для всех проектов")}
+          hint={t(
+            "Действует, пока проект или раздел не задал своё. Группа «Наследовать» оставляет обычную загрузку BB.",
+          )}
+        >
+          <SessionPolicyEditor scope={{ kind: "global" }} />
         </SettingsGroup>
       )}
       {section === "archive" && archive}

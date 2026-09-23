@@ -15,6 +15,11 @@ import {
 import type { NewThreadRequest } from "@get-bb/plugin-sdk/app";
 import { z } from "zod";
 import { makeArchives, archiveSchema } from "./archive";
+import { makeSessionPolicies } from "./session-policy-server";
+import {
+  resolvedSessionPolicySchema,
+  sessionPolicySchema,
+} from "./session-policy";
 import { deleteProject } from "./project-delete";
 import {
   AGENTS_BLOCK_END,
@@ -452,6 +457,33 @@ export const rpcContract = defineRpcContract({
     input: z.object({ scope: executionScopeSchema, value: executionSchema }),
     output: z.object({ ok: z.literal(true) }),
   },
+  /** Whether the running BB can enforce session context rules at all. */
+  session_policy_capability: {
+    input: z.null(),
+    output: z.object({ available: z.boolean() }),
+  },
+  session_policy_read: {
+    input: z.object({ scope: executionScopeSchema }),
+    output: z.object({
+      own: sessionPolicySchema,
+      inherited: resolvedSessionPolicySchema,
+      effective: resolvedSessionPolicySchema,
+    }),
+  },
+  session_policy_save: {
+    input: z.object({
+      scope: executionScopeSchema,
+      value: sessionPolicySchema,
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  session_policy_inventory: {
+    input: z.object({ scope: executionScopeSchema }),
+    output: z.record(
+      z.enum(["bbPlugins", "skills", "mcpServers", "nativePlugins"]),
+      z.array(z.object({ name: z.string(), label: z.string() })),
+    ),
+  },
   section_pick: {
     input: z.object({
       projectId: z.string().min(1),
@@ -641,6 +673,8 @@ export default async function plugin(bb: BbPluginApi) {
     // Provider, model, permissions and agent a new chat starts with.
     // Key 'g' is the plugin-wide default, p:<project> and f:<folder> override it.
     `CREATE TABLE execution_defaults (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    // Session context rules (plugins, skills, MCP, CLI plugins); same keys.
+    `CREATE TABLE session_policies (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -776,10 +810,7 @@ export default async function plugin(bb: BbPluginApi) {
     }
     return dirty;
   };
-  const scheduleGithubRefresh = (
-    connected: Set<string>,
-    items: Folder[],
-  ) => {
+  const scheduleGithubRefresh = (connected: Set<string>, items: Folder[]) => {
     const byHost = new Map<string, string[]>();
     const now = Date.now();
     for (const f of items) {
@@ -1919,7 +1950,24 @@ export default async function plugin(bb: BbPluginApi) {
         }
       : { action: "proceed" };
   });
+  const sessionPolicies = makeSessionPolicies({
+    bb,
+    db,
+    folders,
+    canonicalPath,
+    place: executionPlace,
+  });
   const handlers: PluginRpcHandlers<typeof rpcContract> = {
+    session_policy_capability: () => ({
+      available: sessionPolicies.available,
+    }),
+    session_policy_read: ({ scope }) => sessionPolicies.read(scope),
+    session_policy_save: async ({ scope, value }) => {
+      await sessionPolicies.save(scope, value);
+      changed();
+      return { ok: true as const };
+    },
+    session_policy_inventory: ({ scope }) => sessionPolicies.inventory(scope),
     thread_move: async (input) => {
       const result = await threadMoves.move(input);
       await sync(input.threadId);

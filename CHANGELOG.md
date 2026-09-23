@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- **Session context, on BB builds that support it.** A new settings section and a block on every project and section card choose which BB plugins, skills, MCP servers and CLI plugins an agent session loads, and whether personal `<dataDir>/AGENTS.md` rules apply. Groups inherit one at a time from the section above, the project and the plugin. The rules reach core through the experimental `bb.agents.experimental_vkSessionPolicy`; the editor lists names found on the section's machine. On stock BB the API is absent, the UI stays hidden and nothing is sent.
+
 ## 0.5.6
 
 - **Working rules no longer dump the file over the chat.** Right-click → Working rules put `CLAUDE.md` in an unbounded preview. The Own file tab now edits `AGENTS.md` and `CLAUDE.md` in capped fields, and `rules_read` accepts either a string or `{ content }` from `files.read`.

@@ -1798,3 +1798,46 @@
   height: 14px;
   flex: none;
 }
+/* Session context rules: no switches here, so rows start at the edge. */
+.pf-session-rows .pf-exec-text-switchless {
+  margin-left: 0;
+}
+.pf-session-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-session-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.pf-session-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pf-session-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pf-session-list label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-session-add {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}

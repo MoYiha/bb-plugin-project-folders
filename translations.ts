@@ -401,4 +401,39 @@ export const english = {
   "Чат начнётся в разделе:": "The chat will start in:",
   "Сначала выберите проект": "Choose a project first",
   "У проекта нет разделов": "This project has no sections",
+
+  // Session context rules (experimental BB core).
+  "Плагины BB": "BB plugins",
+  "Инструкции, инструменты и навыки плагинов BB.":
+    "Instructions, tools and skills of BB plugins.",
+  Навыки: "Skills",
+  "Навыки BB и собственные навыки CLI по имени.":
+    "BB skills and the CLI's own skills, by name.",
+  "MCP-серверы": "MCP servers",
+  "Серверы из настроек CLI на машине.":
+    "Servers from the CLI settings on the machine.",
+  "Плагины CLI": "CLI plugins",
+  "Плагины Claude Code и Codex.": "Claude Code and Codex plugins.",
+  Все: "All",
+  "Только выбранные: {n}": "Only selected: {n}",
+  "Все, кроме: {n}": "All except: {n}",
+  "Личные правила BB": "Personal BB rules",
+  Подключать: "Include",
+  "Не подключать": "Leave out",
+  "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.":
+    "Applies to new sessions. Claude Code and Codex honor every group, OpenCode everything except CLI plugins, Cursor only BB plugins.",
+  "Только выбранные": "Only selected",
+  "Все, кроме выбранных": "All except selected",
+  Поиск: "Search",
+  "Ничего не найдено": "Nothing found",
+  "Имя или шаблон с * на конце": "Name, or a pattern ending in *",
+  "Добавить имя": "Add name",
+  "Контекст сессии": "Session context",
+  "Какие плагины, навыки и MCP получает сессия агента.":
+    "Which plugins, skills and MCP servers an agent session gets.",
+  "По умолчанию для всех проектов": "Default for all projects",
+  "Действует, пока проект или раздел не задал своё. Группа «Наследовать» оставляет обычную загрузку BB.":
+    "Applies until a project or section sets its own. An “Inherit” group keeps BB's usual loading.",
+  "Что загружается в сессию агента, начатую здесь: плагины BB, навыки, MCP-серверы и плагины CLI. Группа без своего значения наследуется: ближайший раздел выше, затем проект, затем настройки плагина.":
+    "What an agent session started here loads: BB plugins, skills, MCP servers and CLI plugins. A group without its own value is inherited: the nearest section above, then the project, then the plugin settings.",
 } as const;
