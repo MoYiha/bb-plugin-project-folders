@@ -218,7 +218,7 @@ export function SessionPolicyEditor({ scope }: { scope: ExecutionScope }) {
       </div>
       <p className="pf-agents-hint">
         {t(
-          "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.",
+          "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — плагины BB и MCP-серверы.",
         )}
       </p>
       <div className="pf-agents-actions">

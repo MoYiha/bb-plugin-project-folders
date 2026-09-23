@@ -323,7 +323,7 @@
   "Все, кроме: {n}": "Todos excepto: {n}",
   "Подключать": "Incluir",
   "Не подключать": "No incluir",
-  "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.": "Se aplica a sesiones nuevas. Claude Code y Codex respetan todos los grupos, OpenCode todo salvo los plugins de la CLI, Cursor solo los plugins de BB.",
+  "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — плагины BB и MCP-серверы.": "Se aplica a sesiones nuevas. Claude Code y Codex respetan todos los grupos, OpenCode todo salvo los plugins de la CLI, Cursor los plugins de BB y los servidores MCP.",
   "Только выбранные": "Solo los elegidos",
   "Все, кроме выбранных": "Todos excepto los elegidos",
   "Поиск": "Buscar",

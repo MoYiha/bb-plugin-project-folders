@@ -135,5 +135,5 @@ export const SESSION_POLICY_SUPPORT = {
   "claude-code": ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
   codex: ["bbPlugins", "skills", "mcpServers", "nativePlugins"],
   "acp-opencode": ["bbPlugins", "skills", "mcpServers"],
-  "acp-cursor": ["bbPlugins"],
+  "acp-cursor": ["bbPlugins", "mcpServers"],
 } as const satisfies Record<string, readonly SessionPolicyGroup[]>;

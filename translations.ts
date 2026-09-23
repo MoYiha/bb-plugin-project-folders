@@ -419,8 +419,8 @@ export const english = {
   "Все, кроме: {n}": "All except: {n}",
   Подключать: "Include",
   "Не подключать": "Leave out",
-  "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — только плагины BB.":
-    "Applies to new sessions. Claude Code and Codex honor every group, OpenCode everything except CLI plugins, Cursor only BB plugins.",
+  "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — плагины BB и MCP-серверы.":
+    "Applies to new sessions. Claude Code and Codex honor every group, OpenCode everything except CLI plugins, Cursor BB plugins and MCP servers.",
   "Только выбранные": "Only selected",
   "Все, кроме выбранных": "All except selected",
   Поиск: "Search",

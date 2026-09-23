@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.2
+
+- **Cursor honors the MCP group too.** With the matching BB core (`vk.4`) a Cursor (and Grok) session drops MCP servers the rules exclude; the hint next to the editor says so.
+
 ## 0.6.1
 
 - **The session switch for `<dataDir>/AGENTS.md` says what it is.** “Personal BB rules” is now **BB-wide instructions**, with the file's path on the BB server and a note when the file does not exist. Groups with no rule anywhere read **BB default** instead of “as in BB”.
