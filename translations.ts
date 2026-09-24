@@ -452,4 +452,10 @@ export const english = {
   "Сейчас этого файла нет, выключать нечего.":
     "The file does not exist right now, so there is nothing to turn off.",
   "по умолчанию BB": "BB default",
+  "Инструкции проекта": "Project instructions",
+  "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.":
+    "AGENTS.md and CLAUDE.md in the section folder and above, plus .bb/AGENTS.md. Claude Code and Codex drop them completely, OpenCode together with its project settings, Cursor does not.",
+  "Навыки и плагины из claude.ai": "Skills and plugins from claude.ai",
+  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.":
+    "What Claude Code pulls in from the claude.ai account (anthropic-skills:…). Claude Code only.",
 } as const;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4
+
+- **Two more switches in Session context.** **Project instructions** leaves out `AGENTS.md` / `CLAUDE.md` of the section folder and its parents and the workspace `.bb/AGENTS.md` (Claude Code and Codex fully, OpenCode together with its project config, not Cursor). **Skills and plugins from claude.ai** stops Claude Code syncing them from the account. Both inherit like the other groups; they need BB core `vk.6`.
+
 ## 0.6.5
 
 - **Chat sort and section sort are separate items in ⋯ and right-click.** Chats: activity, title, newest. Sections: active first or manual order.

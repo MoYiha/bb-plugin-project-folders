@@ -297,6 +297,8 @@ The plugin (**Settings → Session context**), a project and any section, on its
 
 Each group is **Inherit**, **All**, **Only selected** or **All except selected**. The editor offers names found on the section's machine; any other name can be typed in. **BB-wide instructions** turns on or off the text of `<dataDir>/AGENTS.md` on the BB server (`~/.bb/AGENTS.md`), which BB adds to every session; the card shows the path and says when the file does not exist. Without a rule it is BB's default: included. Groups are inherited one at a time, like the provider and model: the nearest section, then the project, then the plugin. **All** lifts a restriction a parent set.
 
+**Project instructions** leaves out the `AGENTS.md` and `CLAUDE.md` files of the section folder and its parents, and the workspace `.bb/AGENTS.md` (Claude Code and Codex fully, OpenCode together with its own project config, not Cursor). **Skills and plugins from claude.ai** stops Claude Code syncing them from the signed-in account.
+
 How far a rule reaches depends on the CLI: Claude Code and Codex honor every group, OpenCode everything except CLI plugins, Cursor (and Grok models run through it) BB plugins and MCP servers. The rules apply when a session is built, so a running chat picks them up on its next session start.
 
 ## Section archive

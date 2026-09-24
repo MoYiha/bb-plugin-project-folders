@@ -162,7 +162,6 @@ export function SessionPolicyEditor({ scope }: { scope: ExecutionScope }) {
       setBusy(false);
     }
   };
-  const inheritedInstructions = state.inherited.userInstructions;
   return (
     <div className="pf-exec-rows pf-session-rows">
       {SESSION_POLICY_GROUPS.map((group) => (
@@ -177,45 +176,45 @@ export function SessionPolicyEditor({ scope }: { scope: ExecutionScope }) {
           onChange={(value) => patch({ [group]: value })}
         />
       ))}
-      <div className="pf-exec-row">
-        <div className="pf-exec-text pf-exec-text-switchless">
-          <span>{t("Общие инструкции BB")}</span>
-          <span className="pf-exec-from">
-            {t("Файл {path}: BB добавляет его текст в каждую сессию.").replace(
-              "{path}",
-              state.userInstructionsFile.path,
-            )}
-            {!state.userInstructionsFile.exists &&
-              ` ${t("Сейчас этого файла нет, выключать нечего.")}`}
-            {draft.userInstructions === undefined &&
-              ` · ${originLabel(inheritedInstructions?.origin, scope)}`}
-          </span>
-        </div>
-        <select
-          className="pf-select"
-          aria-label={t("Общие инструкции BB")}
-          disabled={busy}
-          value={
-            draft.userInstructions === undefined
-              ? INHERIT
-              : draft.userInstructions
-                ? "on"
-                : "off"
-          }
-          onChange={(e) =>
-            patch({
-              userInstructions:
-                e.target.value === INHERIT
-                  ? undefined
-                  : e.target.value === "on",
-            })
-          }
-        >
-          <option value={INHERIT}>{t("Наследовать")}</option>
-          <option value="on">{t("Подключать")}</option>
-          <option value="off">{t("Не подключать")}</option>
-        </select>
-      </div>
+      <SwitchRow
+        title={t("Общие инструкции BB")}
+        hint={
+          t("Файл {path}: BB добавляет его текст в каждую сессию.").replace(
+            "{path}",
+            state.userInstructionsFile.path,
+          ) +
+          (state.userInstructionsFile.exists
+            ? ""
+            : ` ${t("Сейчас этого файла нет, выключать нечего.")}`)
+        }
+        own={draft.userInstructions}
+        inherited={state.inherited.userInstructions}
+        scope={scope}
+        disabled={busy}
+        onChange={(value) => patch({ userInstructions: value })}
+      />
+      <SwitchRow
+        title={t("Инструкции проекта")}
+        hint={t(
+          "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.",
+        )}
+        own={draft.projectInstructions}
+        inherited={state.inherited.projectInstructions}
+        scope={scope}
+        disabled={busy}
+        onChange={(value) => patch({ projectInstructions: value })}
+      />
+      <SwitchRow
+        title={t("Навыки и плагины из claude.ai")}
+        hint={t(
+          "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.",
+        )}
+        own={draft.claudeAiSync}
+        inherited={state.inherited.claudeAiSync}
+        scope={scope}
+        disabled={busy}
+        onChange={(value) => patch({ claudeAiSync: value })}
+      />
       <p className="pf-agents-hint">
         {t(
           "Действует для новых сессий. Claude Code и Codex соблюдают все группы, OpenCode — всё, кроме плагинов CLI, Cursor — плагины BB и MCP-серверы.",
@@ -232,6 +231,53 @@ export function SessionPolicyEditor({ scope }: { scope: ExecutionScope }) {
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/** One on/off switch that inherits until it is set here. */
+function SwitchRow({
+  title,
+  hint,
+  own,
+  inherited,
+  scope,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  hint: string;
+  own: boolean | undefined;
+  inherited: { value: boolean; origin: PolicyOrigin } | null;
+  scope: ExecutionScope;
+  disabled: boolean;
+  onChange: (value: boolean | undefined) => void;
+}) {
+  return (
+    <div className="pf-exec-row">
+      <div className="pf-exec-text pf-exec-text-switchless">
+        <span>{title}</span>
+        <span className="pf-exec-from">
+          {hint}
+          {own === undefined &&
+            ` · ${inherited?.value === false ? t("Не подключать") : t("Подключать")} · ${originLabel(inherited?.origin, scope)}`}
+        </span>
+      </div>
+      <select
+        className="pf-select"
+        aria-label={title}
+        disabled={disabled}
+        value={own === undefined ? INHERIT : own ? "on" : "off"}
+        onChange={(e) =>
+          onChange(
+            e.target.value === INHERIT ? undefined : e.target.value === "on",
+          )
+        }
+      >
+        <option value={INHERIT}>{t("Наследовать")}</option>
+        <option value="on">{t("Подключать")}</option>
+        <option value="off">{t("Не подключать")}</option>
+      </select>
     </div>
   );
 }

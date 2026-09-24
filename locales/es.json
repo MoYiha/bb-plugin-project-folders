@@ -347,5 +347,9 @@
   "Дни": "Días",
   "Сортировка разделов": "Orden de secciones",
   "Активные сверху": "Activas arriba",
-  "Ручной порядок": "Orden manual"
+  "Ручной порядок": "Orden manual",
+  "Инструкции проекта": "Instrucciones del proyecto",
+  "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.": "AGENTS.md y CLAUDE.md en la carpeta de la sección y superiores, además de .bb/AGENTS.md. Claude Code y Codex los quitan por completo, OpenCode junto con su configuración de proyecto, Cursor no.",
+  "Навыки и плагины из claude.ai": "Habilidades y plugins de claude.ai",
+  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Lo que Claude Code trae de la cuenta de claude.ai (anthropic-skills:…). Solo en Claude Code."
 }

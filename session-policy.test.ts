@@ -69,4 +69,18 @@ describe("session context rules", () => {
       mcpServers: { mode: "all", names: [] },
     });
   });
+
+  it("sends switched-off project instructions and claude.ai sync", () => {
+    expect(
+      toCorePolicy(
+        resolveSessionPolicy([
+          {
+            origin: folder,
+            value: { projectInstructions: false, claudeAiSync: true },
+          },
+          { origin: global, value: { claudeAiSync: false } },
+        ]),
+      ),
+    ).toEqual({ projectInstructions: false });
+  });
 });

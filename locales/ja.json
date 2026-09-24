@@ -347,5 +347,9 @@
   "Дни": "日",
   "Сортировка разделов": "セクションの並び順",
   "Активные сверху": "アクティブを上に",
-  "Ручной порядок": "手動の順"
+  "Ручной порядок": "手動の順",
+  "Инструкции проекта": "プロジェクトの指示",
+  "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.": "セクションのフォルダーとその上位にある AGENTS.md と CLAUDE.md、および .bb/AGENTS.md。Claude Code と Codex は完全に外し、OpenCode はプロジェクト設定ごと外します。Cursor は外しません。",
+  "Навыки и плагины из claude.ai": "claude.ai のスキルとプラグイン",
+  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Claude Code が claude.ai アカウントから取り込むもの（anthropic-skills:…）。Claude Code のみ。"
 }

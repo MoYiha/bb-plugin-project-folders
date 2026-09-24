@@ -21,6 +21,14 @@ export const SESSION_POLICY_GROUPS = [
 ] as const;
 export type SessionPolicyGroup = (typeof SESSION_POLICY_GROUPS)[number];
 
+/** On/off switches; absent means BB's default, which is on. */
+export const SESSION_POLICY_SWITCHES = [
+  "userInstructions",
+  "projectInstructions",
+  "claudeAiSync",
+] as const;
+export type SessionPolicySwitch = (typeof SESSION_POLICY_SWITCHES)[number];
+
 const NAME_MAX = 200;
 const NAMES_MAX = 500;
 
@@ -36,6 +44,8 @@ export const sessionPolicySchema = z.object({
   mcpServers: sessionFilterSchema.optional(),
   nativePlugins: sessionFilterSchema.optional(),
   userInstructions: z.boolean().optional(),
+  projectInstructions: z.boolean().optional(),
+  claudeAiSync: z.boolean().optional(),
 });
 export type SessionPolicy = z.infer<typeof sessionPolicySchema>;
 
@@ -61,6 +71,12 @@ export const resolvedSessionPolicySchema = z.object({
   userInstructions: z
     .object({ value: z.boolean(), origin: policyOriginSchema })
     .nullable(),
+  projectInstructions: z
+    .object({ value: z.boolean(), origin: policyOriginSchema })
+    .nullable(),
+  claudeAiSync: z
+    .object({ value: z.boolean(), origin: policyOriginSchema })
+    .nullable(),
 });
 export type ResolvedSessionPolicy = z.infer<typeof resolvedSessionPolicySchema>;
 
@@ -83,8 +99,8 @@ export function normalizeSessionPolicy(value: SessionPolicy): SessionPolicy {
           : [...new Set(filter.names.map((n) => n.trim()).filter(Boolean))],
     };
   }
-  if (value.userInstructions !== undefined)
-    out.userInstructions = value.userInstructions;
+  for (const key of SESSION_POLICY_SWITCHES)
+    if (value[key] !== undefined) out[key] = value[key];
   return out;
 }
 
@@ -109,6 +125,10 @@ export function resolveSessionPolicy(
     userInstructions: pick(
       "userInstructions",
     ) as ResolvedSessionPolicy["userInstructions"],
+    projectInstructions: pick(
+      "projectInstructions",
+    ) as ResolvedSessionPolicy["projectInstructions"],
+    claudeAiSync: pick("claudeAiSync") as ResolvedSessionPolicy["claudeAiSync"],
   };
 }
 
@@ -126,7 +146,8 @@ export function toCorePolicy(
       out[group] = { mode: filter.mode, names: filter.names };
     }
   }
-  if (resolved.userInstructions?.value === false) out.userInstructions = false;
+  for (const key of SESSION_POLICY_SWITCHES)
+    if (resolved[key]?.value === false) out[key] = false;
   return Object.keys(out).length > 0 ? out : null;
 }
 
