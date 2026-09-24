@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.5
+
+- **Chat sort and section sort are separate items in ⋯ and right-click.** Chats: activity, title, newest. Sections: active first or manual order.
+
 ## 0.6.4
 
 - **Sections with live chats float to the top.** An unread reply goes first, then a busy agent, then recent activity. Manual order stays on the management page and when the chat-list switch is off.

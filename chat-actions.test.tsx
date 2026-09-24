@@ -637,9 +637,12 @@ it("opens the folder ellipsis on a phone-width viewport without crashing", async
     await view.findByRole("menuitem", { name: /New section/ }),
   ).toBeTruthy();
   expect(view.getByText("Chat sorting")).toBeTruthy();
+  expect(view.getByText("Section sorting")).toBeTruthy();
   expect(
     view.getByRole("menuitemradio", { name: /Recent activity/ }),
   ).toBeTruthy();
+  expect(view.getByRole("menuitemradio", { name: /Active first/ })).toBeTruthy();
+  expect(view.getByRole("menuitemradio", { name: /Manual order/ })).toBeTruthy();
   view.lifecycle.unmount();
 });
 

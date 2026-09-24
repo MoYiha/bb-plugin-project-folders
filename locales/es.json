@@ -344,5 +344,8 @@
   "Сворачивать разделы без активности, дней": "Contraer secciones inactivas durante, días",
   "Единицы времени неактивности": "Unidad de tiempo de inactividad",
   "Часы": "Horas",
-  "Дни": "Días"
+  "Дни": "Días",
+  "Сортировка разделов": "Orden de secciones",
+  "Активные сверху": "Activas arriba",
+  "Ручной порядок": "Orden manual"
 }

@@ -4,8 +4,6 @@ import {
   DropdownMenuSubContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuCheckboxItem,
 } from "./components/ui/dropdown-menu";
 import { Icon } from "./components/ui/icon";
 import { t } from "./i18n";
@@ -275,7 +273,7 @@ export function ChatSortMenu() {
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
-        <Icon name="Settings" />
+        <Icon name="Sort" />
         {t("Сортировка чатов")}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent>
@@ -293,23 +291,33 @@ export function ChatSortMenu() {
             {t("Сначала новые")}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem
-          checked={settings.sortSectionsByActivity}
-          onCheckedChange={(checked) =>
-            update({ sortSectionsByActivity: Boolean(checked) })
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
+}
+
+export function SectionSortMenu() {
+  const [settings, update] = useChatSettings();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Icon name="ArrowUpDown" />
+        {t("Сортировка разделов")}
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={settings.sortSectionsByActivity ? "activity" : "manual"}
+          onValueChange={(value) =>
+            update({ sortSectionsByActivity: value === "activity" })
           }
         >
-          {t("Поднимать разделы с активными чатами")}
-        </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem
-          checked={settings.autoCollapseInactive}
-          onCheckedChange={(checked) =>
-            update({ autoCollapseInactive: Boolean(checked) })
-          }
-        >
-          {t("Сворачивать неактивные разделы автоматически")}
-        </DropdownMenuCheckboxItem>
+          <DropdownMenuRadioItem value="activity">
+            {t("Активные сверху")}
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="manual">
+            {t("Ручной порядок")}
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
   );

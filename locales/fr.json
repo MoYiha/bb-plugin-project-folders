@@ -344,5 +344,8 @@
   "Сворачивать разделы без активности, дней": "Réduire les sections inactives depuis, jours",
   "Единицы времени неактивности": "Unité de temps d’inactivité",
   "Часы": "Heures",
-  "Дни": "Jours"
+  "Дни": "Jours",
+  "Сортировка разделов": "Tri des sections",
+  "Активные сверху": "Actives en haut",
+  "Ручной порядок": "Ordre manuel"
 }

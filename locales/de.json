@@ -344,5 +344,8 @@
   "Сворачивать разделы без активности, дней": "Bereiche einklappen nach Inaktivität, Tage",
   "Единицы времени неактивности": "Zeiteinheit für Inaktivität",
   "Часы": "Stunden",
-  "Дни": "Tage"
+  "Дни": "Tage",
+  "Сортировка разделов": "Bereichssortierung",
+  "Активные сверху": "Aktive oben",
+  "Ручной порядок": "Manuelle Reihenfolge"
 }

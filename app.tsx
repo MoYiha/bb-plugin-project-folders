@@ -6,7 +6,7 @@ import {
   PendingSectionMoves,
   SectionMoveDialog,
 } from "./move-dialog";
-import { ChatSortMenu } from "./chat-settings";
+import { ChatSortMenu, SectionSortMenu } from "./chat-settings";
 import {
   PluginSettings,
   SettingsNav,
@@ -2000,6 +2000,7 @@ function FolderHeading({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <ChatSortMenu />
+          <SectionSortMenu />
           {root && (
             <DropdownMenuItem onSelect={onMove}>
               <Icon name="Folder" />
