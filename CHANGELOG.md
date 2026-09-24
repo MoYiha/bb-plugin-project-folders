@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.11
+
+- **Opening a chat does not move its project or section.** Sort still uses unread replies, a busy agent, and real conversation activity. A visit or read without a message is ignored.
+
 ## 0.6.10
 
 - **No empty ⋯ menu in the section composer.** The one-click Section control is a fallback for when BB's project chip is missing and renders nothing otherwise; as a composer action it still took a plugin slot, and where it was the only overflow item BB showed ⋯ opening on nothing. It is a banner now, so it takes no slot.

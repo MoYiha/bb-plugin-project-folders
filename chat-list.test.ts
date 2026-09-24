@@ -564,7 +564,7 @@ describe("auto-collapsing inactive sections", () => {
     ).toEqual(["idle", "fresh", "busy", "reply"]);
   });
 
-  it("keeps the open section on top after its unread reply is marked read", () => {
+  it("does not raise a section when you only open a chat", () => {
     const now = 60_000_000;
     const siblings = [
       { id: "other-unread", projectId: "p1", parentId: null, sort: 0 },
@@ -590,6 +590,7 @@ describe("auto-collapsing inactive sections", () => {
         environment: { id: "env-opened" },
         updatedAt: now,
         lastReadAt: now,
+        latestAttentionAt: now - 3 * 60 * 60 * 1000,
         isUnread: false,
       },
       {
@@ -607,9 +608,8 @@ describe("auto-collapsing inactive sections", () => {
         folders: siblings,
         bindings: bind,
         threads: afterOpen,
-        activeThreadId: "t-opened",
       }).map((f) => f.id),
-    ).toEqual(["opened", "other-unread", "busy"]);
+    ).toEqual(["other-unread", "busy", "opened"]);
   });
 
   it("detects unread chats anywhere in the hierarchy", () => {

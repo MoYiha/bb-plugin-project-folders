@@ -2301,7 +2301,6 @@ function Tree(props: PluginThreadListProps) {
       bindings: data.bindings,
       places: data.places,
       threads,
-      activeThreadId: props.activeThreadId,
     },
   );
   const rows = (
@@ -2397,7 +2396,6 @@ function Tree(props: PluginThreadListProps) {
         bindings: data.bindings,
         places: data.places,
         threads,
-        activeThreadId: props.activeThreadId,
       },
     );
     const target = { projectId: f.projectId, folderId: root ? null : f.id };
