@@ -34,7 +34,15 @@ type PolicyContext = {
   host: { id: string };
   environment: { path: string | null };
 };
+type VkContribution = {
+  pluginId: string;
+  instructions: boolean;
+  configure: boolean;
+  tools: string[];
+  skills: string[];
+};
 type VkAgents = {
+  experimental_vkContextContributions?: () => VkContribution[];
   experimental_vkSessionPolicy?: (
     resolver: (context: PolicyContext) => Record<string, unknown> | null,
   ) => void;
@@ -169,10 +177,29 @@ export function makeSessionPolicies(args: {
     /** Names to offer in the editor; every source is best effort. */
     inventory: async (scope: Scope) => {
       const place = await args.place(scope);
+      // What each plugin adds to agent sessions, when BB can tell.
+      const contributions = new Map(
+        (agents.experimental_vkContextContributions?.() ?? []).map((c) => [
+          c.pluginId,
+          {
+            instructions: c.instructions,
+            configure: c.configure,
+            tools: c.tools.length,
+            skills: c.skills.length,
+          },
+        ]),
+      );
       const plugins = await bb.sdk.plugins
         .list()
         .then((r) =>
-          r.plugins.map((p) => ({ name: p.id, label: p.name ?? p.id })),
+          r.plugins.map((p) => {
+            const adds = contributions.get(p.id);
+            return {
+              name: p.id,
+              label: p.name ?? p.id,
+              ...(adds ? { adds } : {}),
+            };
+          }),
         )
         .catch(() => []);
       let skills: { name: string; label: string }[] = [];

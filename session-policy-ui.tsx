@@ -22,9 +22,31 @@ type Loaded = {
   inherited: ResolvedSessionPolicy;
   effective: ResolvedSessionPolicy;
 };
-type Inventory = Partial<
-  Record<SessionPolicyGroup, { name: string; label: string }[]>
->;
+type Adds = {
+  instructions: boolean;
+  configure: boolean;
+  tools: number;
+  skills: number;
+};
+type InventoryItem = { name: string; label: string; adds?: Adds };
+type Inventory = Partial<Record<SessionPolicyGroup, InventoryItem[]>>;
+
+/** "instructions · tools: 3 · skills: 2", or that the plugin adds nothing. */
+function addsLabel(adds: Adds): string {
+  const parts = [
+    ...(adds.instructions ? [t("инструкции")] : []),
+    ...(adds.tools > 0
+      ? [t("инструменты: {n}").replace("{n}", String(adds.tools))]
+      : []),
+    ...(adds.skills > 0
+      ? [t("навыки: {n}").replace("{n}", String(adds.skills))]
+      : []),
+    ...(adds.configure ? [t("выбирает по треду")] : []),
+  ];
+  return parts.length > 0
+    ? parts.join(" · ")
+    : t("в сессию ничего не добавляет");
+}
 const INHERIT = "__inherit";
 
 /**
@@ -295,7 +317,7 @@ function GroupRow({
   scope: ExecutionScope;
   own: SessionFilter | undefined;
   inherited: ResolvedSessionPolicy[SessionPolicyGroup];
-  items: { name: string; label: string }[];
+  items: InventoryItem[];
   disabled: boolean;
   onChange: (value: SessionFilter | undefined) => void;
 }) {
@@ -304,14 +326,20 @@ function GroupRow({
   const [custom, setCustom] = useState("");
   const names = own?.names ?? [];
   const listed = useMemo(() => {
-    const known = new Map(items.map((i) => [i.name, i.label]));
-    for (const name of names) if (!known.has(name)) known.set(name, name);
+    const known = new Map(items.map((i) => [i.name, i]));
+    for (const name of names)
+      if (!known.has(name)) known.set(name, { name, label: name });
     const q = query.trim().toLowerCase();
-    return [...known]
-      .filter(([name, label]) =>
-        q ? `${name} ${label}`.toLowerCase().includes(q) : true,
+    // Plugins that actually shape the session come first.
+    const weight = (item: InventoryItem) =>
+      item.adds && addsLabel(item.adds) !== t("в сессию ничего не добавляет")
+        ? 0
+        : 1;
+    return [...known.values()]
+      .filter((item) =>
+        q ? `${item.name} ${item.label}`.toLowerCase().includes(q) : true,
       )
-      .sort(([a], [b]) => a.localeCompare(b));
+      .sort((a, b) => weight(a) - weight(b) || a.label.localeCompare(b.label));
   }, [items, names, query]);
   const toggle = (name: string, on: boolean) =>
     onChange({
@@ -367,15 +395,22 @@ function GroupRow({
             onChange={(e) => setQuery(e.target.value)}
           />
           <ul className="pf-session-list" role="list">
-            {listed.map(([name, label]) => (
-              <li key={name}>
+            {listed.map((item) => (
+              <li key={item.name}>
                 <label>
                   <Checkbox
-                    checked={names.includes(name)}
+                    checked={names.includes(item.name)}
                     disabled={disabled}
-                    onCheckedChange={(on) => toggle(name, on === true)}
+                    onCheckedChange={(on) => toggle(item.name, on === true)}
                   />
-                  <span>{label}</span>
+                  <span className="pf-session-item">
+                    <span>{item.label}</span>
+                    {item.adds && (
+                      <span className="pf-session-adds">
+                        {addsLabel(item.adds)}
+                      </span>
+                    )}
+                  </span>
                 </label>
               </li>
             ))}

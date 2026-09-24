@@ -353,5 +353,10 @@
   "Навыки и плагины из claude.ai": "Habilidades e plugins do claude.ai",
   "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "O que o Claude Code traz da conta do claude.ai (anthropic-skills:…). Só no Claude Code.",
   "Провайдер": "Provedor",
-  "Настройки места": "Configurações do lugar"
+  "Настройки места": "Configurações do lugar",
+  "инструкции": "instruções",
+  "инструменты: {n}": "ferramentas: {n}",
+  "навыки: {n}": "habilidades: {n}",
+  "выбирает по треду": "escolhe por conversa",
+  "в сессию ничего не добавляет": "não adiciona nada às sessões"
 }

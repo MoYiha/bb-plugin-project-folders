@@ -1844,11 +1844,19 @@
   font-size: 13px;
   cursor: pointer;
 }
-.pf-session-list label span {
+.pf-session-item {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+}
+.pf-session-item > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.pf-session-adds {
+  font-size: 11px;
+  color: var(--muted-foreground);
 }
 .pf-session-add {
   display: flex;

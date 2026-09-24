@@ -482,7 +482,21 @@ export const rpcContract = defineRpcContract({
     input: z.object({ scope: executionScopeSchema }),
     output: z.record(
       z.enum(["bbPlugins", "skills", "mcpServers", "nativePlugins"]),
-      z.array(z.object({ name: z.string(), label: z.string() })),
+      z.array(
+        z.object({
+          name: z.string(),
+          label: z.string(),
+          /** For BB plugins: what the plugin adds to agent sessions. */
+          adds: z
+            .object({
+              instructions: z.boolean(),
+              configure: z.boolean(),
+              tools: z.number(),
+              skills: z.number(),
+            })
+            .optional(),
+        }),
+      ),
     ),
   },
   section_pick: {

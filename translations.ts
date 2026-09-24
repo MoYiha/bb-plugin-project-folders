@@ -460,4 +460,9 @@ export const english = {
   "Навыки и плагины из claude.ai": "Skills and plugins from claude.ai",
   "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.":
     "What Claude Code pulls in from the claude.ai account (anthropic-skills:…). Claude Code only.",
+  инструкции: "instructions",
+  "инструменты: {n}": "tools: {n}",
+  "навыки: {n}": "skills: {n}",
+  "выбирает по треду": "picks per thread",
+  "в сессию ничего не добавляет": "adds nothing to sessions",
 } as const;

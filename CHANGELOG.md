@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.8
+
+- **Session context shows what each BB plugin adds to a session.** Under every plugin in the BB plugins group: instructions, how many tools and skills, whether it picks them per thread, or that it adds nothing to sessions. Plugins that shape the session are listed first. Needs BB core `vk.7`.
+
 ## 0.6.7
 
 - **The project and section card switches between Rules, Provider and Session context.** Session context stays hidden when BB has no experimental session API, so stock BB is unchanged.
