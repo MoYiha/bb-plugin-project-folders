@@ -4479,13 +4479,16 @@ export default definePluginApp((app) => {
   app.composer.customize({
     id: "section-line",
     scopes: ["new-thread"],
-    // One click to the section, next to the model and the machine, plus the
-    // line naming where a reused environment belongs.
-    actions: [{ id: "section", component: SectionComposerAction }],
+    // The section choice lives in BB's project chip. The one-click Section
+    // control is only a fallback for when that chip cannot be found, and it
+    // renders nothing otherwise — so it is a banner, not an action: an empty
+    // action still takes a plugin slot and can leave BB's action overflow
+    // menu open on nothing.
     banners: [
       // Renders nothing of its own: it puts the tree into BB's project chip,
       // where the choice of place belongs.
       { id: "project-chip", chrome: "bare", component: ComposerProjectChip },
+      { id: "section-picker", chrome: "bare", component: SectionComposerAction },
       { id: "section", chrome: "bare", component: ComposerSectionBanner },
     ],
   });

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.10
+
+- **No empty ⋯ menu in the section composer.** The one-click Section control is a fallback for when BB's project chip is missing and renders nothing otherwise; as a composer action it still took a plugin slot, and where it was the only overflow item BB showed ⋯ opening on nothing. It is a banner now, so it takes no slot.
+
 ## 0.6.9
 
 - **An excluded BB plugin is gone from the place, not just from the session.** With BB core `vk.8` a plugin the section's rules leave out shows no controls in that place's composer (new thread and follow-up) and its `message.dispatch` hooks are skipped there. The hint under BB plugins says so.

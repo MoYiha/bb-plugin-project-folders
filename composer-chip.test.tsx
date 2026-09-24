@@ -74,8 +74,8 @@ const chipSlot = () =>
     .find((b) => b.id === "project-chip")!;
 const actionSlot = () =>
   app.composerCustomizations
-    .flatMap((c) => c.actions ?? [])
-    .find((a) => a.id === "section")!;
+    .flatMap((c) => c.banners ?? [])
+    .find((a) => a.id === "section-picker")!;
 
 const sidebarProjects = [
   { id: "p1", name: "Project", isPersonal: false },

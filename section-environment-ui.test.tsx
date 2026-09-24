@@ -156,8 +156,8 @@ describe("the line naming the section under BB's own composer", () => {
 describe("the section picker in BB's own composer", () => {
   it("sets the composer's environment to that section's folder and machine", async () => {
     const registration = app.composerCustomizations
-      .flatMap((c) => c.actions ?? [])
-      .find((a) => a.id === "section")!;
+      .flatMap((c) => c.banners ?? [])
+      .find((a) => a.id === "section-picker")!;
     const view = renderSlot(
       { id: "action", component: registration.component },
       {},
