@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.15 — Background history export
+
+- Coalesce automatic export events in a persistent, serial queue; retry failures without holding lifecycle handlers open.
+- Skip unchanged snapshots, use 20-segment pages and yield between requests. Changed history still traverses the full timeline.
+- Keep manual sync, move and archive exports complete; preserve the previous snapshot on a failed page write.
+
+
 ## 0.6.14
 
 - The required flag from BB now reaches the Session context editor; the RPC schema dropped it in 0.6.13.

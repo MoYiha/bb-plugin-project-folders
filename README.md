@@ -368,7 +368,7 @@ A section on **another device** only takes the place in the tree — a chat cann
     tmp/           throwaway files
 ```
 
-BB stays the canonical chat store. The plugin exports paginated history after a chat is created, after completed turns and on archiving, and publishes the snapshot index only after the whole snapshot is written. Attachments remain in BB, so these exports are not a full backup. Hidden folders can be tracked by Git — add ignore rules before sharing a repository.
+BB stays the canonical chat store. Automatic history exports run in a persistent background queue after creation, completed turns and archiving. Bursts are coalesced for 2 seconds, with at least 30 seconds between automatic exports of the same chat and one automatic export at a time. Failed exports retry after a minute. Unchanged snapshots are skipped; manual sync always rebuilds the full export. History is fetched in pages of 20 segments, yielding between pages, and the snapshot index is published only after the whole snapshot is written. Changed history still requires a full traversal; this is not an incremental archive format. Attachments remain in BB, so these exports are not a full backup. Hidden folders can be tracked by Git — add ignore rules before sharing a repository.
 
 ## Commands
 

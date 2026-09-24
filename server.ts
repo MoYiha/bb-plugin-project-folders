@@ -5,7 +5,8 @@ import { SECTION_ENVIRONMENT_ID } from "./section-tree";
 import { makeProjectMoves } from "./project-move";
 import { makeSectionMoves } from "./section-move";
 import { within } from "./move-files";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { makeExportQueue } from "./export-queue";
 import path from "node:path";
 import {
   defineRpcContract,
@@ -692,6 +693,7 @@ export default async function plugin(bb: BbPluginApi) {
     `CREATE TABLE execution_defaults (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
     // Session context rules (plugins, skills, MCP, CLI plugins); same keys.
     `CREATE TABLE session_policies (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    `CREATE TABLE pending_exports (threadId TEXT PRIMARY KEY)`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -1691,7 +1693,8 @@ export default async function plugin(bb: BbPluginApi) {
     );
   }
   const syncing = new Map<string, Promise<{ path: string }>>();
-  async function exportChat(threadId: string) {
+  const exportedHeads = new Map<string, { digest: string; snapshot: string }>();
+  async function exportChat(threadId: string, automatic = false) {
     const { t, f } = await locate(threadId);
     const dir = path.join(f.path, ".bb/chats", threadId);
     const write = async (name: string, content: string) => {
@@ -1703,6 +1706,38 @@ export default async function plugin(bb: BbPluginApi) {
         createParents: true,
       });
     };
+    const snapshot = randomUUID();
+    let previous: string | null = null;
+    try {
+      const old = await bb.sdk.files.read({
+        hostId: f.hostId,
+        rootPath: f.path,
+        path: path.join(dir, "history/index.json"),
+      });
+      const index = JSON.parse(old.content);
+      if (
+        typeof index.snapshot === "string" &&
+        /^[a-f0-9-]{36}$/.test(index.snapshot)
+      )
+        previous = index.snapshot;
+    } catch {}
+    const first = await bb.sdk.threads.timeline({
+      threadId,
+      segmentLimit: "20",
+      includeNestedRows: "true",
+    });
+    const cacheKey = JSON.stringify([f.hostId, f.path, threadId]);
+    const digest = createHash("sha256")
+      .update(JSON.stringify([t.title, t.projectId, f.id, first]))
+      .digest("hex");
+    const cached = exportedHeads.get(cacheKey);
+    if (
+      automatic &&
+      typeof first.maxSeq === "number" &&
+      cached?.digest === digest &&
+      cached.snapshot === previous
+    )
+      return { path: dir };
     await write(
       "thread.json",
       JSON.stringify(
@@ -1719,35 +1754,18 @@ export default async function plugin(bb: BbPluginApi) {
         2,
       ),
     );
-    const snapshot = randomUUID();
-    let previous: string | null = null;
-    try {
-      const old = await bb.sdk.files.read({
-        hostId: f.hostId,
-        rootPath: f.path,
-        path: path.join(dir, "history/index.json"),
-      });
-      const index = JSON.parse(old.content);
-      if (
-        typeof index.snapshot === "string" &&
-        /^[a-f0-9-]{36}$/.test(index.snapshot)
-      )
-        previous = index.snapshot;
-    } catch {}
     let cursor: { anchorSeq: number; anchorId: string } | null = null;
     let page = 0;
     do {
-      const timeline = await bb.sdk.threads.timeline({
-        threadId,
-        segmentLimit: "50",
-        includeNestedRows: "true",
-        ...(cursor
-          ? {
-              beforeAnchorSeq: String(cursor.anchorSeq),
-              beforeAnchorId: cursor.anchorId,
-            }
-          : {}),
-      });
+      const timeline: typeof first = cursor
+        ? await bb.sdk.threads.timeline({
+            threadId,
+            segmentLimit: "20",
+            includeNestedRows: "true",
+            beforeAnchorSeq: String(cursor.anchorSeq),
+            beforeAnchorId: cursor.anchorId,
+          })
+        : first;
       await write(
         `history/${snapshot}/page-${String(page++).padStart(5, "0")}.json`,
         JSON.stringify(timeline, null, 2),
@@ -1756,6 +1774,7 @@ export default async function plugin(bb: BbPluginApi) {
         ? timeline.timelinePage.olderCursor
         : null;
       if (page > 10000) throw new Error("History is too large for one export.");
+      if (cursor) await new Promise((resolve) => setTimeout(resolve, 25));
     } while (cursor);
     await write(
       "history/index.json",
@@ -1795,17 +1814,26 @@ export default async function plugin(bb: BbPluginApi) {
       dir,
       Date.now(),
     );
+    exportedHeads.delete(cacheKey);
+    exportedHeads.set(cacheKey, { digest, snapshot });
+    if (exportedHeads.size > 256)
+      exportedHeads.delete(exportedHeads.keys().next().value!);
     return { path: dir };
   }
-  function sync(threadId: string) {
+  function sync(
+    threadId: string,
+    automatic = false,
+  ): Promise<{ path: string }> {
     if (threadMoves.blocked(threadId) || archives.blocked(threadId))
       return Promise.resolve({ path: "" });
     const active = syncing.get(threadId);
-    if (active) return active;
+    if (active) return automatic ? active : active.then(() => sync(threadId));
     const task = bb.sdk.threads
       .get({ threadId })
       .then((t) =>
-        moves.busy(t.projectId) ? { path: "" } : exportChat(threadId),
+        moves.busy(t.projectId)
+          ? { path: "" }
+          : exportChat(threadId, automatic),
       )
       .catch((e) => {
         const message = String(e);
@@ -3103,7 +3131,7 @@ export default async function plugin(bb: BbPluginApi) {
                 },
               },
       });
-      sync(t.id).catch((e) => bb.log.warn(String(e)));
+      enqueueExport(t.id);
       changed();
       return { id: t.id };
     },
@@ -3181,21 +3209,49 @@ export default async function plugin(bb: BbPluginApi) {
       instructions: blocks.length ? blocks.join("\n\n") : undefined,
     };
   });
+  const exportQueue = makeExportQueue({
+    async run(threadId) {
+      try {
+        if (archives.blocked(threadId)) return;
+        await threadMoves.finish(threadId);
+        const result = await sync(threadId, true);
+        if (!result.path)
+          throw new Error("Chat export is waiting for a move or archive.");
+        changed();
+      } catch (error) {
+        if (
+          /not.found|http 404|environment|not registered in the tree/i.test(
+            String(error),
+          )
+        )
+          return;
+        throw error;
+      }
+    },
+    settled(threadId) {
+      db.prepare("DELETE FROM pending_exports WHERE threadId=?").run(threadId);
+    },
+    failed(threadId, error) {
+      bb.log.debug(`Chat export ${threadId}: ${String(error)}`);
+    },
+  });
+  bb.onDispose(() => exportQueue.stop());
+  for (const row of db
+    .prepare("SELECT threadId FROM pending_exports")
+    .all() as { threadId: string }[])
+    exportQueue.enqueue(row.threadId);
   for (const event of [
     "thread.idle",
     "thread.archived",
     "thread.created",
   ] as const)
-    bb.events.on(event, async ({ thread }) => {
-      try {
-        await threadMoves.finish(thread.id);
-        await locate(thread.id);
-        await sync(thread.id);
-        changed();
-      } catch (e) {
-        bb.log.debug(`Chat export ${thread.id}: ${String(e)}`);
-      }
-    });
+    bb.events.on(event, ({ thread }) => enqueueExport(thread.id));
+  function enqueueExport(threadId: string) {
+    db.prepare("INSERT OR IGNORE INTO pending_exports VALUES (?)").run(
+      threadId,
+    );
+    exportQueue.enqueue(threadId);
+  }
   /**
    * A place to run, offered to BB's own New thread screen. Without it the
    * native composer knows projects only: it has a project picker and no idea

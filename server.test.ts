@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   createFakePluginHost,
   makePluginAgentConfigurationContext,
@@ -2299,7 +2299,9 @@ describe("githubUrl on list", () => {
       })) as { path: string };
       const first = (await call("list", null)) as Listed;
       expect(first.roots[0]?.githubUrl).toBeNull();
-      expect(first.folders.find((f) => f.path === group.path)?.githubUrl).toBeNull();
+      expect(
+        first.folders.find((f) => f.path === group.path)?.githubUrl,
+      ).toBeNull();
       await waitFor(() => calls.length === 1);
       expect(calls[0]?.paths.includes("/work")).toBe(true);
       expect(calls[0]?.paths.includes("/work/Site")).toBe(true);
@@ -2356,6 +2358,138 @@ describe("githubUrl on list", () => {
       expect(calls).toBe(0);
     } finally {
       await h.harness.lifecycle.dispose();
+    }
+  });
+});
+
+describe("background history export", () => {
+  async function history() {
+    const h = await setup();
+    const files = new Map<string, string>();
+    const thread = makeThreadResponse({
+      id: "t1",
+      projectId: "p1",
+      environmentId: "e1",
+    });
+    h.harness.inspection.sdk.stub("threads.get", async () => thread);
+    h.harness.inspection.sdk.stub("environments.get", async () => ({
+      projectId: "p1",
+      hostId: "h1",
+      path: "/work",
+    }));
+    h.harness.inspection.sdk.stub("files.read", async ({ path }) => {
+      if (!files.has(path)) throw new Error("ENOENT");
+      return { content: files.get(path)! };
+    });
+    h.harness.inspection.sdk.stub("files.write", async (args) => {
+      files.set(args.path, args.content);
+      h.writes.push(args);
+      return { outcome: "written", sha256: "sha", sizeBytes: 1 };
+    });
+    h.harness.inspection.sdk.stub("files.remove", async () => ({}));
+    let revision = 10;
+    const timeline = vi.fn(async (args: { beforeAnchorId?: string }) => ({
+      maxSeq: revision,
+      rows: [{ id: args.beforeAnchorId ? "old" : "new" }],
+      timelinePage: {
+        hasOlderRows: !args.beforeAnchorId,
+        olderCursor: args.beforeAnchorId
+          ? null
+          : { anchorId: "old", anchorSeq: 2 },
+      },
+    }));
+    h.harness.inspection.sdk.stub("threads.timeline", timeline);
+    return { ...h, files, thread, timeline, revise: () => revision++ };
+  }
+
+  it("acknowledges lifecycle events immediately and skips an unchanged snapshot", async () => {
+    const h = await history();
+    vi.useFakeTimers();
+    try {
+      await h.harness.behavior.emitThreadEvent("thread.idle", {
+        thread: h.thread,
+      });
+      await h.harness.behavior.emitThreadEvent("thread.idle", {
+        thread: h.thread,
+      });
+      expect(h.timeline).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(h.timeline).toHaveBeenCalledTimes(2);
+      const count = h.writes.length;
+      await h.harness.behavior.emitThreadEvent("thread.idle", {
+        thread: h.thread,
+      });
+      await vi.advanceTimersByTimeAsync(31000);
+      expect(h.timeline).toHaveBeenCalledTimes(3);
+      expect(h.writes).toHaveLength(count);
+      h.revise();
+      await h.harness.behavior.emitThreadEvent("thread.idle", {
+        thread: h.thread,
+      });
+      await vi.advanceTimersByTimeAsync(31000);
+      expect(h.timeline).toHaveBeenCalledTimes(5);
+      expect(h.writes.length).toBeGreaterThan(count);
+    } finally {
+      await h.harness.lifecycle.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps manual sync a full repair even when history did not change", async () => {
+    const h = await history();
+    try {
+      await h.harness.behavior.callRpc("sync", { threadId: "t1" });
+      const count = h.writes.length;
+      await h.harness.behavior.callRpc("sync", { threadId: "t1" });
+      expect(h.timeline).toHaveBeenCalledTimes(4);
+      expect(h.writes.length).toBeGreaterThan(count);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("preserves the previous index if writing a new page fails", async () => {
+    const h = await history();
+    try {
+      await h.harness.behavior.callRpc("sync", { threadId: "t1" });
+      const indexPath = "/work/.bb/chats/t1/history/index.json";
+      const previous = h.files.get(indexPath);
+      h.harness.inspection.sdk.stub("files.write", async (args) => {
+        if (args.path.includes("page-00001")) throw new Error("offline");
+        h.files.set(args.path, args.content);
+        return { outcome: "written", sha256: "sha", sizeBytes: 1 };
+      });
+      await expect(
+        h.harness.behavior.callRpc("sync", { threadId: "t1" }),
+      ).rejects.toThrow("offline");
+      expect(h.files.get(indexPath)).toBe(previous);
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
+  it("resumes pending automatic exports after plugin reload", async () => {
+    const h = await history();
+    vi.useFakeTimers();
+    let current = h;
+    try {
+      await h.harness.behavior.emitThreadEvent("thread.idle", {
+        thread: h.thread,
+      });
+      const reloaded = await h.harness.lifecycle.reload(plugin);
+      Object.assign(current, reloaded);
+      current.harness.inspection.sdk.stub("threads.get", async () => h.thread);
+      current.harness.inspection.sdk.stub("environments.get", async () => ({
+        projectId: "p1",
+        hostId: "h1",
+        path: "/work",
+      }));
+      current.harness.inspection.sdk.stub("threads.timeline", h.timeline);
+      await vi.advanceTimersByTimeAsync(2100);
+      expect(h.timeline).toHaveBeenCalled();
+    } finally {
+      await current.harness.lifecycle.dispose();
+      vi.useRealTimers();
     }
   });
 });
