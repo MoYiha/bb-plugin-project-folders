@@ -489,6 +489,8 @@ export const rpcContract = defineRpcContract({
           /** For BB plugins: what the plugin adds to agent sessions. */
           adds: z
             .object({
+              /** BB says no rule can leave this plugin out. */
+              required: z.boolean().optional(),
               instructions: z.boolean(),
               configure: z.boolean(),
               tools: z.number(),

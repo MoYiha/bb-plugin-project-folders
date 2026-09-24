@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.14
+
+- The required flag from BB now reaches the Session context editor; the RPC schema dropped it in 0.6.13.
+
 ## 0.6.13
 
 - **The lock follows BB.** A plugin BB itself marks as required (`required` in the experimental context contributions) is shown locked in Session context too, not only the ones this plugin knows about.
