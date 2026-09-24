@@ -564,6 +564,54 @@ describe("auto-collapsing inactive sections", () => {
     ).toEqual(["idle", "fresh", "busy", "reply"]);
   });
 
+  it("keeps the open section on top after its unread reply is marked read", () => {
+    const now = 60_000_000;
+    const siblings = [
+      { id: "other-unread", projectId: "p1", parentId: null, sort: 0 },
+      { id: "opened", projectId: "p1", parentId: null, sort: 1 },
+      { id: "busy", projectId: "p1", parentId: null, sort: 2 },
+    ];
+    const bind = {
+      "env-other": "other-unread",
+      "env-opened": "opened",
+      "env-busy": "busy",
+    };
+    const afterOpen = [
+      {
+        id: "t-other",
+        projectId: "p1",
+        environment: { id: "env-other" },
+        updatedAt: now - 60 * 60 * 1000,
+        isUnread: true,
+      },
+      {
+        id: "t-opened",
+        projectId: "p1",
+        environment: { id: "env-opened" },
+        updatedAt: now,
+        lastReadAt: now,
+        isUnread: false,
+      },
+      {
+        id: "t-busy",
+        projectId: "p1",
+        environment: { id: "env-busy" },
+        updatedAt: now - 30 * 60 * 1000,
+        status: "active",
+      },
+    ];
+    expect(
+      sortFoldersByActivity(siblings, {
+        enabled: true,
+        root: false,
+        folders: siblings,
+        bindings: bind,
+        threads: afterOpen,
+        activeThreadId: "t-opened",
+      }).map((f) => f.id),
+    ).toEqual(["opened", "other-unread", "busy"]);
+  });
+
   it("detects unread chats anywhere in the hierarchy", () => {
     const threads = [
       {

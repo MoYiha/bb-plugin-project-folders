@@ -428,6 +428,7 @@ export function folderActivity<T extends ChatThread>(params: {
   bindings: Record<string, string>;
   places?: Record<string, string>;
   threads: readonly T[];
+  activeThreadId?: string | null;
 }): { rank: number; activity: number } {
   const {
     folderId,
@@ -437,6 +438,7 @@ export function folderActivity<T extends ChatThread>(params: {
     bindings,
     places,
     threads,
+    activeThreadId,
   } = params;
   const sectionThreads = (
     root
@@ -451,11 +453,13 @@ export function folderActivity<T extends ChatThread>(params: {
         )
   ).filter((t) => !t.isArchived);
   const unread = sectionThreads.some(threadNeedsReply);
+  const focused =
+    !!activeThreadId && sectionThreads.some((t) => t.id === activeThreadId);
   const busy = sectionThreads.some(isThreadBusy);
   const activity = sectionThreads.length
-    ? Math.max(...sectionThreads.map(getThreadActivity))
+    ? Math.max(...sectionThreads.map(getThreadAccess))
     : 0;
-  const rank = unread ? 3 : busy ? 2 : activity > 0 ? 1 : 0;
+  const rank = unread || focused ? 3 : busy ? 2 : activity > 0 ? 1 : 0;
   return { rank, activity };
 }
 
@@ -479,6 +483,7 @@ export function sortFoldersByActivity<
     bindings: Record<string, string>;
     places?: Record<string, string>;
     threads: readonly TThread[];
+    activeThreadId?: string | null;
   },
 ): TFolder[] {
   const list = [...folders];
@@ -494,6 +499,7 @@ export function sortFoldersByActivity<
       bindings: params.bindings,
       places: params.places,
       threads: params.threads,
+      activeThreadId: params.activeThreadId,
     });
     const sb = folderActivity({
       folderId: b.id,
@@ -503,6 +509,7 @@ export function sortFoldersByActivity<
       bindings: params.bindings,
       places: params.places,
       threads: params.threads,
+      activeThreadId: params.activeThreadId,
     });
     if (sb.rank !== sa.rank) return sb.rank - sa.rank;
     if (sb.activity !== sa.activity) return sb.activity - sa.activity;
