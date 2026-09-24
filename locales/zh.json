@@ -351,5 +351,7 @@
   "Инструкции проекта": "项目指令",
   "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.": "分区文件夹及上级中的 AGENTS.md 和 CLAUDE.md，以及 .bb/AGENTS.md。Claude Code 和 Codex 会完全关闭，OpenCode 会连同其项目设置一起关闭，Cursor 不会。",
   "Навыки и плагины из claude.ai": "来自 claude.ai 的技能和插件",
-  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Claude Code 从 claude.ai 账户同步的内容（anthropic-skills:…）。仅对 Claude Code 生效。"
+  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Claude Code 从 claude.ai 账户同步的内容（anthropic-skills:…）。仅对 Claude Code 生效。",
+  "Провайдер": "提供方",
+  "Настройки места": "位置设置"
 }

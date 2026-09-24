@@ -2934,6 +2934,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [cardSaving, setCardSaving] = useState(false);
   const [cardRuleError, setCardRuleError] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [detailsPane, setDetailsPane] = useState<
+    "rules" | "execution" | "session"
+  >("rules");
   /** Settings section shown while no project or section is selected. */
   const [settingsView, setSettingsView] = useState<SettingsSection>("list");
   const [sideClosed, setSideClosed] = useState<Record<string, boolean>>({});
@@ -3488,6 +3491,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
     if (!selectedNode || !selRulesAllowed) {
       setRuleDraft(null);
       setRuleModeSaved(null);
+      setDetailsPane("rules");
       return;
     }
     let live = true;
@@ -4082,6 +4086,51 @@ function Panel({ subPath }: PluginNavPanelProps) {
             )}
           </div>
           {selRulesAllowed && (
+            <div
+              className="pf-tabs pf-details-nav"
+              role="tablist"
+              aria-label={t("Настройки места")}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detailsPane === "rules"}
+                className={
+                  "pf-tab" + (detailsPane === "rules" ? " pf-selected" : "")
+                }
+                onClick={() => setDetailsPane("rules")}
+              >
+                {t("Правила")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detailsPane === "execution"}
+                className={
+                  "pf-tab" +
+                  (detailsPane === "execution" ? " pf-selected" : "")
+                }
+                onClick={() => setDetailsPane("execution")}
+              >
+                {t("Провайдер")}
+              </button>
+              {sessionPolicyAvailable && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={detailsPane === "session"}
+                  className={
+                    "pf-tab" +
+                    (detailsPane === "session" ? " pf-selected" : "")
+                  }
+                  onClick={() => setDetailsPane("session")}
+                >
+                  {t("Контекст сессии")}
+                </button>
+              )}
+            </div>
+          )}
+          {selRulesAllowed && detailsPane === "rules" && (
             <div className="pf-agents-rule">
               <h3>
                 {t("Правила AGENTS.md")}
@@ -4147,7 +4196,7 @@ function Panel({ subPath }: PluginNavPanelProps) {
               )}
             </div>
           )}
-          {sel && !selGroup && (
+          {sel && !selGroup && detailsPane === "execution" && (
             <div className="pf-agents-rule">
               <h3>
                 {t("Провайдер, модель и агент")}
@@ -4170,7 +4219,10 @@ function Panel({ subPath }: PluginNavPanelProps) {
               />
             </div>
           )}
-          {sel && !selGroup && sessionPolicyAvailable && (
+          {sel &&
+            !selGroup &&
+            sessionPolicyAvailable &&
+            detailsPane === "session" && (
             <div className="pf-agents-rule">
               <h3>
                 {t("Контекст сессии")}

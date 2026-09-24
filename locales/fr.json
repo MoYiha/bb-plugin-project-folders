@@ -351,5 +351,7 @@
   "Инструкции проекта": "Instructions du projet",
   "AGENTS.md и CLAUDE.md в папке раздела и выше, а также .bb/AGENTS.md. Claude Code и Codex отключают их полностью, OpenCode — вместе со своими настройками проекта, Cursor не отключает.": "AGENTS.md et CLAUDE.md dans le dossier de la section et au-dessus, plus .bb/AGENTS.md. Claude Code et Codex les retirent entièrement, OpenCode avec ses réglages de projet, Cursor non.",
   "Навыки и плагины из claude.ai": "Compétences et plugins de claude.ai",
-  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Ce que Claude Code récupère du compte claude.ai (anthropic-skills:…). Claude Code uniquement."
+  "То, что Claude Code подтягивает из аккаунта claude.ai (anthropic-skills:…). Действует только в Claude Code.": "Ce que Claude Code récupère du compte claude.ai (anthropic-skills:…). Claude Code uniquement.",
+  "Провайдер": "Fournisseur",
+  "Настройки места": "Réglages du lieu"
 }

@@ -477,6 +477,12 @@
 .pf-details .pf-agents-rule {
   margin-top: 16px;
 }
+.pf-details-nav {
+  margin: 4px 0 0;
+}
+.pf-details-nav + .pf-agents-rule {
+  margin-top: 12px;
+}
 .pf-details > .pf-agents-rule h3 {
   margin: 0 0 10px;
 }

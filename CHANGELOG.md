@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.7
+
+- **The project and section card switches between Rules, Provider and Session context.** Session context stays hidden when BB has no experimental session API, so stock BB is unchanged.
+
 ## 0.6.6
 
 - **Two more switches in Session context.** **Project instructions** leaves out `AGENTS.md` / `CLAUDE.md` of the section folder and its parents and the workspace `.bb/AGENTS.md` (Claude Code and Codex fully, OpenCode together with its project config, not Cursor). **Skills and plugins from claude.ai** stops Claude Code syncing them from the account. Both inherit like the other groups; they need BB core `vk.6`.

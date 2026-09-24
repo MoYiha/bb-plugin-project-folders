@@ -53,6 +53,32 @@ it("shows the selected section details with allowed actions", async () => {
   view.lifecycle.unmount();
 });
 
+it("switches the section card between rules, provider and session blocks", async () => {
+  const view = renderSlot(
+    app.navPanels[0]!,
+    { subPath: "" },
+    {
+      rpc: {
+        ...rpc,
+        session_policy_capability: () => ({ available: true }),
+      },
+    },
+  );
+  await view.findByText("Project");
+  view.getByText("Section").click();
+  await view.findByText("/work/Section");
+  const nav = view.getByRole("tablist", { name: "Place settings" });
+  expect(within(nav).getByRole("tab", { name: "Rules" })).toBeTruthy();
+  expect(within(nav).getByRole("tab", { name: "Provider" })).toBeTruthy();
+  await view.findByRole("heading", { name: /AGENTS.md rules/ });
+  fireEvent.click(within(nav).getByRole("tab", { name: "Provider" }));
+  await view.findByRole("heading", { name: /Provider, model and agent/ });
+  expect(
+    view.queryByRole("heading", { name: /AGENTS.md rules/ }),
+  ).toBeNull();
+  view.lifecycle.unmount();
+});
+
 it("shows one project entry even when the project has copies on several devices", async () => {
   const copy = { ...root, hostId: "h2", path: "/srv/project" };
   const copySection = {
@@ -311,11 +337,11 @@ it("switches the project between inherited and custom rules with the mode tabs",
     projectTemplate: "project template",
   });
   // Three modes, and the file tab brings the editors back.
-  expect(view.getAllByRole("tab").map((b) => b.textContent)).toEqual([
-    "Default",
-    "Custom template",
-    "Own file",
-  ]);
+  expect(
+    [...view.container.querySelectorAll(".pf-agents-rule [role=tab]")].map(
+      (b) => b.textContent,
+    ),
+  ).toEqual(["Default", "Custom template", "Own file"]);
   view.getByRole("tab", { name: "Own file" }).click();
   await view.findByRole("textbox", { name: /AGENTS.md contents/ });
   view.lifecycle.unmount();

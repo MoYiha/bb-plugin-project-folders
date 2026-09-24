@@ -364,6 +364,8 @@ export const english = {
   "Удалить группу": "Delete group",
 
   "Провайдер, модель и агент": "Provider, model and agent",
+  Провайдер: "Provider",
+  "Настройки места": "Place settings",
   "Новый чат, созданный здесь, начинается с этих настроек. Выключенная группа наследуется: ближайший раздел выше, затем проект, затем настройки плагина, затем обычный выбор BB.":
     "A new chat created here starts with these settings. A group left off is inherited: the nearest section above, then the project, then the plugin settings, then BB's usual choice.",
   "Свой провайдер и модель": "Own provider and model",
