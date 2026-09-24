@@ -417,8 +417,8 @@ export const english = {
 
   // Session context rules (experimental BB core).
   "Плагины BB": "BB plugins",
-  "Инструкции, инструменты и навыки плагинов BB.":
-    "Instructions, tools and skills of BB plugins.",
+  "Инструкции, инструменты и навыки плагинов BB. Исключённый плагин здесь не показывает свои кнопки в поле ввода и не перехватывает сообщения.":
+    "Instructions, tools and skills of BB plugins. An excluded plugin shows no composer controls here and does not intercept messages.",
   Навыки: "Skills",
   "Навыки BB и собственные навыки CLI по имени.":
     "BB skills and the CLI's own skills, by name.",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.9
+
+- **An excluded BB plugin is gone from the place, not just from the session.** With BB core `vk.8` a plugin the section's rules leave out shows no controls in that place's composer (new thread and follow-up) and its `message.dispatch` hooks are skipped there. The hint under BB plugins says so.
+
 ## 0.6.8
 
 - **Session context shows what each BB plugin adds to a session.** Under every plugin in the BB plugins group: instructions, how many tools and skills, whether it picks them per thread, or that it adds nothing to sessions. Plugins that shape the session are listed first. Needs BB core `vk.7`.

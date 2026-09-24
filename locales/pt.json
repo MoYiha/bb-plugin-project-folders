@@ -311,7 +311,7 @@
   "У проекта нет разделов": "Este projeto não tem seções",
   "Проекты получают шаблон проектов, разделы любого уровня — шаблон разделов. Текст вписывается в конец AGENTS.md между служебными метками; текст выше меток не меняется.": "Projetos recebem o modelo de projetos e seções de qualquer profundidade o modelo de seções. O texto é adicionado ao final do AGENTS.md entre marcadores de serviço; o texto acima dos marcadores não é alterado.",
   "Плагины BB": "Plugins do BB",
-  "Инструкции, инструменты и навыки плагинов BB.": "Instruções, ferramentas e habilidades dos plugins do BB.",
+  "Инструкции, инструменты и навыки плагинов BB. Исключённый плагин здесь не показывает свои кнопки в поле ввода и не перехватывает сообщения.": "Instruções, ferramentas e habilidades dos plugins do BB. Um plugin excluído não mostra seus controles na caixa de mensagem nem intercepta mensagens aqui.",
   "Навыки": "Habilidades",
   "Навыки BB и собственные навыки CLI по имени.": "Habilidades do BB e as próprias da CLI, por nome.",
   "MCP-серверы": "Servidores MCP",
