@@ -46,6 +46,7 @@ import {
   placeOf,
   type CollapseRecord,
   hasFolderUnread,
+  sortFoldersByActivity,
 } from "./chat-list";
 import { t, useLanguage, LanguagePicker, direction } from "./i18n";
 import {
@@ -2288,8 +2289,18 @@ function Tree(props: PluginThreadListProps) {
     props.onNavigate();
   };
   /** One entry per project; per-device copies are opened from the card or composer machine control. */
-  const visibleRoots = data.roots.filter(
-    (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
+  const visibleRoots = sortFoldersByActivity(
+    data.roots.filter(
+      (r, i) => data.roots.findIndex((x) => x.projectId === r.projectId) === i,
+    ),
+    {
+      enabled: listSettings.sortSectionsByActivity,
+      root: true,
+      folders: data.folders,
+      bindings: data.bindings,
+      places: data.places,
+      threads,
+    },
   );
   const rows = (
     ts: readonly PluginSidebarThread[],
@@ -2372,8 +2383,19 @@ function Tree(props: PluginThreadListProps) {
   const node = (f: Folder, root = false): React.ReactNode => {
     const level = root ? 0 : sectionLevel(data.folders, f);
     const group = !root && isGroupFolder(f);
-    const children = data.folders.filter(
-      (c) => c.projectId === f.projectId && c.parentId === (root ? null : f.id),
+    const children = sortFoldersByActivity(
+      data.folders.filter(
+        (c) =>
+          c.projectId === f.projectId && c.parentId === (root ? null : f.id),
+      ),
+      {
+        enabled: listSettings.sortSectionsByActivity,
+        root: false,
+        folders: data.folders,
+        bindings: data.bindings,
+        places: data.places,
+        threads,
+      },
     );
     const target = { projectId: f.projectId, folderId: root ? null : f.id };
     const ts = threads.filter(

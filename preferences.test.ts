@@ -38,6 +38,8 @@ describe("preferences", () => {
     expect(prefs.chatList.sort).toBe("title");
     expect(prefs.chatList.limit).toBe(10);
     expect(prefs.chatList.inactiveHours).toBe(6);
+    expect(prefs.chatList.sortSectionsByActivity).toBe(true);
+    expect(prefs.chatList.inactiveUnit).toBe("hours");
     expect(prefs.chatList.hideIdleHours).toBe(48);
     expect(prefs.view.density).toBe("compact");
     expect(prefs.appearance.levels.level1).toEqual({

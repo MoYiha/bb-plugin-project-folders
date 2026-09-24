@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4
+
+- **Sections with live chats float to the top.** An unread reply goes first, then a busy agent, then recent activity. Manual order stays on the management page and when the chat-list switch is off.
+- **Idle sections collapse after a set time, including empty ones.** The threshold is hours or days (default 2 hours).
+
 ## 0.6.3
 
 - **MCP servers of Claude plugins are offered in the editor.** The machine inventory reads the `.mcp.json` of every enabled Claude plugin (agentmemory, winnow…). With BB core `vk.5` an allow list can keep such a server on its own.

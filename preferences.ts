@@ -67,8 +67,10 @@ export const prefsSchema = z.object({
   chatList: z.object({
     sort: z.enum(CHAT_SORTS),
     limit: z.number().int().min(1).max(100),
+    sortSectionsByActivity: z.boolean(),
     autoCollapseInactive: z.boolean(),
     inactiveHours: z.number().min(0.25).max(720),
+    inactiveUnit: z.enum(["hours", "days"]),
     hideIdleHours: z.number().min(0).max(720),
     boldUnread: z.boolean(),
   }),
@@ -93,8 +95,10 @@ export const defaultPrefs: Prefs = {
   chatList: {
     sort: "activity",
     limit: 10,
+    sortSectionsByActivity: true,
     autoCollapseInactive: true,
     inactiveHours: 2,
+    inactiveUnit: "hours",
     hideIdleHours: 48,
     boldUnread: true,
   },

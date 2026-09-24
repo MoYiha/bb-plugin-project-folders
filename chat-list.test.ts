@@ -13,6 +13,7 @@ import {
   isSectionCollapsed,
   hasFolderUnread,
   INACTIVE_SECTION_THRESHOLD_MS,
+  sortFoldersByActivity,
 } from "./chat-list";
 const chat = (id: string, overrides = {}) => ({
   id,
@@ -483,6 +484,84 @@ describe("auto-collapsing inactive sections", () => {
         now,
       }),
     ).toBe(false);
+
+    expect(
+      isSectionCollapsed({
+        folderId: "sec1",
+        projectId: "p1",
+        root: false,
+        folders,
+        bindings,
+        threads: [],
+        now,
+      }),
+    ).toBe(true);
+  });
+
+  it("sorts sibling sections by unread reply, then busy, then activity", () => {
+    const now = 50_000_000;
+    const siblings = [
+      { id: "idle", projectId: "p1", parentId: null, sort: 0 },
+      { id: "fresh", projectId: "p1", parentId: null, sort: 1 },
+      { id: "busy", projectId: "p1", parentId: null, sort: 2 },
+      { id: "reply", projectId: "p1", parentId: null, sort: 3 },
+    ];
+    const tree = [
+      ...siblings,
+      { id: "sec1", projectId: "p1", parentId: null },
+    ];
+    const threads = [
+      {
+        id: "t-idle",
+        projectId: "p1",
+        environment: { id: "env-idle" },
+        updatedAt: now - 10 * 60 * 60 * 1000,
+      },
+      {
+        id: "t-fresh",
+        projectId: "p1",
+        environment: { id: "env-fresh" },
+        updatedAt: now - 10 * 60 * 1000,
+      },
+      {
+        id: "t-busy",
+        projectId: "p1",
+        environment: { id: "env-busy" },
+        updatedAt: now - 8 * 60 * 60 * 1000,
+        status: "active",
+      },
+      {
+        id: "t-reply",
+        projectId: "p1",
+        environment: { id: "env-reply" },
+        updatedAt: now - 9 * 60 * 60 * 1000,
+        isUnread: true,
+      },
+    ];
+    const bind = {
+      "env-idle": "idle",
+      "env-fresh": "fresh",
+      "env-busy": "busy",
+      "env-reply": "reply",
+    };
+    expect(
+      sortFoldersByActivity(siblings, {
+        enabled: true,
+        root: false,
+        folders: tree,
+        bindings: bind,
+        threads,
+      }).map((f) => f.id),
+    ).toEqual(["reply", "busy", "fresh", "idle"]);
+    expect(
+      sortFoldersByActivity(siblings, {
+        enabled: false,
+        root: false,
+        folders: tree,
+        bindings: bind,
+        threads,
+      }).map((f) => f.id),
+    ).toEqual(["idle", "fresh", "busy", "reply"]);
   });
 
   it("detects unread chats anywhere in the hierarchy", () => {

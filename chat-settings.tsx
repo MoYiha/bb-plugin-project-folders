@@ -94,6 +94,22 @@ export function ChatSettings() {
           "Закреплённые чаты всегда сверху. Для отдельного раздела порядок и число чатов меняются в его «Оформлении».",
         )}
       >
+        <SettingRow
+          label={t("Поднимать разделы с активными чатами")}
+          hint={t(
+            "Раздел с непрочитанным ответом поднимается выше всех. Дальше идут разделы, где идёт работа, затем по свежести. Выключено — ручной порядок.",
+          )}
+          htmlFor="pf-set-section-sort"
+        >
+          <Switch
+            id="pf-set-section-sort"
+            label={t("Поднимать разделы с активными чатами")}
+            checked={settings.sortSectionsByActivity}
+            onChange={(sortSectionsByActivity) =>
+              update({ sortSectionsByActivity })
+            }
+          />
+        </SettingRow>
         <SettingRow label={t("Сортировка чатов")} htmlFor="pf-set-sort">
           <select
             id="pf-set-sort"
@@ -156,20 +172,57 @@ export function ChatSettings() {
           />
         </SettingRow>
         <SettingRow
-          label={t("Сворачивать разделы без активности, часов")}
+          label={
+            settings.inactiveUnit === "days"
+              ? t("Сворачивать разделы без активности, дней")
+              : t("Сворачивать разделы без активности, часов")
+          }
           htmlFor="pf-set-hours"
           disabled={!settings.autoCollapseInactive}
         >
-          <NumberInput
-            id="pf-set-hours"
-            value={settings.inactiveHours}
-            min={0.25}
-            max={720}
-            step={0.25}
-            integer={false}
-            disabled={!settings.autoCollapseInactive}
-            onCommit={(inactiveHours) => update({ inactiveHours })}
-          />
+          <span className="pf-srow-pair">
+            <NumberInput
+              id="pf-set-hours"
+              value={
+                settings.inactiveUnit === "days"
+                  ? settings.inactiveHours / 24
+                  : settings.inactiveHours
+              }
+              min={settings.inactiveUnit === "days" ? 1 : 0.25}
+              max={settings.inactiveUnit === "days" ? 30 : 720}
+              step={settings.inactiveUnit === "days" ? 1 : 0.25}
+              integer={settings.inactiveUnit === "days"}
+              disabled={!settings.autoCollapseInactive}
+              onCommit={(value) =>
+                update({
+                  inactiveHours:
+                    settings.inactiveUnit === "days" ? value * 24 : value,
+                })
+              }
+            />
+            <select
+              className="pf-sinput"
+              aria-label={t("Единицы времени неактивности")}
+              disabled={!settings.autoCollapseInactive}
+              value={settings.inactiveUnit}
+              onChange={(e) => {
+                const inactiveUnit = e.target.value as ChatList["inactiveUnit"];
+                if (inactiveUnit === settings.inactiveUnit) return;
+                if (inactiveUnit === "days") {
+                  const days = Math.min(
+                    30,
+                    Math.max(1, Math.round(settings.inactiveHours / 24) || 1),
+                  );
+                  update({ inactiveUnit, inactiveHours: days * 24 });
+                  return;
+                }
+                update({ inactiveUnit });
+              }}
+            >
+              <option value="hours">{t("Часы")}</option>
+              <option value="days">{t("Дни")}</option>
+            </select>
+          </span>
         </SettingRow>
       </SettingsGroup>
       <SettingsGroup
@@ -241,6 +294,14 @@ export function ChatSortMenu() {
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={settings.sortSectionsByActivity}
+          onCheckedChange={(checked) =>
+            update({ sortSectionsByActivity: Boolean(checked) })
+          }
+        >
+          {t("Поднимать разделы с активными чатами")}
+        </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={settings.autoCollapseInactive}
           onCheckedChange={(checked) =>

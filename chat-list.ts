@@ -405,11 +405,109 @@ export function isSectionCollapsed<T extends ChatThread>(params: {
     ? Math.max(...sectionThreads.map(getThreadActivity))
     : 0;
 
-  if (hasChats && (latestActivity <= 0 || now - latestActivity > thresholdMs)) {
+  if (!hasChats || latestActivity <= 0 || now - latestActivity > thresholdMs) {
     return true;
   }
 
   return false;
+}
+
+function threadNeedsReply<T extends ChatThread>(thread: T): boolean {
+  return !!thread.isUnread || !!thread.hasPendingInteraction;
+}
+
+export function folderActivity<T extends ChatThread>(params: {
+  folderId: string;
+  projectId: string;
+  root: boolean;
+  folders: readonly {
+    id: string;
+    projectId: string;
+    parentId: string | null;
+  }[];
+  bindings: Record<string, string>;
+  places?: Record<string, string>;
+  threads: readonly T[];
+}): { rank: number; activity: number } {
+  const {
+    folderId,
+    projectId,
+    root,
+    folders,
+    bindings,
+    places,
+    threads,
+  } = params;
+  const sectionThreads = (
+    root
+      ? threads.filter((t) => t.projectId === projectId)
+      : collectFolderThreads(
+          folderId,
+          projectId,
+          folders,
+          bindings,
+          threads,
+          places,
+        )
+  ).filter((t) => !t.isArchived);
+  const unread = sectionThreads.some(threadNeedsReply);
+  const busy = sectionThreads.some(isThreadBusy);
+  const activity = sectionThreads.length
+    ? Math.max(...sectionThreads.map(getThreadActivity))
+    : 0;
+  const rank = unread ? 3 : busy ? 2 : activity > 0 ? 1 : 0;
+  return { rank, activity };
+}
+
+export function sortFoldersByActivity<
+  TFolder extends {
+    id: string;
+    projectId: string;
+    sort?: number;
+  },
+  TThread extends ChatThread,
+>(
+  folders: readonly TFolder[],
+  params: {
+    enabled: boolean;
+    root: boolean;
+    folders: readonly {
+      id: string;
+      projectId: string;
+      parentId: string | null;
+    }[];
+    bindings: Record<string, string>;
+    places?: Record<string, string>;
+    threads: readonly TThread[];
+  },
+): TFolder[] {
+  const list = [...folders];
+  const manual = (a: TFolder, b: TFolder) =>
+    (a.sort ?? 0) - (b.sort ?? 0) || a.id.localeCompare(b.id);
+  if (!params.enabled) return list.sort(manual);
+  return list.sort((a, b) => {
+    const sa = folderActivity({
+      folderId: a.id,
+      projectId: a.projectId,
+      root: params.root,
+      folders: params.folders,
+      bindings: params.bindings,
+      places: params.places,
+      threads: params.threads,
+    });
+    const sb = folderActivity({
+      folderId: b.id,
+      projectId: b.projectId,
+      root: params.root,
+      folders: params.folders,
+      bindings: params.bindings,
+      places: params.places,
+      threads: params.threads,
+    });
+    if (sb.rank !== sa.rank) return sb.rank - sa.rank;
+    if (sb.activity !== sa.activity) return sb.activity - sa.activity;
+    return manual(a, b);
+  });
 }
 
 export function hasFolderUnread<T extends ChatThread>(params: {

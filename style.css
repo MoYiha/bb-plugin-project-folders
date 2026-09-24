@@ -1409,6 +1409,14 @@
   min-width: 0;
   width: 90px;
 }
+.pf-srow-pair {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pf-srow-pair .pf-sinput:not(.pf-sinput-number) {
+  min-width: 110px;
+}
 .pf-sinput:disabled {
   opacity: 0.5;
 }

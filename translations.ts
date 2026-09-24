@@ -272,6 +272,11 @@ export const english = {
     "Collapse inactive sections automatically",
   "Сворачивать разделы без активности, часов":
     "Collapse sections inactive for, hours",
+  "Сворачивать разделы без активности, дней":
+    "Collapse sections inactive for, days",
+  "Единицы времени неактивности": "Inactivity time unit",
+  Часы: "Hours",
+  Дни: "Days",
   Скрыть: "Hide",
   "Список чатов": "Chat list",
   Стандарт: "Standard",
@@ -317,6 +322,9 @@ export const english = {
   "Порядок чатов": "Chat order",
   "Порядок чатов, сворачивание разделов и вид дерева.":
     "Chat order, section collapsing and tree view.",
+  "Поднимать разделы с активными чатами": "Raise sections with active chats",
+  "Раздел с непрочитанным ответом поднимается выше всех. Дальше идут разделы, где идёт работа, затем по свежести. Выключено — ручной порядок.":
+    "A section with an unread reply goes to the top. Busy sections follow, then the most recently active. Off keeps the manual order.",
   "Правила по умолчанию": "Default rules",
   "Раздел открыт, пока в нём работает агент или открыт чат. Свёрнутый вручную раздел остаётся свёрнутым.":
     "A section stays open while an agent works in it or a chat is open. A section collapsed by hand stays collapsed.",

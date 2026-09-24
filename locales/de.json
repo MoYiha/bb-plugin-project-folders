@@ -338,5 +338,11 @@
   "Общие инструкции BB": "Allgemeine BB-Anweisungen",
   "Файл {path}: BB добавляет его текст в каждую сессию.": "Datei {path}: BB fügt ihren Text jeder Sitzung hinzu.",
   "Сейчас этого файла нет, выключать нечего.": "Diese Datei gibt es gerade nicht, es gibt nichts abzuschalten.",
-  "по умолчанию BB": "BB-Standard"
+  "по умолчанию BB": "BB-Standard",
+  "Поднимать разделы с активными чатами": "Bereiche mit aktiven Chats nach oben",
+  "Раздел с непрочитанным ответом поднимается выше всех. Дальше идут разделы, где идёт работа, затем по свежести. Выключено — ручной порядок.": "Ein Bereich mit ungelesener Antwort steht ganz oben. Danach beschäftigte, dann die jüngsten. Aus belässt die manuelle Reihenfolge.",
+  "Сворачивать разделы без активности, дней": "Bereiche einklappen nach Inaktivität, Tage",
+  "Единицы времени неактивности": "Zeiteinheit für Inaktivität",
+  "Часы": "Stunden",
+  "Дни": "Tage"
 }
