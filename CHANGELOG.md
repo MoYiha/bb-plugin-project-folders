@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.13
+
+- **The lock follows BB.** A plugin BB itself marks as required (`required` in the experimental context contributions) is shown locked in Session context too, not only the ones this plugin knows about.
+
 ## 0.6.12
 
 - **What BB needs stays in every session.** In Session context, Project checkout (`environment-project-checkout`), Project folders and the `bb-bridge` MCP server are listed first, marked as required by BB, and locked: ticked in an "only selected" list, unticked in an "all except" list. Saved rules never send them to core as excluded, and an allow list always includes them, so threads keep loading.

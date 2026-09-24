@@ -25,6 +25,8 @@ type Loaded = {
   effective: ResolvedSessionPolicy;
 };
 type Adds = {
+  /** Core says no rule can leave this plugin out. */
+  required?: boolean;
   instructions: boolean;
   configure: boolean;
   tools: number;
@@ -336,7 +338,7 @@ function GroupRow({
     const q = query.trim().toLowerCase();
     // Required items first, then plugins that actually shape the session.
     const weight = (item: InventoryItem) =>
-      isRequiredSessionItem(group, item.name)
+      isRequiredSessionItem(group, item.name) || item.adds?.required
         ? 0
         : item.adds &&
             addsLabel(item.adds) !== t("в сессию ничего не добавляет")
@@ -405,7 +407,9 @@ function GroupRow({
             {listed.map((item) => {
               // Required items stay in every session: ticked in an allow
               // list, unticked in a deny list, and locked either way.
-              const required = isRequiredSessionItem(group, item.name);
+              const required =
+                isRequiredSessionItem(group, item.name) ||
+                item.adds?.required === true;
               return (
                 <li key={item.name}>
                   <label>

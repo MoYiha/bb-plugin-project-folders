@@ -36,6 +36,7 @@ type PolicyContext = {
 };
 type VkContribution = {
   pluginId: string;
+  required?: boolean;
   instructions: boolean;
   configure: boolean;
   tools: string[];
@@ -182,6 +183,7 @@ export function makeSessionPolicies(args: {
         (agents.experimental_vkContextContributions?.() ?? []).map((c) => [
           c.pluginId,
           {
+            ...(c.required ? { required: true } : {}),
             instructions: c.instructions,
             configure: c.configure,
             tools: c.tools.length,
