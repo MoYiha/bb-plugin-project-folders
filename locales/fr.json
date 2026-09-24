@@ -358,5 +358,6 @@
   "инструменты: {n}": "outils : {n}",
   "навыки: {n}": "compétences : {n}",
   "выбирает по треду": "choisit par fil",
-  "в сессию ничего не добавляет": "n’ajoute rien aux sessions"
+  "в сессию ничего не добавляет": "n’ajoute rien aux sessions",
+  "нужен BB, всегда подключён": "requis par BB, toujours chargé"
 }

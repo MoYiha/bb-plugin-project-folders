@@ -83,4 +83,50 @@ describe("session context rules", () => {
       ),
     ).toEqual({ projectInstructions: false });
   });
+
+  it("never lets a rule take out what BB needs to run threads", () => {
+    expect(
+      toCorePolicy(
+        resolveSessionPolicy([
+          {
+            origin: folder,
+            value: {
+              bbPlugins: {
+                mode: "deny",
+                names: ["agency", "environment-project-checkout"],
+              },
+              mcpServers: { mode: "allow", names: ["gitnexus"] },
+            },
+          },
+        ]),
+      ),
+    ).toEqual({
+      bbPlugins: { mode: "deny", names: ["agency"] },
+      mcpServers: { mode: "allow", names: ["bb-bridge", "gitnexus"] },
+    });
+    expect(
+      toCorePolicy(
+        resolveSessionPolicy([
+          {
+            origin: project,
+            value: { bbPlugins: { mode: "allow", names: ["env-catalog"] } },
+          },
+        ]),
+      ),
+    ).toEqual({
+      bbPlugins: {
+        mode: "allow",
+        names: [
+          "environment-project-checkout",
+          "project-folders",
+          "env-catalog",
+        ],
+      },
+    });
+    expect(
+      normalizeSessionPolicy({
+        mcpServers: { mode: "deny", names: ["bb-bridge", "discord-web"] },
+      }),
+    ).toEqual({ mcpServers: { mode: "deny", names: ["discord-web"] } });
+  });
 });

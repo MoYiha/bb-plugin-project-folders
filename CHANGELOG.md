@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.12
+
+- **What BB needs stays in every session.** In Session context, Project checkout (`environment-project-checkout`), Project folders and the `bb-bridge` MCP server are listed first, marked as required by BB, and locked: ticked in an "only selected" list, unticked in an "all except" list. Saved rules never send them to core as excluded, and an allow list always includes them, so threads keep loading.
+
 ## 0.6.11
 
 - **Opening a chat does not move its project or section.** Sort still uses unread replies, a busy agent, and real conversation activity. A visit or read without a message is ignored.

@@ -29,6 +29,36 @@ export const SESSION_POLICY_SWITCHES = [
 ] as const;
 export type SessionPolicySwitch = (typeof SESSION_POLICY_SWITCHES)[number];
 
+/**
+ * Items no rule may take out of a session: BB cannot start or show threads
+ * without them. `environment-project-checkout` provisions the thread's
+ * environment, `project-folders` supplies these rules (core never excludes
+ * it either), and `bb-bridge` is the MCP server that carries BB's own and
+ * every plugin's tools. They stay loaded whatever a group says.
+ */
+export const REQUIRED_SESSION_ITEMS = {
+  bbPlugins: ["environment-project-checkout", "project-folders"],
+  mcpServers: ["bb-bridge"],
+} as const satisfies Partial<Record<SessionPolicyGroup, readonly string[]>>;
+
+/** Required items BB always has, so the editor lists them even when no inventory does. */
+export const BUILT_IN_SESSION_ITEMS: Partial<
+  Record<SessionPolicyGroup, readonly string[]>
+> = { mcpServers: ["bb-bridge"] };
+
+export function isRequiredSessionItem(
+  group: SessionPolicyGroup,
+  name: string,
+): boolean {
+  const required: readonly string[] =
+    (
+      REQUIRED_SESSION_ITEMS as Partial<
+        Record<SessionPolicyGroup, readonly string[]>
+      >
+    )[group] ?? [];
+  return required.includes(name);
+}
+
 const NAME_MAX = 200;
 const NAMES_MAX = 500;
 
@@ -93,10 +123,17 @@ export function normalizeSessionPolicy(value: SessionPolicy): SessionPolicy {
     if (!filter) continue;
     out[group] = {
       mode: filter.mode,
+      // Required items are never stored: they are always in the session.
       names:
         filter.mode === "all"
           ? []
-          : [...new Set(filter.names.map((n) => n.trim()).filter(Boolean))],
+          : [
+              ...new Set(
+                filter.names
+                  .map((n) => n.trim())
+                  .filter((n) => n && !isRequiredSessionItem(group, n)),
+              ),
+            ],
     };
   }
   for (const key of SESSION_POLICY_SWITCHES)
@@ -143,7 +180,20 @@ export function toCorePolicy(
   for (const group of SESSION_POLICY_GROUPS) {
     const filter = resolved[group]?.value;
     if (filter && filter.mode !== "all") {
-      out[group] = { mode: filter.mode, names: filter.names };
+      // An allow list keeps the required items; a deny list can't drop them.
+      const kept = filter.names.filter(
+        (name) => !isRequiredSessionItem(group, name),
+      );
+      const required: readonly string[] =
+        (
+          REQUIRED_SESSION_ITEMS as Partial<
+            Record<SessionPolicyGroup, readonly string[]>
+          >
+        )[group] ?? [];
+      out[group] = {
+        mode: filter.mode,
+        names: filter.mode === "allow" ? [...required, ...kept] : kept,
+      };
     }
   }
   for (const key of SESSION_POLICY_SWITCHES)

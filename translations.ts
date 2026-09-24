@@ -465,4 +465,5 @@ export const english = {
   "навыки: {n}": "skills: {n}",
   "выбирает по треду": "picks per thread",
   "в сессию ничего не добавляет": "adds nothing to sessions",
+  "нужен BB, всегда подключён": "required by BB, always loaded",
 } as const;

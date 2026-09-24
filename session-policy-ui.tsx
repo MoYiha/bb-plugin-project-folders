@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { ExecutionScope, rpcContract } from "./server";
 import {
+  BUILT_IN_SESSION_ITEMS,
+  isRequiredSessionItem,
   normalizeSessionPolicy,
   SESSION_POLICY_GROUPS,
   type PolicyOrigin,
@@ -329,20 +331,23 @@ function GroupRow({
   const names = own?.names ?? [];
   const listed = useMemo(() => {
     const known = new Map(items.map((i) => [i.name, i]));
-    for (const name of names)
+    for (const name of [...(BUILT_IN_SESSION_ITEMS[group] ?? []), ...names])
       if (!known.has(name)) known.set(name, { name, label: name });
     const q = query.trim().toLowerCase();
-    // Plugins that actually shape the session come first.
+    // Required items first, then plugins that actually shape the session.
     const weight = (item: InventoryItem) =>
-      item.adds && addsLabel(item.adds) !== t("в сессию ничего не добавляет")
+      isRequiredSessionItem(group, item.name)
         ? 0
-        : 1;
+        : item.adds &&
+            addsLabel(item.adds) !== t("в сессию ничего не добавляет")
+          ? 1
+          : 2;
     return [...known.values()]
       .filter((item) =>
         q ? `${item.name} ${item.label}`.toLowerCase().includes(q) : true,
       )
       .sort((a, b) => weight(a) - weight(b) || a.label.localeCompare(b.label));
-  }, [items, names, query]);
+  }, [group, items, names, query]);
   const toggle = (name: string, on: boolean) =>
     onChange({
       mode: own!.mode,
@@ -397,25 +402,40 @@ function GroupRow({
             onChange={(e) => setQuery(e.target.value)}
           />
           <ul className="pf-session-list" role="list">
-            {listed.map((item) => (
-              <li key={item.name}>
-                <label>
-                  <Checkbox
-                    checked={names.includes(item.name)}
-                    disabled={disabled}
-                    onCheckedChange={(on) => toggle(item.name, on === true)}
-                  />
-                  <span className="pf-session-item">
-                    <span>{item.label}</span>
-                    {item.adds && (
-                      <span className="pf-session-adds">
-                        {addsLabel(item.adds)}
-                      </span>
-                    )}
-                  </span>
-                </label>
-              </li>
-            ))}
+            {listed.map((item) => {
+              // Required items stay in every session: ticked in an allow
+              // list, unticked in a deny list, and locked either way.
+              const required = isRequiredSessionItem(group, item.name);
+              return (
+                <li key={item.name}>
+                  <label>
+                    <Checkbox
+                      checked={
+                        required
+                          ? own.mode === "allow"
+                          : names.includes(item.name)
+                      }
+                      disabled={disabled || required}
+                      onCheckedChange={(on) => toggle(item.name, on === true)}
+                    />
+                    <span className="pf-session-item">
+                      <span>{item.label}</span>
+                      {required ? (
+                        <span className="pf-session-adds">
+                          {t("нужен BB, всегда подключён")}
+                        </span>
+                      ) : (
+                        item.adds && (
+                          <span className="pf-session-adds">
+                            {addsLabel(item.adds)}
+                          </span>
+                        )
+                      )}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
             {listed.length === 0 && (
               <li className="pf-agents-hint">{t("Ничего не найдено")}</li>
             )}
