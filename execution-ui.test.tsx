@@ -109,6 +109,8 @@ it("shows a section where its unpinned model comes from", async () => {
   const view = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
   await view.findByText("Project");
   view.getByText("Section").click();
+  // The card opens on Rules; provider defaults live on their own tab.
+  fireEvent.click(await view.findByRole("tab", { name: "Provider" }));
   await view.findByText("Provider, model and agent");
   expect(view.baseElement.textContent).toContain("from the project");
   const picker = view.getByTestId("bb-provider-model-picker");
@@ -121,6 +123,8 @@ it("pins an agent on the section and saves it", async () => {
   const view = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
   await view.findByText("Project");
   view.getByText("Section").click();
+  // The card opens on Rules; provider defaults live on their own tab.
+  fireEvent.click(await view.findByRole("tab", { name: "Provider" }));
   await view.findByText("Provider, model and agent");
   fireEvent.change(view.getByLabelText("Agent"), {
     target: { value: "reviewer" },
@@ -164,6 +168,8 @@ it("offers the CLI Agents plugin when agents are not available", async () => {
   );
   await view.findByText("Project");
   view.getByText("Section").click();
+  // The card opens on Rules; provider defaults live on their own tab.
+  fireEvent.click(await view.findByRole("tab", { name: "Provider" }));
   await view.findByText("Provider, model and agent");
   expect(view.baseElement.textContent).toContain("CLI Agents");
   expect((view.getByLabelText("Agent") as HTMLSelectElement).disabled).toBe(
@@ -179,6 +185,8 @@ it("never sends a switched-off group as undefined", async () => {
   const view = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
   await view.findByText("Project");
   view.getByText("Section").click();
+  // The card opens on Rules; provider defaults live on their own tab.
+  fireEvent.click(await view.findByRole("tab", { name: "Provider" }));
   await view.findByText("Provider, model and agent");
   fireEvent.click(view.getByRole("switch", { name: "Own provider and model" }));
   fireEvent.click(view.getByRole("switch", { name: "Own permission mode" }));
@@ -225,6 +233,8 @@ it("does not argue with the picker about a service tier it dropped", async () =>
   );
   await view.findByText("Project");
   view.getByText("Section").click();
+  // The card opens on Rules; provider defaults live on their own tab.
+  fireEvent.click(await view.findByRole("tab", { name: "Provider" }));
   await view.findByText("Provider, model and agent");
   fireEvent.click(view.getByRole("switch", { name: "Own provider and model" }));
   const tier = view.getByLabelText("Service tier") as HTMLSelectElement;
