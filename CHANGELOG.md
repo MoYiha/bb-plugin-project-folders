@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.17 — Sections for other plugins
+
+- A read-only, discoverable `sections_list` RPC gives other plugins a project's sections with their folders, so Lane Pilot can keep settings per section.
+
 ## 0.6.16 — Lane Pilot from a section chat
 
 - A section's new chat forwards the composer's hidden plugin data (`pluginSubmission`) to the thread; the request schema dropped it, so a Lane Pilot profile never reached its dispatch hook.

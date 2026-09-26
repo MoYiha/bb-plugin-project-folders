@@ -2497,3 +2497,16 @@ describe("background history export", () => {
     }
   });
 });
+
+describe("sections for other plugins", () => {
+  it("lists a project's sections with their folders through a discoverable contract", async () => {
+    const h = await setup();
+    try {
+      const f = (await h.harness.behavior.callRpc("create", { projectId: "p1", folderId: null, name: "Nested", relativePath: "nested" })) as { id: string };
+      const listed = (await h.harness.behavior.callRpc("sections_list", { projectId: "p1" })) as { sections: Array<{ id: string; path: string; parentId: string | null; kind: string }> };
+      expect(listed.sections).toEqual(expect.arrayContaining([expect.objectContaining({ id: f.id, path: "/work/nested", parentId: null, kind: "folder" })]));
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+});

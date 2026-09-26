@@ -166,6 +166,24 @@ const requestSchema = z.object({
     .optional(),
 });
 export type ComposerRequest = z.input<typeof requestSchema>;
+export const sectionsContract = defineRpcContract({
+  sections_list: {
+    input: z.object({ projectId: z.string().min(1).optional() }).strict(),
+    output: z.object({
+      sections: z.array(
+        z.object({
+          id: z.string(),
+          projectId: z.string(),
+          parentId: z.string().nullable(),
+          name: z.string(),
+          path: z.string(),
+          hostId: z.string(),
+          kind: z.enum(["folder", "group"]),
+        }),
+      ),
+    }),
+  },
+});
 export const rpcContract = defineRpcContract({
   thread_move: {
     input: targetSchema.extend({ threadId: z.string().min(1) }),
@@ -3194,6 +3212,29 @@ export default async function plugin(bb: BbPluginApi) {
     },
   };
   bb.rpc.register(rpcContract, handlers);
+  // Read-only section tree for other plugins (Lane Pilot scopes its settings by section).
+  bb.rpc.register(
+    sectionsContract,
+    {
+      sections_list: ({ projectId }) => ({
+        sections: folders()
+          .filter((f) => !projectId || f.projectId === projectId)
+          .map((f) => ({
+            id: f.id,
+            projectId: f.projectId,
+            parentId: f.parentId,
+            name: f.name,
+            path: f.path,
+            hostId: f.hostId,
+            kind: f.kind ?? "folder",
+          })),
+      }),
+    },
+    {
+      experimental_discoverable: true,
+      experimental_description: "Project sections with their folders, for plugins that work per section.",
+    },
+  );
   bb.agents.configure((ctx) => {
     const blocks: string[] = [];
     if (ctx.project.kind === "standard" && ctx.environment.path)
