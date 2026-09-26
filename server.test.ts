@@ -209,6 +209,7 @@ describe("project folder boundaries", () => {
           { type: "text", text: "hello" },
           { type: "localFile", path: "attachment.pdf" },
         ],
+        pluginSubmission: { pluginId: "lane-pilot", data: { token: "t1" } },
       };
       await h.harness.behavior.callRpc("spawn", {
         projectId: "p1",
@@ -248,6 +249,9 @@ describe("project folder boundaries", () => {
       expect(JSON.stringify(calls)).toContain("/work/nested");
       expect(JSON.stringify(calls)).toContain("selected-model");
       expect(JSON.stringify(calls)).toContain("attachment.pdf");
+      expect(calls[0]?.[0]).toMatchObject({
+        pluginSubmission: { pluginId: "lane-pilot", data: { token: "t1" } },
+      });
       await expect(
         h.harness.behavior.callRpc("spawn", {
           projectId: "p1",

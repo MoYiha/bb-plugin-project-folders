@@ -161,6 +161,9 @@ const requestSchema = z.object({
   executionInputSources: z.record(z.string(), z.json()),
   serviceTier: z.string().optional(),
   sendAt: z.number().int().optional(),
+  pluginSubmission: z
+    .object({ pluginId: z.string(), data: z.json() })
+    .optional(),
 });
 export type ComposerRequest = z.input<typeof requestSchema>;
 export const rpcContract = defineRpcContract({
@@ -1221,13 +1224,20 @@ export default async function plugin(bb: BbPluginApi) {
     folder: Folder | null,
     projectId: string,
     hostId: string,
-    request: { providerId: string; input: unknown[] },
+    request: {
+      providerId: string;
+      input: unknown[];
+      pluginSubmission?: { pluginId: string };
+    },
   ): Promise<string | null> => {
     const pin = effectiveExecution(folder, projectId).agent;
     if (!pin || pin.mode !== "agent" || !pin.agentId) return null;
     if (!isAgentProvider(request.providerId)) return null;
     // An agent chosen by hand in this very composer is the newer decision.
     if (AGENT_MARKER_PATTERN.test(JSON.stringify(request.input))) return null;
+    // So is a Lane Pilot profile enabled in the composer; binding the pin too
+    // would make Lane Pilot refuse the send as a second agent choice.
+    if (request.pluginSubmission?.pluginId === "lane-pilot") return null;
     const where = folder ? `section “${folder.name}”` : "this project";
     const fail = (reason: string) =>
       new Error(

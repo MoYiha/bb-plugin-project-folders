@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.16 — Lane Pilot from a section chat
+
+- A section's new chat forwards the composer's hidden plugin data (`pluginSubmission`) to the thread; the request schema dropped it, so a Lane Pilot profile never reached its dispatch hook.
+- A Lane Pilot profile enabled in the composer wins over the section's pinned agent, as a hand-picked agent already does.
+
 ## 0.6.15 — Background history export
 
 - Coalesce automatic export events in a persistent, serial queue; retry failures without holding lifecycle handlers open.

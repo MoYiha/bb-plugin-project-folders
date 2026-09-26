@@ -315,6 +315,33 @@ describe("pinned agents", () => {
       await h.harness.lifecycle.dispose();
     }
   });
+  it("yields to a Lane Pilot profile chosen in the composer", async () => {
+    const h = await setup();
+    try {
+      const id = await section(h, "Review");
+      await call(h)("execution_save", {
+        scope: { kind: "folder", projectId: "p1", folderId: id },
+        value: { agentMode: "agent", agentId: "reviewer" },
+      });
+      stubSpawn(h);
+      await call(h)("spawn", {
+        projectId: "p1",
+        folderId: id,
+        request: {
+          ...spawnRequest(),
+          pluginSubmission: { pluginId: "lane-pilot", data: { token: "t1" } },
+        },
+      });
+      expect(h.rpcCalls.map((c) => c.method)).not.toContain("select");
+      const spawned = JSON.stringify(
+        h.harness.inspection.sdk.callsTo("threads.spawn"),
+      );
+      expect(spawned).not.toContain("cli-agents-selection");
+      expect(spawned).toContain("lane-pilot");
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
   it("refuses to start a chat whose pinned agent cannot be applied", async () => {
     const h = await setup();
     try {
