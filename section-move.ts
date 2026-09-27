@@ -107,13 +107,28 @@ export function makeSectionMoves(
           f.id !== folder.id &&
           f.projectId === folder.projectId &&
           f.hostId === folder.hostId &&
+          f.path !== folder.path &&
           within(f.path, folder.path)
         )
           movingIds.add(f.id);
+      const destTaken = all.some(
+        (f) =>
+          f.id !== folder.id &&
+          f.kind !== "group" &&
+          f.hostId === folder.hostId &&
+          f.path === destination,
+      );
+      const sourceShared = all.some(
+        (f) =>
+          f.id !== folder.id &&
+          f.kind !== "group" &&
+          f.hostId === folder.hostId &&
+          f.path === folder.path,
+      );
       for (const f of all) {
-        if (f.hostId !== folder.hostId || movingIds.has(f.id)) continue;
-        if (f.path === destination)
-          throw new Error("Another section already uses this path.");
+        if (f.hostId !== folder.hostId || movingIds.has(f.id) || destTaken)
+          continue;
+        if (f.path === destination) continue;
         if (within(destination, f.path) && !ancestors.has(f.id))
           throw new Error("Choose a path that is not inside another section.");
         if (within(f.path, destination))
@@ -127,9 +142,10 @@ export function makeSectionMoves(
         for (const s of p.sources) {
           if (s.type !== "local_path" || s.hostId !== folder.hostId) continue;
           if (p.id === folder.projectId) {
+            if (destination === s.path) continue;
             if (
               (!free && !within(destination, s.path)) ||
-              within(s.path, destination)
+              (within(s.path, destination) && destination !== s.path)
             )
               throw new Error(
                 "Keep the section inside its project folder on this device.",
@@ -208,6 +224,22 @@ export function makeSectionMoves(
             if (threads.length < 200) break;
           }
       };
+      if (sourceShared || destTaken) {
+        db.transaction(() => {
+          db.prepare("UPDATE folders SET path=? WHERE id=?").run(
+            destination,
+            folder.id,
+          );
+          db.prepare(
+            "INSERT INTO folder_paths (folderId, hostId, path) VALUES (?, ?, ?) ON CONFLICT(folderId, hostId) DO UPDATE SET path=excluded.path",
+          ).run(folder.id, folder.hostId, destination);
+          m!.complete = true;
+          m!.error = null;
+          put(m!);
+        })();
+        deps.changed();
+        return { destination, complete: true };
+      }
       const existence = (
         await bb.sdk.hosts.pathsExist({
           hostId: folder.hostId,
@@ -268,6 +300,13 @@ export function makeSectionMoves(
               remap(f.path),
               f.id,
             );
+        for (const row of db
+          .prepare("SELECT folderId, hostId, path FROM folder_paths")
+          .all() as { folderId: string; hostId: string; path: string }[])
+          if (row.hostId === folder.hostId && movingIds.has(row.folderId))
+            db.prepare(
+              "UPDATE folder_paths SET path=? WHERE folderId=? AND hostId=?",
+            ).run(remap(row.path), row.folderId, row.hostId);
         for (const e of db
           .prepare("SELECT threadId,path FROM exports")
           .all() as { threadId: string; path: string | null }[])

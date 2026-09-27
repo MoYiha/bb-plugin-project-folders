@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.18 — Shared section folders and per-device paths
+
+- Several sections (SEO, Ads, SMM) may point at the same folder.
+- A section can have its own path on each device, like a project copy: card device tabs, `section_path_set` / `path-set`.
+
 ## 0.6.17 — Sections for other plugins
 
 - A read-only, discoverable `sections_list` RPC gives other plugins a project's sections with their folders, so Lane Pilot can keep settings per section.

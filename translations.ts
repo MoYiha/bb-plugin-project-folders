@@ -34,6 +34,14 @@ export const english = {
   "Папка раздела": "Section folder",
   "Новая папка создастся по названию раздела. Кнопка папки позволяет выбрать существующую.":
     "A new folder uses the section name. Use the folder button to choose an existing folder.",
+  "Разные разделы могут указывать на одну папку.":
+    "Different sections can use the same folder.",
+  "У раздела может быть своя папка на каждом устройстве.":
+    "A section can have its own folder on each device.",
+  "Пути раздела на этой машине нет":
+    "The section has no folder on this device",
+  "Добавить путь": "Add path",
+  "Убрать путь": "Remove path",
   "Разделы внутри группы можно создавать на любом устройстве, где у проекта есть папка.":
     "Sections inside a group can be created on any device where the project has a folder.",
   "Папку можно выбрать и вне проекта, например папку сайта на сервере.":

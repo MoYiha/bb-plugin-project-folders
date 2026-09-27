@@ -12,6 +12,12 @@ import {
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Icon } from "./components/ui/icon";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "./components/ui/dropdown-menu";
 import { t, direction } from "./i18n";
 export function MoveDialog({
   folder,
@@ -221,10 +227,12 @@ export function MoveDialog({
 }
 export function SectionMoveDialog({
   folder,
+  presetHost,
   onClose,
   onMoved,
 }: {
   folder: Folder | null;
+  presetHost?: string | null;
   onClose: () => void;
   onMoved: () => void;
 }) {
@@ -234,10 +242,10 @@ export function SectionMoveDialog({
   const [adopt, setAdopt] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [machine, setMachine] = useState<{
-    name: string;
-    connected: boolean;
-  } | null>(null);
+  const [hostId, setHostId] = useState("");
+  const [machines, setMachines] = useState<
+    { id: string; name: string; connected: boolean }[]
+  >([]);
   const [listing, setListing] = useState<{
     path: string;
     parent: string | null;
@@ -248,33 +256,27 @@ export function SectionMoveDialog({
     setAdopt(false);
     setError("");
     setListing(null);
-    setMachine(null);
+    setHostId(presetHost || folder?.hostId || "");
     let live = true;
     if (folder)
       rpc.call("machines").then(
-        (r) =>
-          live &&
-          setMachine(
-            (() => {
-              const m = r.machines.find((m) => m.id === folder.hostId);
-              return m ? { name: m.name, connected: m.connected } : null;
-            })(),
-          ),
+        (r) => live && setMachines(r.machines),
         () => {},
       );
     return () => {
       live = false;
     };
-  }, [folder, rpc]);
+  }, [folder, presetHost, rpc]);
+  const machine = machines.find((m) => m.id === hostId) ?? null;
   async function browse(path?: string) {
-    if (!folder) return;
+    if (!folder || !hostId) return;
     setBusy(true);
     setError("");
     try {
       setListing(
         // An explicit undefined path is not a valid RPC value: omit the key.
         await rpc.call("project_browse", {
-          hostId: folder.hostId,
+          hostId,
           ...(path ? { path } : {}),
         }),
       );
@@ -285,11 +287,18 @@ export function SectionMoveDialog({
     }
   }
   async function move() {
-    if (!folder) return;
+    if (!folder || !hostId) return;
     setBusy(true);
     setError("");
     try {
-      await rpc.call("section_move", { folderId: folder.id, destination });
+      if (hostId !== folder.hostId || adopt)
+        await rpc.call("section_path_set", {
+          folderId: folder.id,
+          hostId,
+          path: destination,
+        });
+      else
+        await rpc.call("section_move", { folderId: folder.id, destination });
       onMoved();
       onClose();
     } catch (e) {
@@ -318,21 +327,48 @@ export function SectionMoveDialog({
         <p className="pf-folder-path">{folder?.path}</p>
         <label className="pf-field">
           {t("Устройство")}
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-2 w-full justify-between"
-            disabled
-          >
-            <span className="flex items-center gap-2">
-              <Icon name={machine?.connected ? "Zap" : "Monitor"} />
-              {machine ? machine.name : t("Загрузка устройств…")}
-            </span>
-            <Icon name="ChevronDown" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-2 w-full justify-between"
+                disabled={busy}
+              >
+                <span className="flex items-center gap-2">
+                  <Icon name={machine?.connected ? "Zap" : "Monitor"} />
+                  {machine ? machine.name : t("Загрузка устройств…")}
+                </span>
+                <Icon name="ChevronDown" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {machines.map((m) => (
+                <DropdownMenuItem
+                  key={m.id}
+                  disabled={!m.connected}
+                  onSelect={() => {
+                    setHostId(m.id);
+                    setListing(null);
+                    setDestination("");
+                    setAdopt(false);
+                  }}
+                >
+                  <Icon name={m.connected ? "Zap" : "Monitor"} />
+                  {m.name}
+                  {!m.connected && (
+                    <span className="text-muted-foreground">
+                      {t("— не подключено")}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </label>
         <p className="text-sm text-muted-foreground mb-3">
-          {t("Раздел живёт на одном устройстве, меняется только путь.")}
+          {t("У раздела может быть своя папка на каждом устройстве.")}{" "}
+          {t("Разные разделы могут указывать на одну папку.")}
         </p>
         {listing ? (
           <>
@@ -369,9 +405,8 @@ export function SectionMoveDialog({
               <Button
                 disabled={busy}
                 onClick={() => {
-                  const name = folder!.path.split("/").filter(Boolean).at(-1)!;
-                  setDestination(listing.path.replace(/\/$/, "") + "/" + name);
-                  setAdopt(listing.directories.some((d) => d.name === name));
+                  setDestination(listing.path.replace(/\/$/, ""));
+                  setAdopt(true);
                   setListing(null);
                 }}
               >

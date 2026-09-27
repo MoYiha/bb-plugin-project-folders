@@ -725,7 +725,7 @@ function FolderDialog({
                 {t("Назад")}
               </Button>
               <Button
-                disabled={busy || loading || !listing || listing.path === base}
+                disabled={busy || loading || !listing}
                 onClick={() => {
                   if (!listing) return;
                   setRelative(pickedPath(listing.path));
@@ -832,6 +832,9 @@ function FolderDialog({
                 <p className="text-sm text-muted-foreground mb-4">
                   {t(
                     "Новая папка создастся по названию раздела. Кнопка папки позволяет выбрать существующую.",
+                  )}{" "}
+                  {t(
+                    "Разные разделы могут указывать на одну папку.",
                   )}{" "}
                   {t(
                     "Папку можно выбрать и вне проекта, например папку сайта на сервере.",
@@ -2913,6 +2916,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
   const [newProject, setNewProject] = useState(false);
   const [movingProject, setMovingProject] = useState<Folder | null>(null);
   const [movingSection, setMovingSection] = useState<Folder | null>(null);
+  const [movingSectionHost, setMovingSectionHost] = useState<string | null>(
+    null,
+  );
   const [copyRoot, setCopyRoot] = useState<Folder | null>(null);
   const { look } = useFolderLook(data.folders);
   const [styling, setStyling] = useState<{
@@ -3537,24 +3543,49 @@ function Panel({ subPath }: PluginNavPanelProps) {
     rpc,
   ]);
   const cardCopies = sel && selRoot ? projectCopies(sel.projectId) : [];
+  const sectionPaths =
+    sel && !selRoot && !selGroup
+      ? sel.paths?.length
+        ? sel.paths
+        : [{ hostId: sel.hostId, path: sel.path }]
+      : [];
   /** Every machine BB knows: the ones holding a copy first, then the free ones. */
-  const cardMachines =
-    sel && selRoot
+  const cardMachines = sel
+    ? selRoot
       ? [
           ...cardCopies.map((c) => c.hostId),
           ...data.machines
             .filter((m) => !cardCopies.some((c) => c.hostId === m.id))
             .map((m) => m.id),
         ]
-      : [];
+      : !selGroup
+        ? [
+            ...sectionPaths.map((p) => p.hostId),
+            ...projectCopies(sel.projectId)
+              .filter((c) => !sectionPaths.some((p) => p.hostId === c.hostId))
+              .map((c) => c.hostId),
+            ...data.machines
+              .filter(
+                (m) =>
+                  !sectionPaths.some((p) => p.hostId === m.id) &&
+                  !projectCopies(sel.projectId).some((c) => c.hostId === m.id),
+              )
+              .map((m) => m.id),
+          ]
+        : []
+    : [];
   const cardHost =
     (sel &&
-      selRoot &&
       cardMachines.find((id) => id === (cardHostState ?? sel.hostId))) ||
     sel?.hostId ||
     "";
   /** The copy on the open device tab, or null when that machine has none yet. */
-  const cardCopy = cardCopies.find((c) => c.hostId === cardHost) ?? null;
+  const cardCopy = selRoot
+    ? (cardCopies.find((c) => c.hostId === cardHost) ?? null)
+    : null;
+  const cardSectionPath = !selRoot && !selGroup
+    ? (sectionPaths.find((p) => p.hostId === cardHost)?.path ?? null)
+    : null;
   const online = (id: string) =>
     data.machines.find((m) => m.id === id)?.connected ?? false;
   useEffect(() => {
@@ -3568,8 +3599,9 @@ function Panel({ subPath }: PluginNavPanelProps) {
     setCardRuleError("");
     // Every project and section with rules shows its own AGENTS.md.
     if (!sel || !selRulesAllowed) return;
-    // A machine without a copy has no file to read yet.
+    // A machine without a copy or section path has no file to read yet.
     if (selRoot && !cardCopy) return;
+    if (!selRoot && !selGroup && !cardSectionPath) return;
     let live = true;
     rpc
       .call("rules_read", {
@@ -3924,7 +3956,103 @@ function Panel({ subPath }: PluginNavPanelProps) {
               )}
             </div>
           ) : (
-            <p className="pf-folder-path">{sel.path}</p>
+            <div className="pf-root-copies">
+              {cardMachines.length > 1 && (
+                <div
+                  className="pf-tabs"
+                  role="tablist"
+                  aria-label={t("Устройство")}
+                >
+                  {cardMachines.map((id) => {
+                    const sectionPath =
+                      sectionPaths.find((p) => p.hostId === id)?.path ?? null;
+                    return (
+                      <button
+                        key={`${sel.id}:${id}`}
+                        type="button"
+                        role="tab"
+                        aria-selected={cardHost === id}
+                        className={
+                          "pf-tab" +
+                          (cardHost === id ? " pf-selected" : "") +
+                          (online(id) ? " pf-tab-live" : "") +
+                          (sectionPath ? "" : " pf-tab-free")
+                        }
+                        title={
+                          sectionPath ??
+                          (online(id)
+                            ? t("Пути раздела на этой машине нет")
+                            : t("Машина не подключена"))
+                        }
+                        onClick={() => setCardHostState(id)}
+                      >
+                        <Icon name="Zap" />
+                        {machineName(id)}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {cardSectionPath ? (
+                <div className="pf-path-control">
+                  <Input
+                    readOnly
+                    aria-label={t("Папка раздела")}
+                    value={cardSectionPath}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label={t("Выбрать папку")}
+                    onClick={() => {
+                      setMovingSectionHost(cardHost);
+                      setMovingSection(sel);
+                    }}
+                  >
+                    <Icon name="Folder" />
+                  </Button>
+                  {cardHost !== sel.hostId && sectionPaths.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() =>
+                        void rpc
+                          .call("section_path_remove", {
+                            folderId: sel.id,
+                            hostId: cardHost,
+                          })
+                          .then(refresh, (e) => setCardRuleError(String(e)))
+                      }
+                    >
+                      {t("Убрать путь")}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="pf-path-control">
+                  <Input
+                    readOnly
+                    disabled
+                    value=""
+                    aria-label={t("Папка раздела")}
+                    placeholder={t("Пути раздела на этой машине нет")}
+                  />
+                  <Button
+                    variant="outline"
+                    disabled={!online(cardHost)}
+                    onClick={() => {
+                      setMovingSectionHost(cardHost);
+                      setMovingSection(sel);
+                    }}
+                  >
+                    <Icon name="Plus" />
+                    {online(cardHost)
+                      ? t("Добавить путь")
+                      : t("Машина не подключена")}
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
           <div className="pf-details-actions">
             <Button
@@ -4031,7 +4159,10 @@ function Panel({ subPath }: PluginNavPanelProps) {
                 size="sm"
                 variant="ghost"
                 className="pf-ghost-muted"
-                onClick={() => setMovingSection(sel)}
+                onClick={() => {
+                  setMovingSectionHost(cardHost);
+                  setMovingSection(sel);
+                }}
               >
                 <Icon name="FolderExport" />
                 {t("Изменить путь")}
@@ -4396,7 +4527,11 @@ function Panel({ subPath }: PluginNavPanelProps) {
       />
       <SectionMoveDialog
         folder={movingSection}
-        onClose={() => setMovingSection(null)}
+        presetHost={movingSectionHost}
+        onClose={() => {
+          setMovingSection(null);
+          setMovingSectionHost(null);
+        }}
         onMoved={refresh}
       />
       <ProjectDialog

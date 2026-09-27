@@ -127,6 +127,10 @@ const folderSchema = z.object({
   kind: z.enum(["folder", "group"]).optional(),
   githubUrl: z.string().nullable().optional(),
   githubPrivate: z.boolean().nullable().optional(),
+  /** Folder on each device; the home host+path stay on the row. */
+  paths: z
+    .array(z.object({ hostId: z.string(), path: z.string() }))
+    .optional(),
 });
 export type Folder = z.infer<typeof folderSchema>;
 const targetSchema = z.object({
@@ -355,6 +359,21 @@ export const rpcContract = defineRpcContract({
       projectId: z.string().min(1),
       hostId: z.string().min(1),
       path: z.string().trim().min(1),
+    }),
+    output: z.object({ ok: z.literal(true) }),
+  },
+  section_path_set: {
+    input: z.object({
+      folderId: z.string().min(1),
+      hostId: z.string().min(1),
+      path: z.string().trim().min(1),
+    }),
+    output: z.object({ ok: z.literal(true), path: z.string() }),
+  },
+  section_path_remove: {
+    input: z.object({
+      folderId: z.string().min(1),
+      hostId: z.string().min(1),
     }),
     output: z.object({ ok: z.literal(true) }),
   },
@@ -715,6 +734,12 @@ export default async function plugin(bb: BbPluginApi) {
     // Session context rules (plugins, skills, MCP, CLI plugins); same keys.
     `CREATE TABLE session_policies (key TEXT PRIMARY KEY, data TEXT NOT NULL)`,
     `CREATE TABLE pending_exports (threadId TEXT PRIMARY KEY)`,
+    `CREATE TABLE folder_paths (folderId TEXT NOT NULL, hostId TEXT NOT NULL, path TEXT NOT NULL, PRIMARY KEY (folderId, hostId))`,
+    `INSERT OR IGNORE INTO folder_paths (folderId, hostId, path) SELECT id, hostId, path FROM folders WHERE kind IS NULL OR kind = 'folder'`,
+    `CREATE TABLE folders_v2 (id TEXT PRIMARY KEY, projectId TEXT NOT NULL, hostId TEXT NOT NULL, parentId TEXT, name TEXT NOT NULL, path TEXT NOT NULL, sort INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL DEFAULT 'folder')`,
+    `INSERT INTO folders_v2 (id, projectId, hostId, parentId, name, path, sort, kind) SELECT id, projectId, hostId, parentId, name, path, sort, kind FROM folders`,
+    `DROP TABLE folders`,
+    `ALTER TABLE folders_v2 RENAME TO folders`,
   ]);
   type AgentsSettings = {
     agents_auto_create: boolean;
@@ -778,6 +803,54 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare("SELECT * FROM folders ORDER BY sort, name").all() as Folder[];
   const isGroup = (f: object | null | undefined) =>
     !!f && (f as { kind?: string }).kind === "group";
+  const pathRows = () =>
+    db.prepare("SELECT folderId, hostId, path FROM folder_paths").all() as {
+      folderId: string;
+      hostId: string;
+      path: string;
+    }[];
+  const pathsOf = (folderId: string) =>
+    pathRows().filter((r) => r.folderId === folderId);
+  const writePath = (folderId: string, hostId: string, folderPath: string) =>
+    db
+      .prepare(
+        "INSERT INTO folder_paths (folderId, hostId, path) VALUES (?, ?, ?) ON CONFLICT(folderId, hostId) DO UPDATE SET path=excluded.path",
+      )
+      .run(folderId, hostId, folderPath);
+  const withPaths = (f: Folder): Folder => {
+    if (isGroup(f)) return { ...f, paths: [] };
+    const extra = pathsOf(f.id);
+    return {
+      ...f,
+      paths: extra.length
+        ? extra.map((r) => ({ hostId: r.hostId, path: r.path }))
+        : [{ hostId: f.hostId, path: f.path }],
+    };
+  };
+  const bindFolder = (f: Folder, hostId: string): Folder | null => {
+    const p =
+      pathsOf(f.id).find((r) => r.hostId === hostId)?.path ??
+      (f.hostId === hostId ? f.path : null);
+    return p ? { ...f, hostId, path: p, paths: withPaths(f).paths } : null;
+  };
+  const foldersAt = (
+    hostId: string,
+    workspace: string,
+    projectId?: string | null,
+  ) => {
+    const p = canonicalPath(hostId, workspace);
+    const ids = new Set(
+      pathRows()
+        .filter((r) => r.hostId === hostId && r.path === p)
+        .map((r) => r.folderId),
+    );
+    return folders().filter(
+      (f) =>
+        !isGroup(f) &&
+        (projectId == null || f.projectId === projectId) &&
+        ((f.hostId === hostId && f.path === p) || ids.has(f.id)),
+    );
+  };
   const GITHUB_CACHE_TTL_MS = 6 * 60 * 1000;
   const githubCache = new Map<
     string,
@@ -1296,8 +1369,7 @@ export default async function plugin(bb: BbPluginApi) {
   /** The section a workspace path belongs to, resolved without any IO. */
   const folderAt = (hostId: string, workspace: string | null) => {
     if (!workspace) return null;
-    const p = canonicalPath(hostId, workspace);
-    return folders().find((f) => f.hostId === hostId && f.path === p) ?? null;
+    return foldersAt(hostId, workspace)[0] ?? null;
   };
   /**
    * Workspace paths recorded before a finished relocation follow it to the
@@ -1460,7 +1532,7 @@ export default async function plugin(bb: BbPluginApi) {
       );
     return !base || base.hostId !== f.hostId || !within(f.path, base.path);
   }
-  /** An absolute section path on a device: not a project root, another section or a reserved folder. */
+  /** An absolute section path on a device. Other sections may share it. */
   async function externalFolderPath(
     projectId: string,
     hostId: string,
@@ -1478,37 +1550,21 @@ export default async function plugin(bb: BbPluginApi) {
       );
     const projects = await bb.sdk.projects.list();
     for (const project of projects)
-      for (const s of project.sources)
-        if (
-          s.type === "local_path" &&
-          s.hostId === hostId &&
-          (within(p, s.path) || within(s.path, p))
-        )
+      for (const s of project.sources) {
+        if (s.type !== "local_path" || s.hostId !== hostId) continue;
+        if (project.id === projectId) {
+          if (p === s.path || within(p, s.path)) continue;
+          if (within(s.path, p))
+            throw new Error(
+              "The folder overlaps the project folder: choose one inside the parent section, the project folder itself, or fully outside the project.",
+            );
+          continue;
+        }
+        if (within(p, s.path) || within(s.path, p))
           throw new Error(
-            project.id === projectId
-              ? "The folder overlaps the project folder: choose one inside the parent section or fully outside the project."
-              : `The project “${project.name}” already works in this folder.`,
+            `The project “${project.name}” already works in this folder.`,
           );
-    // A refusal that does not say who holds the folder sends the user hunting
-    // through the tree: one folder is one section, and the one that has it is
-    // often in another project entirely.
-    const named = (f: Folder) => {
-      const owner = projects.find((x) => x.id === f.projectId)?.name;
-      return owner
-        ? `the section “${f.name}” of “${owner}”`
-        : `the section “${f.name}”`;
-    };
-    for (const f of folders())
-      if (
-        !isGroup(f) &&
-        f.hostId === hostId &&
-        (within(p, f.path) || within(f.path, p))
-      )
-        throw new Error(
-          f.path === p
-            ? `This folder is already ${named(f)}.`
-            : `This folder ${within(p, f.path) ? "is inside" : "contains"} ${named(f)}. Choose one that is not inside another section and does not contain one.`,
-        );
+      }
     return p;
   }
   const changed = () => bb.realtime.publish("changed", {});
@@ -1614,6 +1670,10 @@ export default async function plugin(bb: BbPluginApi) {
       absolute !== null && external === null
         ? path.relative(parent.path, absolute)
         : input.relativePath;
+    const sameAsParent =
+      absolute !== null &&
+      external === null &&
+      path.resolve(absolute) === path.resolve(parent.path);
     if (archives.moving(parent.hostId, parent.path))
       throw new Error(
         "The section is moving. Try again after the operation finishes.",
@@ -1631,7 +1691,7 @@ export default async function plugin(bb: BbPluginApi) {
       hostId: parent.hostId,
       parentId: input.folderId,
       name: input.name,
-      path: external ?? resolveFolderPath(parent.path, relativePath),
+      path: external ?? (sameAsParent ? parent.path : resolveFolderPath(parent.path, relativePath)),
       kind: "folder",
       sort:
         (
@@ -1645,15 +1705,6 @@ export default async function plugin(bb: BbPluginApi) {
             }) as { m: number }
         ).m + 1,
     };
-    if (
-      folders().some(
-        (f) =>
-          f.projectId === folder.projectId &&
-          f.hostId === folder.hostId &&
-          f.path === folder.path,
-      )
-    )
-      throw new Error("This path is already in the tree.");
     await bb.sdk.files.mkdir({
       hostId: folder.hostId,
       path: folder.path,
@@ -1669,6 +1720,7 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare(
       "INSERT INTO folders (id,projectId,hostId,parentId,name,path,sort,kind) VALUES (@id,@projectId,@hostId,@parentId,@name,@path,@sort,@kind)",
     ).run(folder);
+    writePath(folder.id, folder.hostId, folder.path);
     await seedAgents(folder, input.folderId ? node : null).catch((e) =>
       bb.log.warn(`AGENTS.md template for ${folder.path}: ${String(e)}`),
     );
@@ -1688,13 +1740,17 @@ export default async function plugin(bb: BbPluginApi) {
       folderId: null,
       hostId: env.hostId,
     }).catch(() => null);
+    const placedId = (
+      db
+        .prepare("SELECT folderId FROM thread_places WHERE threadId=?")
+        .get(threadId) as { folderId: string | null } | undefined
+    )?.folderId;
+    const placed = placedId
+      ? folders().find((x) => x.id === placedId)
+      : undefined;
     const f =
-      folders().find(
-        (f) =>
-          f.projectId === t.projectId &&
-          f.hostId === env.hostId &&
-          f.path === canonicalPath(env.hostId, env.path ?? ""),
-      ) ??
+      placed ??
+      foldersAt(env.hostId, env.path ?? "", t.projectId)[0] ??
       (root?.path === canonicalPath(env.hostId, env.path ?? "") ? root : null);
     if (!f)
       throw new Error("The chat working folder is not registered in the tree.");
@@ -1710,15 +1766,8 @@ export default async function plugin(bb: BbPluginApi) {
     const env = await bb.sdk.environments.get({
       environmentId: t.environmentId,
     });
-    const path = canonicalPath(env.hostId, env.path ?? "");
-    return (
-      folders().find(
-        (f) =>
-          f.projectId === t.projectId &&
-          f.hostId === env.hostId &&
-          f.path === path,
-      )?.id ?? null
-    );
+    const matches = foldersAt(env.hostId, env.path ?? "", t.projectId);
+    return matches.length === 1 ? matches[0].id : null;
   }
   const syncing = new Map<string, Promise<{ path: string }>>();
   const exportedHeads = new Map<string, { digest: string; snapshot: string }>();
@@ -1902,6 +1951,9 @@ export default async function plugin(bb: BbPluginApi) {
     db.prepare("DELETE FROM execution_defaults WHERE key=?").run(
       `p:${projectId}`,
     );
+    db.prepare(
+      "DELETE FROM folder_paths WHERE folderId NOT IN (SELECT id FROM folders)",
+    ).run();
     db.prepare(
       "DELETE FROM folder_rules WHERE folderId NOT IN (SELECT id FROM folders)",
     ).run();
@@ -2270,13 +2322,8 @@ export default async function plugin(bb: BbPluginApi) {
       const fs = folders();
       const bindings: Record<string, string> = {};
       for (const e of all) {
-        const f = fs.find(
-          (f) =>
-            f.hostId === e.hostId &&
-            f.projectId === e.projectId &&
-            f.path === canonicalPath(e.hostId, e.path ?? ""),
-        );
-        if (f) bindings[e.id] = f.id;
+        const matches = foldersAt(e.hostId, e.path ?? "", e.projectId);
+        if (matches.length === 1) bindings[e.id] = matches[0].id;
       }
       // Export failures re-record themselves while they keep failing; drop stale rows.
       db.prepare(
@@ -2293,7 +2340,7 @@ export default async function plugin(bb: BbPluginApi) {
         .all() as { threadId: string; folderId: string | null }[])
         places[row.threadId] = row.folderId ?? "";
       const machines = await bb.sdk.hosts.list();
-      const listedFolders = fs.map(withGithubUrl);
+      const listedFolders = fs.map((f) => withGithubUrl(withPaths(f)));
       const listedRoots = (await roots()).map(withGithubUrl);
       scheduleGithubRefresh(
         new Set(
@@ -2570,6 +2617,13 @@ export default async function plugin(bb: BbPluginApi) {
               remap(f.path),
               f.id,
             );
+        for (const row of db
+          .prepare("SELECT folderId, hostId, path FROM folder_paths")
+          .all() as { folderId: string; hostId: string; path: string }[])
+          if (row.hostId === input.hostId && withinTree(row.path, oldRoot))
+            db.prepare(
+              "UPDATE folder_paths SET path=? WHERE folderId=? AND hostId=?",
+            ).run(remap(row.path), row.folderId, row.hostId);
         for (const e of db
           .prepare("SELECT threadId,path FROM exports")
           .all() as { threadId: string; path: string | null }[])
@@ -2610,6 +2664,60 @@ export default async function plugin(bb: BbPluginApi) {
       changed();
       return { ok: true as const };
     },
+    section_path_set: async (input) => {
+      const folder = folders().find((f) => f.id === input.folderId);
+      if (!folder || isGroup(folder)) throw new Error("Section not found.");
+      const host = (await bb.sdk.hosts.list()).find(
+        (h) => h.id === input.hostId && h.status === "connected",
+      );
+      if (!host) throw new Error("The device is offline.");
+      const p = await externalFolderPath(
+        folder.projectId,
+        input.hostId,
+        input.path,
+      );
+      await bb.sdk.files.mkdir({
+        hostId: input.hostId,
+        path: p,
+        recursive: true,
+      });
+      await bb.sdk.files.mkdir({
+        hostId: input.hostId,
+        path: path.join(p, ".bb/chats"),
+        rootPath: p,
+        recursive: true,
+      });
+      writePath(folder.id, input.hostId, p);
+      if (folder.hostId === input.hostId)
+        db.prepare("UPDATE folders SET path=? WHERE id=?").run(p, folder.id);
+      forgetGithub(input.hostId, p);
+      await seedAgents({ ...folder, hostId: input.hostId, path: p }, null).catch(
+        (e) => bb.log.warn(`AGENTS.md template for ${p}: ${String(e)}`),
+      );
+      changed();
+      return { ok: true as const, path: p };
+    },
+    section_path_remove: async (input) => {
+      const folder = folders().find((f) => f.id === input.folderId);
+      if (!folder || isGroup(folder)) throw new Error("Section not found.");
+      const extra = pathsOf(folder.id);
+      const listed = extra.length
+        ? extra
+        : [{ hostId: folder.hostId, path: folder.path }];
+      if (listed.length <= 1)
+        throw new Error("The last section path cannot be removed.");
+      if (folder.hostId === input.hostId)
+        throw new Error(
+          "Remove extra device paths first, or change the home path instead.",
+        );
+      db.prepare("DELETE FROM folder_paths WHERE folderId=? AND hostId=?").run(
+        folder.id,
+        input.hostId,
+      );
+      forgetGithub(input.hostId, listed.find((r) => r.hostId === input.hostId)?.path ?? "");
+      changed();
+      return { ok: true as const };
+    },
     create,
     locations: async (input) => {
       const hosts = await bb.sdk.hosts.list();
@@ -2629,11 +2737,8 @@ export default async function plugin(bb: BbPluginApi) {
             (s) => s.type === "local_path" && s.hostId === h.id,
           );
           const p =
-            anchor?.hostId === h.id
-              ? anchor.path
-              : source?.type === "local_path"
-                ? source.path
-                : null;
+            (anchor ? bindFolder(anchor, h.id)?.path : null) ??
+            (source?.type === "local_path" ? source.path : null);
           const reason =
             h.status !== "connected"
               ? "Device offline"
@@ -2692,7 +2797,11 @@ export default async function plugin(bb: BbPluginApi) {
       return { ok: true };
     },
     rules_read: async (input) => {
-      const f = await target(input);
+      const raw = await target(input, { anyHost: !!input.hostId });
+      const f =
+        input.folderId && input.hostId
+          ? (bindFolder(raw, input.hostId) ?? raw)
+          : raw;
       if (!rulesAllowed(input.folderId ? f : null))
         throw new Error(
           "Rules are available only for projects and sections, not groups.",
@@ -2738,7 +2847,11 @@ export default async function plugin(bb: BbPluginApi) {
       };
     },
     rules_save: async (input) => {
-      const f = await target(input);
+      const raw = await target(input, { anyHost: !!input.hostId });
+      const f =
+        input.folderId && input.hostId
+          ? (bindFolder(raw, input.hostId) ?? raw)
+          : raw;
       if (!rulesAllowed(input.folderId ? f : null))
         throw new Error(
           "Rules are available only for projects and sections, not groups.",
@@ -3068,7 +3181,14 @@ export default async function plugin(bb: BbPluginApi) {
           : req.environment.type === "host"
             ? req.environment.hostId
             : undefined;
-      if (!input.folderId && picked && picked !== f.hostId) {
+      if (input.folderId && picked && picked !== f.hostId) {
+        const bound = bindFolder(f, picked);
+        if (!bound)
+          throw new Error(
+            "This section has no folder on the selected device. Set a path for that device in the section card.",
+          );
+        f = bound;
+      } else if (!input.folderId && picked && picked !== f.hostId) {
         const copy = (await roots()).find(
           (r) => r.projectId === f.projectId && r.hostId === picked,
         );
@@ -3160,6 +3280,12 @@ export default async function plugin(bb: BbPluginApi) {
               },
       });
       enqueueExport(t.id);
+      if (input.folderId)
+        await handlers.thread_place({
+          threadId: t.id,
+          projectId: f.projectId,
+          folderId: f.id,
+        });
       changed();
       return { id: t.id };
     },
@@ -3346,9 +3472,11 @@ export default async function plugin(bb: BbPluginApi) {
         message:
           "A group has no folder of its own. Choose a section inside it.",
       };
-    if (folder.hostId !== hostId)
+    const bound = bindFolder(folder, hostId);
+    if (!bound)
       return {
-        message: "This section lives on another device. Pick that device.",
+        message:
+          "This section has no folder on this device. Set a path in the section card.",
       };
     if (
       moves.busy(folder.projectId) ||
@@ -3357,9 +3485,9 @@ export default async function plugin(bb: BbPluginApi) {
       return {
         message: "The project or section is moving. Finish that first.",
       };
-    if (archives.moving(folder.hostId, folder.path))
+    if (archives.moving(bound.hostId, bound.path))
       return { message: "This section is being archived." };
-    return { folder };
+    return { folder: bound };
   };
   bb.experimental_environments.register({
     id: SECTION_ENVIRONMENT_ID,
@@ -3451,6 +3579,16 @@ export default async function plugin(bb: BbPluginApi) {
         usage: "bb project-folders copy-remove <project-id> <host-id>",
       },
       {
+        name: "path-set",
+        summary: "Set a section folder on a device",
+        usage: "bb project-folders path-set <folder-id> <host-id> <path>",
+      },
+      {
+        name: "path-remove",
+        summary: "Remove a section folder from a device",
+        usage: "bb project-folders path-remove <folder-id> <host-id>",
+      },
+      {
         name: "forget",
         summary: "Compatibility alias for archiving a section",
         usage: "bb project-folders forget <folder-id>",
@@ -3535,6 +3673,25 @@ export default async function plugin(bb: BbPluginApi) {
                 hostId: z.string().min(1),
               })
               .parse({ projectId: args[1], hostId: args[2] }),
+          );
+        else if (args[0] === "path-set")
+          value = await handlers.section_path_set(
+            z
+              .object({
+                folderId: z.string().min(1),
+                hostId: z.string().min(1),
+                path: z.string().min(1),
+              })
+              .parse({ folderId: args[1], hostId: args[2], path: args[3] }),
+          );
+        else if (args[0] === "path-remove")
+          value = await handlers.section_path_remove(
+            z
+              .object({
+                folderId: z.string().min(1),
+                hostId: z.string().min(1),
+              })
+              .parse({ folderId: args[1], hostId: args[2] }),
           );
         else if (args[0] === "forget" || args[0] === "archive") {
           if (threadMoves.any())

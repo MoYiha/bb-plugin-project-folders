@@ -79,7 +79,7 @@ describe("project folder boundaries", () => {
     ])
       expect(() => resolveFolderPath("/work", p)).toThrow();
   });
-  it("creates on the source host, persists hierarchy across reload, and rejects duplicates", async () => {
+  it("creates on the source host, persists hierarchy across reload, and allows a second section at the same path", async () => {
     const h = await setup();
     try {
       const a = (await h.harness.behavior.callRpc("create", {
@@ -104,14 +104,13 @@ describe("project folder boundaries", () => {
         folders: unknown[];
       };
       expect(result.folders).toHaveLength(2);
-      await expect(
-        h.harness.behavior.callRpc("create", {
-          projectId: "p1",
-          folderId: null,
-          name: "Duplicate",
-          relativePath: "Projects",
-        }),
-      ).rejects.toThrow();
+      const twin = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "Duplicate",
+        relativePath: "Projects",
+      })) as { path: string };
+      expect(twin.path).toBe("/work/Projects");
       await expect(
         h.harness.behavior.callRpc("create", {
           projectId: "wrong",
@@ -1447,6 +1446,49 @@ async function twoDeviceSetup() {
 }
 
 describe("multi-device working copies", () => {
+  it("sets a second-device path on an existing section", async () => {
+    const { h } = await twoDeviceSetup();
+    try {
+      await h.harness.behavior.callRpc("copy_add", {
+        projectId: "p1",
+        hostId: "h2",
+        path: "/srv/selfy",
+      });
+      const section = (await h.harness.behavior.callRpc("create", {
+        projectId: "p1",
+        folderId: null,
+        name: "SEO",
+        relativePath: "seo",
+      })) as { id: string; hostId: string; path: string };
+      expect(section).toMatchObject({ hostId: "h1", path: "/work/seo" });
+      const set = (await h.harness.behavior.callRpc("section_path_set", {
+        folderId: section.id,
+        hostId: "h2",
+        path: "/srv/selfy/seo",
+      })) as { path: string };
+      expect(set.path).toBe("/srv/selfy/seo");
+      const list = (await h.harness.behavior.callRpc("list", null)) as {
+        folders: {
+          id: string;
+          hostId: string;
+          path: string;
+          paths?: { hostId: string; path: string }[];
+        }[];
+      };
+      const seo = list.folders.find((f) => f.id === section.id)!;
+      expect(seo.hostId).toBe("h1");
+      expect(seo.path).toBe("/work/seo");
+      expect(seo.paths).toEqual(
+        expect.arrayContaining([
+          { hostId: "h1", path: "/work/seo" },
+          { hostId: "h2", path: "/srv/selfy/seo" },
+        ]),
+      );
+    } finally {
+      await h.harness.lifecycle.dispose();
+    }
+  });
+
   it("adds a working copy on another device: source, folder and AGENTS.md", async () => {
     const { h, sources } = await twoDeviceSetup();
     try {
@@ -1625,7 +1667,7 @@ describe("multi-device working copies", () => {
             executionInputSources: {},
           },
         }),
-      ).rejects.toThrow(/lives on the/);
+      ).rejects.toThrow(/no folder on the selected device/);
     } finally {
       await h.harness.lifecycle.dispose();
     }
@@ -1946,8 +1988,6 @@ describe("sections on another device inside a group", () => {
       ).toBe(true);
       for (const [relativePath, error] of [
         ["/", /disk root/],
-        ["/home/u/sites/client_com/admin", /inside another section/],
-        ["/home/u/sites", /inside another section/],
         ["/home/u", /overlaps the project folder/],
         ["/home/u/sites/.git", /reserved/],
       ] as const)
@@ -2190,43 +2230,44 @@ describe("rules from the CLI", () => {
   });
 });
 
-it("names the section that already holds a folder instead of just refusing", async () => {
+it("lets several sections share one folder and add a path on another device", async () => {
   const h = await setup();
   try {
     const call = h.harness.behavior.callRpc;
-    await call("create", {
+    const seo = (await call("create", {
       projectId: "p1",
       folderId: null,
-      name: "Parser",
+      name: "SEO",
       relativePath: "/srv/sites/muse",
-    });
-    // The same folder again: say who has it, and where that section lives.
-    await expect(
-      call("create", {
-        projectId: "p1",
-        folderId: null,
-        name: "Parser again",
-        relativePath: "/srv/sites/muse",
-      }),
-    ).rejects.toThrow(/already the section .Parser. of .Test./);
-    // A folder above it: say which way the overlap goes.
-    await expect(
-      call("create", {
-        projectId: "p1",
-        folderId: null,
-        name: "Sites",
-        relativePath: "/srv/sites",
-      }),
-    ).rejects.toThrow(/contains the section .Parser./);
-    // And a folder inside it.
-    await expect(
-      call("create", {
-        projectId: "p1",
-        folderId: null,
-        name: "Inside",
-        relativePath: "/srv/sites/muse/data",
-      }),
-    ).rejects.toThrow(/is inside the section .Parser./);
+    })) as { id: string; path: string };
+    const ads = (await call("create", {
+      projectId: "p1",
+      folderId: null,
+      name: "Ads",
+      relativePath: "/srv/sites/muse",
+    })) as { id: string; path: string };
+    const smm = (await call("create", {
+      projectId: "p1",
+      folderId: null,
+      name: "SMM",
+      relativePath: "/srv/sites/muse",
+    })) as { id: string; path: string };
+    expect(seo.path).toBe("/srv/sites/muse");
+    expect(ads.path).toBe("/srv/sites/muse");
+    expect(smm.path).toBe("/srv/sites/muse");
+    const listed = (await call("list", null)) as {
+      folders: { id: string; name: string; path: string; paths?: { hostId: string; path: string }[] }[];
+    };
+    expect(
+      listed.folders.filter((f) => f.path === "/srv/sites/muse").map((f) => f.name).sort(),
+    ).toEqual(["Ads", "SEO", "SMM"]);
+    const root = (await call("create", {
+      projectId: "p1",
+      folderId: null,
+      name: "Root work",
+      relativePath: "/work",
+    })) as { path: string };
+    expect(root.path).toBe("/work");
   } finally {
     await h.harness.lifecycle.dispose();
   }

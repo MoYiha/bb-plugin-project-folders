@@ -46,7 +46,7 @@ it("shows the selected section details with allowed actions", async () => {
   const view = renderSlot(app.navPanels[0]!, { subPath: "" }, { rpc });
   await view.findByText("Project");
   view.getByText("Section").click();
-  await view.findByText("/work/Section");
+  await view.findByDisplayValue("/work/Section");
   expect(view.baseElement.textContent).toContain("New section");
   expect(view.baseElement.textContent).toContain("Rules");
   expect(view.baseElement.textContent).toContain("Archive");
@@ -66,7 +66,7 @@ it("switches the section card between rules, provider and session blocks", async
   );
   await view.findByText("Project");
   view.getByText("Section").click();
-  await view.findByText("/work/Section");
+  await view.findByDisplayValue("/work/Section");
   const nav = view.getByRole("tablist", { name: "Place settings" });
   expect(within(nav).getByRole("tab", { name: "Rules" })).toBeTruthy();
   expect(within(nav).getByRole("tab", { name: "Provider" })).toBeTruthy();
@@ -624,7 +624,7 @@ it("lists the plugin settings sections in the tree sidebar and opens them", asyn
   fireEvent.click(view.getByRole("button", { name: "Section archive" }));
   await view.findByText("Archive is empty");
   view.getByText("Section").click();
-  await view.findByText("/work/Section");
+  await view.findByDisplayValue("/work/Section");
   expect(
     view
       .getByRole("button", { name: "Section archive" })
@@ -675,7 +675,7 @@ it("offers Rules on a third-level section and not on a group", async () => {
   );
   await view.findByText("L3");
   view.getByText("L3").click();
-  await view.findByText("/work/a/b/c");
+  await view.findByDisplayValue("/work/a/b/c");
   const details = view.baseElement.querySelector(".pf-details")!;
   expect(details.textContent).toContain("Rules");
   view.getByText("Apps").click();
@@ -826,7 +826,7 @@ it("loads the rules of a card opened by deep link, before the tree arrives", asy
       },
     },
   );
-  await view.findByText("/work/Section");
+  await view.findByDisplayValue("/work/Section");
   expect(await view.findByRole("tab", { name: "Default" })).toBeTruthy();
   view.lifecycle.unmount();
 });

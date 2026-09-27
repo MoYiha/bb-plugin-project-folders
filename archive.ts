@@ -166,9 +166,27 @@ export function makeArchives(
             .map((e) => e.id),
         );
         const all = await threadInventory(f.projectId);
-        const selected = all.filter(
-          (t) => t.environmentId && envIds.has(t.environmentId),
+        const places = Object.fromEntries(
+          (
+            db
+              .prepare("SELECT threadId, folderId FROM thread_places")
+              .all() as { threadId: string; folderId: string | null }[]
+          ).map((r) => [r.threadId, r.folderId]),
         );
+        const pathShared = options
+          .folders()
+          .some(
+            (c) =>
+              c.id !== f.id &&
+              c.kind !== "group" &&
+              c.hostId === f.hostId &&
+              c.path === f.path,
+          );
+        const selected = all.filter((t) => {
+          if (!t.environmentId || !envIds.has(t.environmentId)) return false;
+          if (!pathShared) return true;
+          return places[t.id] === f.id;
+        });
         const ids = new Set(selected.map((t) => t.id));
         if (
           all.some(
@@ -201,7 +219,8 @@ export function makeArchives(
                 c.kind !== "group" &&
                 c.projectId === f.projectId &&
                 c.hostId === f.hostId &&
-                inside(c.path, f.path),
+                (c.id === f.id ||
+                  (c.path !== f.path && inside(c.path, f.path))),
             ),
         );
         const memberIds = new Set(members.map((m) => m.id));
@@ -219,7 +238,16 @@ export function makeArchives(
         // Save history before admitting the move; after journaling, event exports are suppressed.
         for (const t of selected) await options.sync(t.id);
         const id = randomUUID();
-        const external = !inside(f.path, root.path);
+        const shared = options
+          .folders()
+          .some(
+            (c) =>
+              c.id !== f.id &&
+              c.kind !== "group" &&
+              c.hostId === f.hostId &&
+              c.path === f.path,
+          );
+        const external = !inside(f.path, root.path) || shared;
         a = {
           id,
           folder: f,
@@ -330,8 +358,10 @@ export function makeArchives(
             );
         }
         db.transaction(() => {
-          for (const f of a!.members)
+          for (const f of a!.members) {
+            db.prepare("DELETE FROM folder_paths WHERE folderId=?").run(f.id);
             db.prepare("DELETE FROM folders WHERE id=?").run(f.id);
+          }
           a!.state = "archived";
           a!.error = null;
           put(a!);
@@ -415,6 +445,11 @@ export function makeArchives(
               sort: (f as { sort?: number }).sort ?? 0,
               kind: f.kind ?? "folder",
             });
+          for (const f of a.members)
+            if ((f.kind ?? "folder") === "folder")
+              db.prepare(
+                "INSERT OR IGNORE INTO folder_paths (folderId, hostId, path) VALUES (?, ?, ?)",
+              ).run(f.id, f.hostId, f.path);
         })();
         for (const threadId of a.restoreThreadIds)
           await bb.sdk.threads.unarchive({ threadId });

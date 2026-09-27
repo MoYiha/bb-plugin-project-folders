@@ -254,12 +254,15 @@ it("refuses occupied destinations and paths outside the project", async () => {
       folders: { id: string; path: string }[];
     };
     const otherPath = tree.folders.find((x) => x.id === other.id)!.path;
-    await expect(
-      f.h.harness.behavior.callRpc("section_move", {
-        folderId: section.id,
-        destination: otherPath,
-      }),
-    ).rejects.toThrow("already uses this path");
+    await f.h.harness.behavior.callRpc("section_move", {
+      folderId: section.id,
+      destination: otherPath,
+    });
+    const after = (await f.h.harness.behavior.callRpc("list")) as {
+      folders: { id: string; path: string }[];
+    };
+    expect(after.folders.find((x) => x.id === section.id)?.path).toBe(otherPath);
+    expect(after.folders.find((x) => x.id === other.id)?.path).toBe(otherPath);
     expect(await readFile(path.join(occupied, "keep"), "utf8")).toBe("keep");
   } finally {
     await f.close();
