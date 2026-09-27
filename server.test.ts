@@ -2268,6 +2268,15 @@ it("lets several sections share one folder and add a path on another device", as
       relativePath: "/work",
     })) as { path: string };
     expect(root.path).toBe("/work");
+    h.harness.inspection.sdk.stub("environments.list", async () => [
+      { id: "e-root", projectId: "p1", hostId: "h1", path: "/work" },
+      { id: "e-muse", projectId: "p1", hostId: "h1", path: "/srv/sites/muse" },
+    ]);
+    const tree = (await call("list", null)) as {
+      bindings: Record<string, string>;
+    };
+    expect(tree.bindings["e-root"]).toBeUndefined();
+    expect(tree.bindings["e-muse"]).toBeUndefined();
   } finally {
     await h.harness.lifecycle.dispose();
   }

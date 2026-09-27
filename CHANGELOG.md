@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.19 — Project-root chats stay at the project
+
+- A section that points at the project folder no longer steals chats started at the project. Those chats stay at the root unless you file them into the section.
+
 ## 0.6.18 — Shared section folders and per-device paths
 
 - Several sections (SEO, Ads, SMM) may point at the same folder.

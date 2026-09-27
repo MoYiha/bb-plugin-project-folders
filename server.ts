@@ -1748,10 +1748,13 @@ export default async function plugin(bb: BbPluginApi) {
     const placed = placedId
       ? folders().find((x) => x.id === placedId)
       : undefined;
+    const workspace = canonicalPath(env.hostId, env.path ?? "");
+    const atProject = root?.path === workspace;
     const f =
       placed ??
-      foldersAt(env.hostId, env.path ?? "", t.projectId)[0] ??
-      (root?.path === canonicalPath(env.hostId, env.path ?? "") ? root : null);
+      (atProject
+        ? root
+        : (foldersAt(env.hostId, env.path ?? "", t.projectId)[0] ?? null));
     if (!f)
       throw new Error("The chat working folder is not registered in the tree.");
     return { t, f };
@@ -1766,6 +1769,11 @@ export default async function plugin(bb: BbPluginApi) {
     const env = await bb.sdk.environments.get({
       environmentId: t.environmentId,
     });
+    const workspace = canonicalPath(env.hostId, env.path ?? "");
+    const root = (await roots()).find(
+      (r) => r.projectId === t.projectId && r.hostId === env.hostId,
+    );
+    if (root?.path === workspace) return null;
     const matches = foldersAt(env.hostId, env.path ?? "", t.projectId);
     return matches.length === 1 ? matches[0].id : null;
   }
@@ -2320,8 +2328,19 @@ export default async function plugin(bb: BbPluginApi) {
     list: async () => {
       const all = await bb.sdk.environments.list();
       const fs = folders();
+      const projectRoots = await roots();
       const bindings: Record<string, string> = {};
       for (const e of all) {
+        const workspace = canonicalPath(e.hostId, e.path ?? "");
+        if (
+          projectRoots.some(
+            (r) =>
+              r.projectId === e.projectId &&
+              r.hostId === e.hostId &&
+              r.path === workspace,
+          )
+        )
+          continue;
         const matches = foldersAt(e.hostId, e.path ?? "", e.projectId);
         if (matches.length === 1) bindings[e.id] = matches[0].id;
       }
@@ -2341,7 +2360,7 @@ export default async function plugin(bb: BbPluginApi) {
         places[row.threadId] = row.folderId ?? "";
       const machines = await bb.sdk.hosts.list();
       const listedFolders = fs.map((f) => withGithubUrl(withPaths(f)));
-      const listedRoots = (await roots()).map(withGithubUrl);
+      const listedRoots = projectRoots.map(withGithubUrl);
       scheduleGithubRefresh(
         new Set(
           machines.filter((h) => h.status === "connected").map((h) => h.id),
