@@ -1,0 +1,64 @@
+---
+title: Projects & Sections — Project facts
+updated: 2026-09-27
+sources:
+  - package.json
+  - server.ts
+  - app.tsx
+  - host.ts
+  - docs/architecture.md
+  - docs/gotchas.md
+  - docs/api.md
+---
+# Identity
+
+- BB plugin package: `bb-plugin-project-folders`; product name: Projects & Sections (`package.json:2-17`).
+- TypeScript ES module; BB `>=0.43.3`; SDK `>=0.4.84` (`package.json:4-7`).
+- Plugin entries: `server.ts`, `app.tsx`, `host.ts` (`package.json:9-18`).
+- License: MIT (`package.json:70`).
+
+## Entry points
+
+- Server: RPC contract, persistence, BB SDK integration, CLI commands — [API](docs/api.md), [architecture](docs/architecture.md) (`server.ts:187-602`, `server.ts:631-718`).
+- App: plugin surfaces and settings (`app.tsx:1-70`).
+- Host: filesystem, move/link, GitHub remote and session inventory operations (`host.ts:7-16`).
+- Domain modules: archive, project move, section move, thread move, preferences, execution, session policy and export queue — [data model](docs/data-model.md), [features](docs/features/project-tree.md).
+
+## Critical invariants
+
+- Groups are organizational nodes without a working folder; use a real section for a chat environment (`section-tree.ts:8-11`, `server.ts:3340-3362`).
+- Select a section on the same host as the composer environment (`server.ts:3349-3352`).
+- Move journals are persisted before filesystem changes and retain errors for retry (`section-move.ts:237-241`, `section-move.ts:308-314`).
+- BB database history is canonical; `.bb/chats` files are exports (`server.ts:1770-1783`, `server.ts:1829-1839`).
+- Session-context filtering requires BB’s experimental extension (`session-policy-server.ts:52-68`).
+
+## Conventions
+
+- Run package scripts through `npm run typecheck`, `npm test`, and `npm run build` (`package.json:80-84`).
+- Runtime paths cross the host boundary via `moveHostContract`; host handlers are in `host.ts` (`host.ts:5-16`).
+- RPC inputs and outputs are defined with Zod in `server.ts` (`server.ts:187-602`).
+- User-facing feature ownership and behavior: [features](docs/features/project-tree.md).
+
+## Common gotchas
+
+- A fallback chat relocation requires one agent turn and a provider with the `update_environment_directory` tool ([gotchas](docs/gotchas.md#critical), `thread-move.ts:138-168`).
+- Occupied move destinations are not merged or overwritten (`section-move.ts:211-234`).
+- Required session items cannot be excluded (`session-policy.ts:32-47`).
+
+## Useful commands
+
+| Command | Purpose |
+|---|---|
+| `npm ci` | Install locked dependencies. |
+| `npm run typecheck` | TypeScript check (`package.json:80-83`). |
+| `npm test` | Run Vitest (`package.json:80-83`). |
+| `npm run build` | Build with BB CLI (`package.json:80-84`). |
+| `bb project-folders list` | List section metadata (`server.ts:3433-3436`). |
+| `bb project-folders sync <thread-id>` | Export a chat history snapshot (`server.ts:3471-3474`). |
+
+## Where to look next
+
+- [Architecture](docs/architecture.md)
+- [API](docs/api.md)
+- [Data model](docs/data-model.md)
+- [Feature pages](docs/features/project-tree.md)
